@@ -6,6 +6,8 @@ import { DeliveryUseCases } from '../application/use-cases/delivery/delivery.use
 import { authContextMiddleware } from './middlewares/auth.middleware.js';
 import { createV1QuizzesRouter } from './routes/v1-quizzes.routes.js';
 import { createV1AttemptsRouter } from './routes/v1-attempts.routes.js';
+import { AttemptExpirySweeperService } from '../application/services/attempt-expiry-sweeper.service.js';
+import { createV1InternalRouter } from './routes/v1-internal.routes.js';
 
 const app: Express = express();
 app.use(express.json());
@@ -20,11 +22,30 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, x-tenant-id');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, x-tenant-id, x-internal-secret');
+  res.header('Access-Control-Expose-Headers', 'X-Server-Time, X-Server-Timestamp');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
+});
+
+// Server-Authoritative Clock Synchronization Middleware (RFC/Zero-Trust Timing Defense)
+app.use((_req: Request, res: Response, next) => {
+  const now = new Date();
+  res.setHeader('X-Server-Time', now.toISOString());
+  res.setHeader('X-Server-Timestamp', now.getTime().toString());
+  next();
+});
+
+// Dedicated Precision Server Clock Synchronization Route (Cristian's Algorithm Target)
+app.get('/v1/time', (_req: Request, res: Response) => {
+  const now = new Date();
+  res.status(200).json({
+    success: true,
+    serverTime: now.toISOString(),
+    timestampMs: now.getTime(),
+  });
 });
 
 // Authentication Services Initialization (In-Process Integration on Port 3000)
@@ -47,6 +68,10 @@ const assessmentRepo = new InMemoryAssessmentRepository();
 const authoringUseCases = new AuthoringUseCases(assessmentRepo);
 const deliveryUseCases = new DeliveryUseCases(assessmentRepo, assessmentRepo);
 
+// Background Attempt Expiry Sweeper Service (Active Hardening & Cloud Scheduler Target)
+const sweeperService = new AttemptExpirySweeperService(assessmentRepo, assessmentRepo);
+sweeperService.start(30000);
+
 // Discovery API
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({
@@ -56,6 +81,7 @@ app.get('/', (req: Request, res: Response) => {
     version: '2.0.0',
     endpoints: [
       { method: 'GET', path: '/health', description: 'Health check' },
+      { method: 'GET', path: '/v1/time', description: 'Server-Authoritative Clock Synchronization' },
       { method: 'GET', path: '/.well-known/jwks.json', description: 'JWKS Key Discovery' },
       { method: 'POST', path: '/v1/auth/register', description: 'Auth: User registration' },
       { method: 'POST', path: '/v1/auth/login', description: 'Auth: User login' },
@@ -72,6 +98,8 @@ app.get('/', (req: Request, res: Response) => {
       { method: 'GET', path: '/v1/attempts/:id', description: 'Delivery: Get attempt details' },
       { method: 'PUT', path: '/v1/attempts/:id/answers/:questionId', description: 'Delivery: Record answer' },
       { method: 'POST', path: '/v1/attempts/:id/submit', description: 'Delivery: Finalize & Grade attempt' },
+      { method: 'POST', path: '/v1/internal/attempts/sweep', description: 'Internal: Sweep expired attempts & auto-grade' },
+      { method: 'GET', path: '/v1/internal/attempts/sweeper-status', description: 'Internal: Check background sweeper daemon status' },
     ],
   });
 });
@@ -83,10 +111,19 @@ app.get('/health', (req: Request, res: Response) => {
 // RESTful v1 Domain Routes
 app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases));
 app.use('/v1/attempts', createV1AttemptsRouter(deliveryUseCases));
+app.use('/v1/internal', createV1InternalRouter(sweeperService));
 
 const PORT = 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Assessment Engine API Server running on http://0.0.0.0:${PORT}`);
 });
 
-export { app, authoringUseCases, deliveryUseCases, assessmentRepo, authUserRepository, authTokenService };
+export {
+  app,
+  authoringUseCases,
+  deliveryUseCases,
+  sweeperService,
+  assessmentRepo,
+  authUserRepository,
+  authTokenService,
+};

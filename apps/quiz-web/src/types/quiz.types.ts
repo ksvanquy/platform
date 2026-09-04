@@ -42,6 +42,8 @@ export type SessionStatus =
   | 'IN_PROGRESS'
   | 'PAUSED'
   | 'SUBMITTED'
+  | 'TIMED_OUT_GRADED'
+  | 'GRADED'
   | 'EXPIRED';
 
 export interface SessionDTO {
@@ -51,6 +53,10 @@ export interface SessionDTO {
   readonly durationMinutes: number;
   readonly status: SessionStatus;
   readonly startedAt: string;
+  readonly deadline?: string;
+  readonly submissionDeadline?: string;
+  readonly remainingSeconds?: number;
+  readonly serverTime?: string;
   readonly answers?: Record<string, unknown>;
 }
 
@@ -67,6 +73,7 @@ export interface SaveAnswerPayload {
   readonly userId: string;
   readonly questionId: string;
   readonly answer: unknown;
+  readonly sequenceNumber?: number;
 }
 
 export interface SaveAnswerResponse {

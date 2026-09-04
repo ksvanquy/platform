@@ -4,19 +4,22 @@ import { useServerCountdown } from '../../hooks/useServerCountdown.js';
 interface QuizTimerProps {
   startedAt?: string;
   durationMinutes?: number;
+  deadline?: string;
   onExpire?: () => void;
 }
 
 export const QuizTimer: React.FC<QuizTimerProps> = ({
   startedAt,
   durationMinutes,
+  deadline,
   onExpire,
 }) => {
-  const { formattedTime, isExpired, isWarning, isCritical } = useServerCountdown(
+  const { formattedTime, isExpired, isWarning, isCritical } = useServerCountdown({
     startedAt,
     durationMinutes,
-    onExpire
-  );
+    deadline,
+    onExpire,
+  });
 
   let statusClass = 'bg-slate-800 text-sky-400 border-slate-700';
   if (isCritical) {

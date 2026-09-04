@@ -57,12 +57,15 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
         userId,
       });
 
+      const now = new Date();
       res.status(200).json({
         success: true,
         data: {
-          attempt: result.attempt.toJSON(),
+          attempt: result.attempt.toJSON(now),
           manifest: result.manifest,
           questions: result.questions,
+          serverTime: now.toISOString(),
+          remainingSeconds: Math.floor(result.attempt.remainingTimeMs(now) / 1000),
         },
       });
     } catch (err: any) {
@@ -78,11 +81,14 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
       if (!userId) return;
 
       const result = await delivery.getAttemptDetails(String(req.params.id), userId);
+      const now = new Date();
       res.status(200).json({
         success: true,
         data: {
-          attempt: result.attempt.toJSON(),
+          attempt: result.attempt.toJSON(now),
           questions: result.questions,
+          serverTime: now.toISOString(),
+          remainingSeconds: Math.floor(result.attempt.remainingTimeMs(now) / 1000),
         },
       });
     } catch (err: any) {
@@ -91,13 +97,13 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
     }
   });
 
-  // POST /v1/attempts/:id/answers - Lưu câu trả lời (Hỗ trợ body { questionId, answer, clientTimestamp })
+  // POST /v1/attempts/:id/answers - Lưu câu trả lời (Hỗ trợ body { questionId, answer, sequenceNumber, clientTimestamp })
   router.post('/:id/answers', async (req: Request, res: Response) => {
     try {
       const userId = getAuthenticatedUserId(req, res);
       if (!userId) return;
 
-      const { questionId, answer, clientTimestamp } = req.body;
+      const { questionId, answer, sequenceNumber, clientTimestamp } = req.body;
       if (!questionId) {
         return res.status(400).json({ success: false, message: 'questionId is required', errorCode: 'INVALID_INPUT' });
       }
@@ -107,7 +113,8 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
         userId,
         questionId: String(questionId),
         answer,
-        clientTimestamp,
+        sequenceNumber: sequenceNumber !== undefined ? Number(sequenceNumber) : undefined,
+        clientTimestamp: clientTimestamp !== undefined ? Number(clientTimestamp) : undefined,
       });
 
       res.status(200).json({ success: true, message: 'Answer recorded successfully' });
@@ -123,14 +130,15 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
       const userId = getAuthenticatedUserId(req, res);
       if (!userId) return;
 
-      const { answer, clientTimestamp } = req.body;
+      const { answer, sequenceNumber, clientTimestamp } = req.body;
 
       await delivery.recordAnswer({
         attemptId: String(req.params.id),
         userId,
         questionId: String(req.params.questionId),
         answer,
-        clientTimestamp,
+        sequenceNumber: sequenceNumber !== undefined ? Number(sequenceNumber) : undefined,
+        clientTimestamp: clientTimestamp !== undefined ? Number(clientTimestamp) : undefined,
       });
 
       res.status(200).json({ success: true, message: 'Answer recorded successfully' });
@@ -151,11 +159,13 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
         userId,
       });
 
+      const now = new Date();
       res.status(200).json({
         success: true,
         data: {
-          attempt: result.attempt.toJSON(),
+          attempt: result.attempt.toJSON(now),
           scoreResult: result.scoreResult,
+          serverTime: now.toISOString(),
         },
       });
     } catch (err: any) {

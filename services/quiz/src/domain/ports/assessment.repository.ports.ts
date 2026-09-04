@@ -18,4 +18,5 @@ export interface DeliveryRepositoryPort {
   saveAttempt(attempt: Attempt): Promise<void>;
   findAttemptById(id: string): Promise<Attempt | null>;
   listAttemptsByUser(userId: string, quizId?: string): Promise<Attempt[]>;
+  findExpiredInProgressAttempts(now?: Date, gracePeriodMs?: number): Promise<Attempt[]>;
 }

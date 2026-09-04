@@ -10,6 +10,7 @@ import {
   SubmitQuizPayload,
   SubmitQuizResponse,
 } from '../types/scoring.types.js';
+import { TimeSyncManager } from '../utils/TimeSyncManager.js';
 
 export const quizApi = {
   /**
@@ -30,9 +31,23 @@ export const quizApi = {
     const createRes = await apiClient.attempts.create(quizId);
     const attempt = createRes.data;
 
-    // 2. Bắt đầu ca thi và nhận câu hỏi đã khử khuẩn
+    // 2. Bắt đầu ca thi và nhận câu hỏi đã khử khuẩn cùng timing metadata
     const startRes = await apiClient.attempts.start(attempt.id);
-    const { attempt: startedAttempt, questions: rawQuestions, manifest } = startRes.data;
+    const {
+      attempt: startedAttempt,
+      questions: rawQuestions,
+      manifest,
+      serverTime,
+      remainingSeconds,
+    } = startRes.data;
+
+    // Đồng bộ đồng hồ với mốc thời gian máy chủ trả về
+    if (serverTime) {
+      TimeSyncManager.getInstance().syncFromTimestamp(new Date(serverTime).getTime());
+    } else {
+      // Thực hiện đồng bộ nền qua endpoint /v1/time
+      TimeSyncManager.getInstance().syncWithServer().catch(() => {});
+    }
 
     // 3. Chuẩn hóa câu hỏi theo QuestionDTO của web client
     const questions: QuestionDTO[] = (rawQuestions || []).map((q: any) => {
@@ -77,6 +92,10 @@ export const quizApi = {
       durationMinutes: manifest?.timeLimitMinutes || 15,
       status: startedAttempt.status,
       startedAt: startedAttempt.startedAt || new Date().toISOString(),
+      deadline: startedAttempt.deadline || manifest?.deadline,
+      submissionDeadline: startedAttempt.submissionDeadline,
+      remainingSeconds: startedAttempt.remainingSeconds ?? remainingSeconds,
+      serverTime: serverTime || startedAttempt.startedAt,
       answers: startedAttempt.answers || {},
     };
 
@@ -85,15 +104,17 @@ export const quizApi = {
 
   /**
    * Tự động lưu tiến độ câu trả lời theo chuẩn RESTful:
-   * PUT /v1/attempts/:id/answers/:questionId kèm clientTimestamp để chống ghi đè khi mạng trễ
+   * PUT /v1/attempts/:id/answers/:questionId kèm sequenceNumber (BƯỚC 4) để chống ghi đè khi mạng trễ
    */
   async saveAnswer(payload: SaveAnswerPayload): Promise<SaveAnswerResponse> {
+    const timeSync = TimeSyncManager.getInstance();
     const res = await apiClient.attempts.recordAnswer(
       payload.sessionId,
       payload.questionId,
       {
         answer: payload.answer,
-        clientTimestamp: Date.now(),
+        sequenceNumber: payload.sequenceNumber,
+        clientTimestamp: timeSync.getNow(),
       }
     );
     return {

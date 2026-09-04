@@ -69,6 +69,12 @@ export class InMemoryAssessmentRepository
     );
   }
 
+  async findExpiredInProgressAttempts(now: Date = new Date(), gracePeriodMs = 15000): Promise<Attempt[]> {
+    return Array.from(this.attempts.values()).filter(
+      (a) => a.status === 'IN_PROGRESS' && a.isSubmissionTimeExpired(now, gracePeriodMs)
+    );
+  }
+
   private seedDefaults(): void {
     const quizId = 'quiz_demo';
     const versionId = 'ver_demo_v1';

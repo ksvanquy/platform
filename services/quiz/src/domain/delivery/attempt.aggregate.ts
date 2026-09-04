@@ -4,13 +4,15 @@ import {
   AttemptAlreadySubmittedError,
   AttemptTimeExpiredError,
   OutdatedAnswerTimestampError,
+  OutdatedAnswerSequenceError,
   InvalidAttemptStateTransitionError,
 } from '../errors/domain-errors.js';
 
 export interface CandidateAnswerRecord {
   readonly answer: unknown;
   readonly answeredAt: Date;
-  readonly clientTimestamp: number;
+  readonly sequenceNumber: number;
+  readonly clientTimestamp?: number;
 }
 
 export interface QuestionScoreDetail {
@@ -90,10 +92,12 @@ export class Attempt {
     this._answers = new Map();
     if (props.answers) {
       for (const [qId, record] of Object.entries(props.answers)) {
+        const seq = record.sequenceNumber ?? (record as any).clientTimestamp ?? 1;
         this._answers.set(qId, {
           answer: record.answer,
           answeredAt: new Date(record.answeredAt),
-          clientTimestamp: record.clientTimestamp,
+          sequenceNumber: seq,
+          clientTimestamp: (record as any).clientTimestamp ?? seq,
         });
       }
     }
@@ -122,7 +126,12 @@ export class Attempt {
   get answers(): Readonly<Record<string, CandidateAnswerRecord>> {
     const map: Record<string, CandidateAnswerRecord> = {};
     for (const [qId, rec] of this._answers.entries()) {
-      map[qId] = { ...rec, answeredAt: new Date(rec.answeredAt) };
+      map[qId] = {
+        ...rec,
+        answeredAt: new Date(rec.answeredAt),
+        sequenceNumber: rec.sequenceNumber,
+        clientTimestamp: rec.clientTimestamp ?? rec.sequenceNumber,
+      };
     }
     return Object.freeze(map);
   }
@@ -132,12 +141,32 @@ export class Attempt {
   }
 
   /**
-   * Kiểm tra đã quá hạn nộp bài chưa (Server-Authoritative)
+   * Tier 1: Kiểm tra xem đã hết thời gian làm bài chưa (Official Deadline)
+   * Sau mốc này, tuyệt đối KHÔNG được chọn hay sửa đáp án mới (Zero Tolerance cho làm thêm giờ)
    */
-  isExpired(now: Date = new Date(), gracePeriodMs = 15000): boolean {
+  isAnswerTimeExpired(now: Date = new Date()): boolean {
+    if (this._status === 'TIMED_OUT_GRADED' || this._status === 'SUBMITTED' || AttemptStateMachine.isTerminal(this._status)) {
+      return true;
+    }
+    if (!this._deadline) return false;
+    return now.getTime() > this._deadline.getTime();
+  }
+
+  /**
+   * Tier 2: Kiểm tra xem đã hết thời gian ân hạn nộp bài chưa (Submission Deadline)
+   * Kéo dài thêm gracePeriodMs (mặc định 15s) để bù trừ độ trễ đường truyền khi thí sinh bấm nộp bài
+   */
+  isSubmissionTimeExpired(now: Date = new Date(), gracePeriodMs = 15000): boolean {
     if (this._status === 'TIMED_OUT_GRADED') return true;
     if (!this._deadline) return false;
     return now.getTime() > this._deadline.getTime() + gracePeriodMs;
+  }
+
+  /**
+   * Kiểm tra đã quá hạn nộp bài chưa (Backward Compatible)
+   */
+  isExpired(now: Date = new Date(), gracePeriodMs = 15000): boolean {
+    return this.isSubmissionTimeExpired(now, gracePeriodMs);
   }
 
   /**
@@ -168,12 +197,12 @@ export class Attempt {
   }
 
   /**
-   * Ghi nhận câu trả lời từng câu (Idempotent + Concurrency Defense)
+   * Ghi nhận câu trả lời từng câu (Idempotent + Sequence-Based Concurrency Defense)
    */
   recordAnswer(
     questionId: string,
     answerPayload: unknown,
-    clientTimestamp: number,
+    sequenceNumber: number,
     now: Date = new Date(),
     gracePeriodMs = 15000
   ): void {
@@ -185,10 +214,13 @@ export class Attempt {
       throw new InvalidAttemptStateTransitionError(this._status, 'IN_PROGRESS');
     }
 
-    // Server-Authoritative Timer Check: nếu hết giờ quá hạn cho phép, chuyển sang auto-submit timeout
-    if (this.isExpired(now, gracePeriodMs)) {
-      this._status = 'TIMED_OUT_GRADED';
-      this._submittedAt = now;
+    // Tier 1: Answer Window Enforcement
+    // Tuyệt đối không cho phép ghi nhận hay sửa đáp án mới sau official deadline (Zero Tolerance)
+    if (this.isAnswerTimeExpired(now)) {
+      if (this.isSubmissionTimeExpired(now, gracePeriodMs)) {
+        this._status = 'TIMED_OUT_GRADED';
+        this._submittedAt = now;
+      }
       throw new AttemptTimeExpiredError(this.id);
     }
 
@@ -197,21 +229,24 @@ export class Attempt {
       throw new Error(`Question "${questionId}" does not belong to this attempt manifest`);
     }
 
-    // Concurrency Defense: Chống Out-Of-Order request từ client do mạng lag
+    // Concurrency Defense: Logical Sequence Number Check (BƯỚC 4)
+    // Chống Out-Of-Order request và duplicated request do mạng lag / jitter
     const existing = this._answers.get(questionId);
-    if (existing && existing.clientTimestamp > clientTimestamp) {
-      throw new OutdatedAnswerTimestampError(questionId, clientTimestamp, existing.clientTimestamp);
+    if (existing && existing.sequenceNumber >= sequenceNumber) {
+      throw new OutdatedAnswerSequenceError(questionId, sequenceNumber, existing.sequenceNumber);
     }
 
     this._answers.set(questionId, {
       answer: answerPayload,
       answeredAt: now,
-      clientTimestamp,
+      sequenceNumber,
+      clientTimestamp: sequenceNumber,
     });
   }
 
   /**
    * Nộp bài thi (Graceful Auto-Submit on Timeout + Idempotency)
+   * Tier 2: Submission Window Enforcement
    */
   submit(now: Date = new Date(), gracePeriodMs = 15000): void {
     // Idempotent: Nếu đã nộp trước đó thì giữ nguyên trạng thái
@@ -226,7 +261,7 @@ export class Attempt {
     this._submittedAt = now;
 
     // Graceful Auto-Submit check: Nếu nộp quá deadline + grace period
-    if (this.isExpired(now, gracePeriodMs)) {
+    if (this.isSubmissionTimeExpired(now, gracePeriodMs)) {
       this._status = 'TIMED_OUT_GRADED';
     } else {
       this._status = 'SUBMITTED';
@@ -252,7 +287,15 @@ export class Attempt {
     throw new InvalidAttemptStateTransitionError(this._status, 'GRADED');
   }
 
-  toJSON() {
+  toJSON(now: Date = new Date(), gracePeriodMs = 15000) {
+    const remainingSeconds =
+      this._deadline && this._status === 'IN_PROGRESS'
+        ? Math.max(0, Math.floor((this._deadline.getTime() - now.getTime()) / 1000))
+        : 0;
+    const submissionDeadline = this._deadline
+      ? new Date(this._deadline.getTime() + gracePeriodMs).toISOString()
+      : undefined;
+
     return {
       id: this.id,
       userId: this.userId,
@@ -261,6 +304,8 @@ export class Attempt {
       status: this._status,
       startedAt: this._startedAt ? this._startedAt.toISOString() : undefined,
       deadline: this._deadline ? this._deadline.toISOString() : undefined,
+      submissionDeadline,
+      remainingSeconds,
       submittedAt: this._submittedAt ? this._submittedAt.toISOString() : undefined,
       manifest: this._manifest,
       answers: this.answers,

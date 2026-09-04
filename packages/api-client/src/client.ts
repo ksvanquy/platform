@@ -207,7 +207,7 @@ export class ApiClient {
     recordAnswer: async (
       attemptId: string,
       questionId: string,
-      payload: { answer: any; clientTimestamp?: number }
+      payload: { answer: any; sequenceNumber?: number; clientTimestamp?: number }
     ): Promise<ApiResponse<any>> => {
       return this.put<ApiResponse<any>>(`/v1/attempts/${attemptId}/answers/${questionId}`, payload);
     },

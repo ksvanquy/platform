@@ -7,6 +7,7 @@ interface QuizHeaderProps {
   sessionId: string;
   startedAt?: string;
   durationMinutes?: number;
+  deadline?: string;
   totalQuestions: number;
   answeredCount: number;
   saveStatus: SaveStatus;
@@ -18,6 +19,7 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({
   sessionId,
   startedAt,
   durationMinutes,
+  deadline,
   totalQuestions,
   answeredCount,
   saveStatus,
@@ -62,6 +64,7 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({
           <QuizTimer
             startedAt={startedAt}
             durationMinutes={durationMinutes}
+            deadline={deadline}
             onExpire={onExpire}
           />
         </div>

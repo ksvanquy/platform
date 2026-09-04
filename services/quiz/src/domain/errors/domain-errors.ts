@@ -82,6 +82,19 @@ export class OutdatedAnswerTimestampError extends DomainError {
   }
 }
 
+export class OutdatedAnswerSequenceError extends OutdatedAnswerTimestampError {
+  readonly incomingSequence: number;
+  readonly currentSequence: number;
+
+  constructor(questionId: string, incomingSequence: number, currentSequence: number) {
+    super(questionId, incomingSequence, currentSequence);
+    this.name = 'OutdatedAnswerSequenceError';
+    (this as any).errorCode = 'OUTDATED_ANSWER_SEQUENCE';
+    this.incomingSequence = incomingSequence;
+    this.currentSequence = currentSequence;
+  }
+}
+
 export class InvalidAnswerPayloadError extends DomainError {
   constructor(questionId: string, reason: string) {
     super(`Invalid answer payload for question "${questionId}": ${reason}`, 'INVALID_ANSWER_PAYLOAD', 422);

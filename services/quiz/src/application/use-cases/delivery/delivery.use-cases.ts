@@ -27,7 +27,10 @@ export interface RecordAnswerInput {
   userId: string;
   questionId: string;
   answer: unknown;
+  sequenceNumber?: number;
   clientTimestamp?: number;
+  now?: Date;
+  gracePeriodMs?: number;
 }
 
 export interface SubmitAttemptInput {
@@ -128,7 +131,7 @@ export class DeliveryUseCases {
   }
 
   /**
-   * Ghi nhận câu trả lời từng câu (Idempotent + Concurrency Defense)
+   * Ghi nhận câu trả lời từng câu (Idempotent + Sequence-Based Concurrency Defense)
    */
   async recordAnswer(input: RecordAnswerInput): Promise<void> {
     const attempt = await this.deliveryRepo.findAttemptById(input.attemptId);
@@ -139,8 +142,11 @@ export class DeliveryUseCases {
       throw new ForbiddenError('Access denied: You do not own this attempt');
     }
 
-    const clientTimestamp = input.clientTimestamp || Date.now();
-    attempt.recordAnswer(input.questionId, input.answer, clientTimestamp);
+    const sequenceNumber = input.sequenceNumber ?? input.clientTimestamp ?? Date.now();
+    const now = input.now || new Date();
+    const gracePeriodMs = input.gracePeriodMs ?? 15000;
+
+    attempt.recordAnswer(input.questionId, input.answer, sequenceNumber, now, gracePeriodMs);
 
     await this.deliveryRepo.saveAttempt(attempt);
   }
@@ -182,9 +188,15 @@ export class DeliveryUseCases {
     return { attempt, scoreResult };
   }
 
-  async getAttemptDetails(attemptId: string, userId: string): Promise<{
+  async getAttemptDetails(
+    attemptId: string,
+    userId: string,
+    now: Date = new Date(),
+    gracePeriodMs = 15000
+  ): Promise<{
     attempt: Attempt;
     questions?: readonly DeliveryQuestion[];
+    autoSwept?: boolean;
   }> {
     const attempt = await this.deliveryRepo.findAttemptById(attemptId);
     if (!attempt) {
@@ -192,6 +204,24 @@ export class DeliveryUseCases {
     }
     if (attempt.userId !== userId) {
       throw new ForbiddenError('Access denied: You do not own this attempt');
+    }
+
+    let autoSwept = false;
+    // Opportunistic Sweeper: Nếu thí sinh tải lại trang khi đã quá hạn làm bài và nộp bài
+    if (attempt.status === 'IN_PROGRESS' && attempt.isSubmissionTimeExpired(now, gracePeriodMs)) {
+      attempt.submit(now, gracePeriodMs);
+      const version = await this.authoringRepo.findVersionById(attempt.quizVersionId);
+      if (version) {
+        const scoreResult = AssessmentScoringEngine.evaluate({
+          questions: version.questions,
+          answers: attempt.answers,
+          scoringPolicy: version.scoringPolicy,
+          passingScore: version.passingScore,
+        });
+        attempt.grade(scoreResult);
+        await this.deliveryRepo.saveAttempt(attempt);
+        autoSwept = true;
+      }
     }
 
     let questions: readonly DeliveryQuestion[] | undefined;
@@ -202,6 +232,6 @@ export class DeliveryUseCases {
       }
     }
 
-    return { attempt, questions };
+    return { attempt, questions, autoSwept };
   }
 }

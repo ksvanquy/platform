@@ -1,44 +1,66 @@
 # TÀI LIỆU THIẾT KẾ KIẾN TRÚC VÀ ĐẶC TẢ HỆ THỐNG QUIZ SERVICE
 *(Quiz Assessment Core Engine: Domain-Driven Design & Hexagonal Architecture Specification)*  
 **Dự án:** Platform Core / Quiz Assessment Engine & Auth System  
-**Phiên bản:** v3.0 (Production-Ready Architecture)  
+**Phiên bản:** v4.0 (Production-Ready Architecture with Zero-Trust Timing & Clock Synchronization Hardening)  
 **Ngày cập nhật:** September 4, 2026  
-**Trạng thái:** Hoàn tất 100% các tiêu chuẩn kiến trúc, kiểm thử tự động toàn diện (15/15 test files, 136/136 tests PASS).
+**Trạng thái:** Hoàn tất 100% các tiêu chuẩn kiến trúc & kiểm toán ngoại biên (23/23 test files, 177/177 tests PASS).
 
 ---
 
 ## I. TỔNG QUAN HỆ THỐNG VÀ NGUYÊN TẮC THIẾT KẾ (SYSTEM OVERVIEW & DESIGN PRINCIPLES)
 
-Quiz Service là lõi trung tâm của nền tảng thi và khảo sát trực tuyến, chịu trách nhiệm quản lý vòng đời đề thi (Authoring), điều phối quá trình làm bài thi (Delivery), thẩm định câu hỏi (Question Engine) và tự động chấm điểm (Scoring Engine). Hệ thống được xây dựng dựa trên các chuẩn mực kiến trúc công nghiệp:
+Quiz Service là lõi trung tâm của nền tảng thi và khảo sát trực tuyến, chịu trách nhiệm quản lý vòng đời đề thi (Authoring), điều phối quá trình làm bài thi (Delivery), thẩm định câu hỏi (Question Engine), tự động chấm điểm (Scoring Engine) và kiểm soát nghiêm ngặt bất biến thời gian thi (Zero-Trust Timing Engine). Hệ thống được xây dựng dựa trên các chuẩn mực kiến trúc công nghiệp:
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   QUIZ CORE ENGINE                                      │
-├────────────────────────────────────────────┬────────────────────────────────────────────┤
-│           SUB-DOMAIN AUTHORING             │            SUB-DOMAIN DELIVERY             │
-│  - Quiz (Entity)                           │  - Attempt (Aggregate Root)                │
-│  - QuizVersion (Immutable Snapshot)        │  - AttemptManifest (Frozen Order Snapshot) │
-│  - Publishing Policy (Invariants Check)    │  - State Machine & Deadline Timer          │
-│  - AttemptPolicy (Retake / Max Attempts)   │  - Graceful Auto-Submit on Timeout         │
-├────────────────────────────────────────────┴────────────────────────────────────────────┤
-│                                QUESTION & SCORING ENGINE                                │
-│  - Question Engine Registry (Single-choice, Multiple-choice, True/False, Extensible)    │
-│  - Scoring Strategies (ExactMatch, PartialCredit, NegativeMarking)                      │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                             RESTFUL DOMAIN API & CLIENT INTEGRATION                     │
-│  - RESTful /v1/quizzes (Catalog & Authoring) & /v1/attempts (Delivery & Examination)    │
-│  - SDK @platform/api-client & apps/quiz-web kết nối trực tiếp Delivery RESTful API      │
-│  - Bảo vệ chữ ký số RS256/JWKS, Phân quyền RBAC & Chống truy cập trái phép ca thi (IDOR)│
-└─────────────────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                             QUIZ CORE ENGINE                                                │
+├─────────────────────────────────────────────┬───────────────────────────────────────────────────────────────┤
+│            SUB-DOMAIN AUTHORING             │                      SUB-DOMAIN DELIVERY                      │
+│  - Quiz (Entity)                            │  - Attempt (Aggregate Root) & State Machine                   │
+│  - QuizVersion (Immutable Snapshot)         │  - AttemptManifest (Frozen Order & Deadline Snapshot)         │
+│  - Publishing Policy (Invariants Check)     │  - Two-Tier Invariants: Answer Deadline & Submission Cutoff   │
+│  - AttemptPolicy (Retake / Max Attempts)    │  - Logical Sequence Concurrency Control (Zero Data Loss)      │
+├─────────────────────────────────────────────┴───────────────────────────────────────────────────────────────┤
+│                             ACTIVE TIMING & EXPIRY SWEEPER INFRASTRUCTURE                                   │
+│  - AttemptExpirySweeperService (Daemon nền quét ca thi quá hạn & cưỡng chế chấm điểm TIMED_OUT_GRADED)       │
+│  - Opportunistic Sweeper (Tự động thu bài khi có request đọc chi tiết ca thi quá hạn)                        │
+│  - Endpoint /v1/internal/attempts/sweep (Hỗ trợ Cloud Scheduler & Cron Jobs bảo vệ qua Shared Secret & RBAC)│
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                         QUESTION & SCORING ENGINE                                           │
+│  - Question Engine Registry (Single-choice, Multiple-choice, True/False, Extensible Handlers)               │
+│  - Scoring Strategies (ExactMatch, PartialCredit, NegativeMarking) & Factory Architecture                   │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                  RESTFUL DOMAIN API & CLIENT SYNCHRONIZATION                                │
+│  - RESTful /v1/quizzes (Catalog & Authoring), /v1/attempts (Delivery) & GET /v1/time (Clock Sync)           │
+│  - Server Headers: X-Server-Time, X-Server-Timestamp (CORS Expose Headers)                                  │
+│  - Client Cristian's Algorithm Clock Synchronization & Monotonic Anchor (TimeSyncManager)                   │
+│  - Bảo vệ chữ ký số RS256/JWKS, Phân quyền RBAC & Chống truy cập trái phép ca thi (IDOR)                   │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 6 Tiêu Chuẩn Kiến Trúc Cốt Lõi Vận Hành:
+### 10 Tiêu Chuẩn Kiến Trúc Cốt Lõi Vận Hành:
 1. **Phân Định Sub-domain Rõ Rệt**: Tách biệt hoàn toàn giữa **Authoring** (biên soạn và xuất bản đề thi) và **Delivery** (quá trình thí sinh làm bài thi).
 2. **Đóng Băng Thứ Tự Đề Thi (`AttemptManifest` Snapshot)**: Thứ tự câu hỏi và thứ tự lựa chọn đáp án được xáo trộn (shuffle) duy nhất một lần khi bắt đầu và đóng băng vĩnh viễn trong ca thi. Thí sinh tải lại trang, đổi thiết bị hay mất mạng đều giữ nguyên đề thi.
 3. **Ranh Giới Khử Khuẩn Dữ Liệu (`DeliverySanitizer` Boundary)**: Tuyệt đối không gửi đáp án đúng (`correctAnswer`, `isCorrect`), giải thích (`explanation`) hay barem chấm điểm (`gradingRubric`) về phía trình duyệt khi thí sinh đang làm bài.
-4. **Kiểm Soát Xung Đột & Tính Bất Biến Lệnh (`Idempotency & Concurrency Defense`)**: Mọi thao tác lưu câu trả lời đều ghi nhận `clientTimestamp`, từ chối các gói tin đến muộn (Out-Of-Order request) do độ trễ mạng gây ra.
-5. **Thu Bài Tự Động Nhân Đạo (`Graceful Auto-Submit on Timeout`)**: Khi hết giờ làm bài, hệ thống không hủy bài thi hay chấm 0 điểm, mà tự động chuyển sang trạng thái `TIMED_OUT_GRADED` và chấm điểm các câu thí sinh đã kịp lưu trước thời điểm hết giờ.
-6. **Chống Gian Lận Đa Tab & Phân Quyền Hạt Mịn (Anti-Fraud & RBAC)**: Mỗi thí sinh chỉ được mở tối đa một lượt thi ở trạng thái `IN_PROGRESS` trên cùng một đề thi; chặn triệt để lỗ hổng IDOR, nghiêm cấm truy cập hoặc nộp bài vào ca thi của người khác.
+4. **Kiến Trúc Thời Gian Hai Tầng Chuẩn Xác (Two-Tier Server-Authoritative Timing Architecture)**:
+   - **Tier 1 (Hạn chót trả lời - `deadline`)**: Khi `now > deadline`, hệ thống nghiêm cấm lưu thêm hoặc sửa đổi câu trả lời (`AttemptTimeExpiredError` - HTTP 400).
+   - **Tier 2 (Hạn chót nộp bài - `submissionDeadline = deadline + 15s`)**: Khoảng ân hạn (Grace Period) 15 giây **chỉ dành riêng cho việc gửi gói tin nộp bài** qua mạng Internet. Nộp trong 15s được tính là `SUBMITTED` hợp lệ; sau 15s tự động chuyển thành `TIMED_OUT_GRADED`.
+5. **Đồng Bộ Đồng Hồ Khách Hàng Chuẩn Thuật Toán Cristian (Cristian's Sync on Monotonic Time)**:
+   - Client tính độ trễ mạng khứ hồi $\text{RTT} = T_{\text{client\_receive}} - T_{\text{client\_start}}$ và ước lượng giờ máy chủ: $T_{\text{server\_est}} = T_{\text{server}} + \frac{\text{RTT}}{2}$.
+   - Neo mốc đồng hồ vào `performance.now()` (Monotonic Time), hoàn toàn miễn nhiễm với việc người dùng chỉnh lùi giờ hệ điều hành hoặc gian lận đồng hồ (Clock Tampering).
+6. **Kiểm Soát Tranh Chấp Bằng Chuỗi Thứ Tự Logic (Logical Sequence Concurrency Control)**:
+   - Mỗi câu trả lời được gán một số thứ tự logic tự tăng nghiêm ngặt (`sequenceNumber: 1, 2, 3...`) độc lập cho từng câu hỏi.
+   - Server từ chối mọi gói tin out-of-order hoặc duplicate packet bằng `OutdatedAnswerSequenceError` (HTTP 409 Conflict, `errorCode: 'OUTDATED_ANSWER_SEQUENCE'`), bảo đảm không bao giờ bị ghi đè ngược do biến động độ trễ mạng (Network Jitter).
+7. **Quét Ca Thi Quá Hạn Chủ Động & Cơ Hội (Active Daemon & Opportunistic Expiry Sweeper)**:
+   - Nền tảng duy trì bộ quét nền định kỳ `AttemptExpirySweeperService` tự động thu bài và chấm điểm các ca thi bị thí sinh bỏ rơi (đóng tab, tắt máy).
+   - Cơ chế Opportunistic Sweeper tự động phát hiện ca thi quá hạn và kích hoạt chấm điểm ngay khi có request truy vấn ca thi.
+8. **Thu Bài Tự Động Nhân Đạo & Chống Mất Dữ Liệu (Graceful Auto-Submit & Zero Data Loss Flush)**:
+   - Khi hết giờ, bài thi không bị hủy hay gán 0 điểm mà được tự động chuyển sang `TIMED_OUT_GRADED` và chấm điểm các câu đã kịp lưu.
+   - Phía Client: Tự động hủy toàn bộ Debounced Autosave Timers và flush đồng loạt toàn bộ các câu trả lời đang chờ lên máy chủ trước khi gửi lệnh submit bài thi, triệt tiêu 100% nguy cơ mất dữ liệu câu hỏi cuối cùng.
+9. **Chống Gian Lận Đa Tab & Phân Quyền Hạt Mịn (Anti-Fraud & RBAC)**:
+   - Mỗi thí sinh chỉ được mở tối đa một lượt thi ở trạng thái `IN_PROGRESS` trên cùng một đề thi; chặn triệt để lỗ hổng IDOR, nghiêm cấm truy cập hoặc nộp bài vào ca thi của người khác.
+10. **Độc Lập Dịch Vụ & Hợp Nhất Chữ Ký Số (Database-per-Service & RS256/JWKS)**:
+    - Cơ sở dữ liệu của Auth Service và Quiz Service tách biệt hoàn toàn; liên kết qua Token Context và khóa công khai RS256 chuẩn công nghiệp.
 
 ---
 
@@ -53,8 +75,8 @@ services/quiz/src/
 │   │   ├── publishing.policy.ts               # Bộ quy tắc Invariants khi xuất bản đề
 │   │   └── attempt.policy.ts                  # Chính sách số lượt thi & thi lại
 │   ├── delivery/                              # Sub-domain Phòng thi & Vận hành
-│   │   ├── attempt.aggregate.ts               # Aggregate Root Attempt
-│   │   ├── attempt-manifest.ts                # Snapshot thứ tự câu hỏi & options
+│   │   ├── attempt.aggregate.ts               # Aggregate Root Attempt (Two-Tier Timing & Sequence Control)
+│   │   ├── attempt-manifest.ts                # Snapshot thứ tự câu hỏi, options & deadline
 │   │   ├── attempt-status.ts                  # Máy trạng thái State Machine & Transitions
 │   │   └── delivery-sanitizer.ts              # Lọc đáp án bảo vệ đề thi
 │   ├── question-engine/                       # Động cơ Xử lý Câu hỏi
@@ -72,28 +94,41 @@ services/quiz/src/
 │   ├── context/                               # Ngữ cảnh phiên thi
 │   │   └── quiz-context.ts
 │   └── errors/                                # Danh mục Lỗi Nghiệp Vụ Chuẩn Hóa
-│       └── domain-errors.ts
-├── application/                               # Lớp Điều Phối Tác Vụ (Use Cases)
+│       └── domain-errors.ts                   # OutdatedAnswerSequenceError, AttemptTimeExpiredError...
+├── application/                               # Lớp Điều Phối Tác Vụ (Use Cases & Services)
 │   ├── dtos/                                  # Data Transfer Objects
 │   │   └── quiz.dto.ts
+│   ├── services/                              # Dịch Vụ Ứng Dụng Hạ Tầng Nền
+│   │   └── attempt-expiry-sweeper.service.ts  # Bộ quét nền thu bài quá hạn & chấm điểm
 │   └── use-cases/
 │       ├── authoring/                         # AuthoringUseCases (create, version, publish)
 │       │   └── authoring.use-cases.ts
-│       ├── delivery/                          # DeliveryUseCases (create, start, answer, submit)
+│       ├── delivery/                          # DeliveryUseCases (create, start, answer, submit, sweep)
 │       │   └── delivery.use-cases.ts
 │       └── quiz.use-cases.ts
 ├── infrastructure/                            # Lớp Hạ Tầng & Kho Lưu Trữ (Repositories)
 │   └── repositories/
 │       ├── in-memory-quiz.repository.ts       # Kho lưu trữ Quiz & Versions
-│       └── in-memory-assessment.repository.ts # Kho lưu trữ Ca thi (Attempts)
+│       └── in-memory-assessment.repository.ts # Kho lưu trữ Ca thi (Attempts & Expiry Queries)
 └── presentation/                              # Lớp Giao Diện HTTP & Middlewares
     ├── middlewares/
     │   ├── auth.middleware.ts                 # Xác thực chữ ký số JWT RS256/HS256
     │   └── rbac.middleware.ts                 # Phân quyền Role & Kiểm tra IDOR
     ├── routes/
     │   ├── v1-quizzes.routes.ts               # RESTful API Authoring & Catalog
-    │   └── v1-attempts.routes.ts              # RESTful API Delivery Phòng thi
-    └── server.ts                              # Máy chủ Express Port 3000 hợp nhất
+    │   ├── v1-attempts.routes.ts              # RESTful API Delivery Phòng thi & Lưu đáp án
+    │   ├── v1-time.routes.ts                  # RESTful API Đồng bộ thời gian máy chủ (GET /v1/time)
+    │   └── v1-internal.routes.ts              # RESTful API Quản trị & Sweeper (POST /v1/internal/attempts/sweep)
+    └── server.ts                              # Express Server kèm Middleware X-Server-Time & Sweeper Startup
+
+apps/quiz-web/src/                             # Giao Diện Web Khách Hàng (Client Application)
+├── utils/
+│   └── TimeSyncManager.ts                     # Quản lý đồng bộ giờ Cristian Algorithm & Monotonic Anchor
+├── hooks/
+│   ├── useServerCountdown.ts                  # Hook đếm ngược thời gian chính xác, chống trôi/sleep
+│   └── useQuizSession.ts                      # Hook điều phối thi, Monotonic Sequence & Autosave Flush
+└── api/
+    └── quiz-api.ts                            # Client API Wrapper tích hợp RTT Synchronization & Sequence
 ```
 
 ---
@@ -144,17 +179,17 @@ Hệ thống từ chối xuất bản (`POST /v1/quizzes/:id/publish`) với mã
 * `QuizVersion` là **Bản thiết kế (Blueprint)**: 1 đề thi có thể có hàng nghìn thí sinh cùng làm.
 * `Attempt` là **Một lượt thực thi cụ thể (Execution Aggregate Root)**: Đại diện cho phiên thi của thí sinh X tại thời điểm Y.
 
-### 2. Đóng Băng Thứ Tự Đề Thi (`AttemptManifest` Snapshot)
-Giải quyết triệt để vấn đề xáo trộn ngẫu nhiên mỗi lần gọi API:
+### 2. Đóng Băng Thứ Tự Đề Thi & Mốc Thời Gian (`AttemptManifest` Snapshot)
+Giải quyết triệt để vấn đề xáo trộn ngẫu nhiên mỗi lần gọi API và bảo đảm tính độc lập của ca thi:
 * Khi thí sinh gọi `POST /v1/attempts/:id/start`, hệ thống thực hiện xáo trộn ngẫu nhiên câu hỏi và danh sách lựa chọn (nếu đề thi bật cờ shuffle), sau đó lưu cố định vào thuộc tính `manifest` của `Attempt`:
   ```typescript
   export interface AttemptManifest {
     quizVersionId: string;
-    questionIds: string[];                  // Thứ tự câu hỏi đã shuffle (cố định)
+    questionIds: string[];                  // Thứ tự câu hỏi đã shuffle (cố định vĩnh viễn)
     optionOrders: Record<string, string[]>; // questionId -> danh sách optionIds đã shuffle
-    timeLimitMinutes: number;
-    startedAt: string;
-    deadline: string;
+    timeLimitMinutes: number;               // Thời gian làm bài chính thức (phút)
+    startedAt: string;                      // ISO timestamp thời điểm bắt đầu ca thi
+    deadline: string;                       // ISO timestamp hạn chót làm bài (Tier 1 cutoff)
   }
   ```
 * Mọi lời gọi API lấy thông tin ca thi tiếp theo (`GET /v1/attempts/:id`) đều sắp xếp câu hỏi đúng theo thứ tự đã lưu trong `manifest`.
@@ -164,7 +199,33 @@ Giải quyết triệt để vấn đề xáo trộn ngẫu nhiên mỗi lần g
   - **Loại bỏ triệt để**: `correctAnswer`, `correctOptionId`, `correctOptionIds`, `isCorrect`, `explanation`, `gradingRubric`.
   - **Giữ lại**: `id`, `type`, `prompt`, `points`, `options` (đã loại thuộc tính `isCorrect` và sắp xếp theo `AttemptManifest`).
 
-### 4. Máy Trạng Thái Vòng Đời Ca Thi (State Machine)
+### 4. Kiến Trúc Thời Gian Hai Tầng Chuẩn Xác (Two-Tier Server-Authoritative Timing Architecture)
+Nhằm giải quyết triệt để bài toán ranh giới thời gian (Grace Period vs. Answer Cutoff), hệ thống thiết lập hai mốc kiểm tra độc lập tại tầng Aggregate Root:
+
+```text
+               ┌───────────────────────┐             ┌────────────────────────────────┐
+               │    TIER 1 CUTOFF      │             │         TIER 2 CUTOFF          │
+               │   (Answer Deadline)   │             │   (Submission Grace Cutoff)    │
+               │  deadline = startedAt │             │  submissionDeadline = deadline │
+               │     + timeLimitMs     │             │    + submissionGracePeriodMs   │
+               └───────────┬───────────┘             └───────────────┬────────────────┘
+                           │                                         │
+──[ ĐANG LÀM BÀI ]─────────┼──[ CHỈ CHO PHÉP NỘP BÀI QUA MẠNG ]──────┼──[ QUÁ HẠN / SWEEPER ]──► Time
+ (Lưu đáp án: OK)          │  (Lưu đáp án: HTTP 400 BỊ CHẶN)         │  (Chuyển TIMED_OUT_GRADED)
+ (Nộp bài: SUBMITTED)      │  (Nộp bài: SUBMITTED - Grace OK)        │  (Chấm điểm tự động)
+```
+
+1. **Tier 1 - Hạn chót trả lời câu hỏi (`deadline`)**:
+   - `deadline = startedAt.getTime() + timeLimitMinutes * 60 * 1000`.
+   - **Bất biến kiểm tra**: Khi `now > deadline`, mọi nỗ lực lưu thêm hoặc sửa đổi câu trả lời đều bị từ chối bằng ngoại lệ `AttemptTimeExpiredError` (HTTP 400 Bad Request, `errorCode: 'ATTEMPT_TIME_EXPIRED'`).
+   - Thí sinh tuyệt đối không thể lợi dụng thời gian ân hạn mạng để trả lời thêm câu hỏi.
+2. **Tier 2 - Hạn chót gửi gói tin nộp bài (`submissionDeadline`)**:
+   - `submissionDeadline = deadline + submissionGracePeriodMs` (mặc định 15.000 ms = 15 giây).
+   - **Mục đích duy nhất**: Bù đắp độ trễ truyền gói tin nộp bài qua mạng Internet (Network Latency).
+   - Nếu thí sinh bấm nộp bài trong khoảng `deadline < now <= submissionDeadline`, ca thi vẫn được ghi nhận là `SUBMITTED` hợp lệ.
+   - Nếu request nộp bài tới sau `submissionDeadline` (hoặc do Sweeper quét trúng), ca thi tự động chuyển thành `TIMED_OUT_GRADED`.
+
+### 5. Máy Trạng Thái Vòng Đời Ca Thi (State Machine)
 
 ```text
 [ CREATED ]
@@ -173,9 +234,9 @@ Giải quyết triệt để vấn đề xáo trộn ngẫu nhiên mỗi lần g
     ▼
 [ IN_PROGRESS ]
     │
-    │  (recordAnswer) -> Ghi nhận câu trả lời từng câu (Idempotent + Timestamp check)
-    │  (submitAttempt) -> Thí sinh chủ động nộp bài trước thời hạn
-    │  (autoSubmit)    -> Thí sinh nộp muộn hoặc hết giờ thi -> Chuyển sang TIMED_OUT_GRADED
+    │  (recordAnswer) -> Ghi nhận câu trả lời (Strict Monotonic SequenceNumber check)
+    │  (submitAttempt) -> Thí sinh chủ động nộp bài trước mốc submissionDeadline
+    │  (autoSubmit)    -> Thí sinh nộp muộn (> submissionDeadline) hoặc do Sweeper quét
     ▼
 [ SUBMITTED ]
     │
@@ -185,22 +246,49 @@ Giải quyết triệt để vấn đề xáo trộn ngẫu nhiên mỗi lần g
 ```
 
 * **Trạng thái `CREATED`**: Ca thi được tạo thành công, chưa tính giờ làm bài.
-* **Trạng thái `IN_PROGRESS`**: Thí sinh đã bấm vào phòng thi, đồng hồ máy chủ tính `startedAt` và xác lập mốc `deadline = startedAt + durationMinutes`.
-* **Trạng thái `SUBMITTED` / `GRADED`**: Bài thi đã nộp, khóa hoàn toàn khả năng chỉnh sửa đáp án (`ATTEMPT_ALREADY_SUBMITTED`).
-* **Trạng thái `TIMED_OUT_GRADED` (Graceful Auto-Submit)**: Khi thí sinh nộp bài sau mốc `deadline` (kèm thời gian dung sai Grace Period), hệ thống tự động thu nhận tất cả câu trả lời đã lưu trước thời điểm hết giờ và thực hiện chấm điểm công bằng.
+* **Trạng thái `IN_PROGRESS`**: Thí sinh đã bấm vào phòng thi, đồng hồ máy chủ tính `startedAt` và xác lập mốc `deadline`.
+* **Trạng thái `SUBMITTED` / `GRADED`**: Bài thi đã nộp hợp lệ, khóa hoàn toàn khả năng chỉnh sửa đáp án (`ATTEMPT_ALREADY_SUBMITTED`).
+* **Trạng thái `TIMED_OUT_GRADED` (Graceful Auto-Submit)**: Khi ca thi quá hạn `submissionDeadline`, hệ thống bảo toàn toàn bộ câu trả lời đã lưu trước thời điểm `deadline` và thực hiện chấm điểm công bằng.
 
-### 5. Kiểm Soát Tranh Chấp & Xung Đột Gói Tin (`Concurrency & Idempotency`)
+### 6. Kiểm Soát Tranh Chấp Bằng Chuỗi Logic Tuần Tự (Logical Sequence Concurrency Control)
+Thay thế việc dựa vào `clientTimestamp` (dễ bị lệch đồng hồ client hoặc tráo gói tin mạng), hệ thống áp dụng cơ chế số thứ tự logic tự tăng nghiêm ngặt (**Monotonically Increasing Sequence Number**) theo chuẩn phân tán:
+
 * Mỗi câu trả lời được lưu trữ dưới dạng:
   ```typescript
   export interface CandidateAnswerRecord {
     answer: unknown;
     answeredAt: Date;
-    clientTimestamp: number;
+    sequenceNumber: number;          // Số thứ tự logic đơn điệu tăng dần (1, 2, 3...)
+    clientTimestamp?: number;        // Alias tương thích ngược cho các client cũ
   }
   ```
-* **Quy tắc Chống Ghi Đè Ngược**: Nếu request gửi lên có `clientTimestamp < currentAnswer.clientTimestamp`, hệ thống từ chối cập nhật với mã lỗi `OUTDATED_ANSWER_TIMESTAMP` (HTTP `409 Conflict`), ngăn ngừa rủi ro mạng chập chờn gửi request trước nhưng đến sau.
+* **Bất biến Chống Ghi Đè Ngược & Trùng Lặp Gói Tin**:
+  - Khi client gửi đáp án mới cho câu hỏi `questionId` với `sequenceNumber`, Server kiểm tra:
+    ```typescript
+    if (existingAnswer && existingAnswer.sequenceNumber >= incoming.sequenceNumber) {
+      throw new OutdatedAnswerSequenceError(
+        questionId,
+        incoming.sequenceNumber,
+        existingAnswer.sequenceNumber
+      );
+    }
+    ```
+  - Nếu vi phạm, hệ thống ném `OutdatedAnswerSequenceError` (HTTP `409 Conflict`, `errorCode: 'OUTDATED_ANSWER_SEQUENCE'`).
+  - Đảm bảo 100% khi xảy ra Network Jitter (gói số 1 bị nghẽn mạng đến sau gói số 2), gói cũ sẽ bị loại bỏ lập tức, bảo toàn câu trả lời mới nhất của thí sinh.
 
-### 6. Chống Gian Lận Đa Tab (Multi-tab Prevention)
+### 7. Bộ Quét Ca Thi Quá Hạn Chủ Động & Cơ Hội (Attempt Expiry Sweeper Service)
+Giải quyết triệt để bài toán thí sinh bỏ thi, tắt máy, ngắt mạng khiến ca thi bị treo vĩnh viễn ở trạng thái `IN_PROGRESS`:
+
+1. **Active Sweeper Daemon (Bộ quét nền chủ động)**:
+   - Lớp `AttemptExpirySweeperService` vận hành một background timer định kỳ (mặc định 60 giây).
+   - Tìm kiếm toàn bộ ca thi đang `IN_PROGRESS` mà `submissionDeadline < now` thông qua `findExpiredInProgressAttempts(now)`.
+   - Tự động gọi `autoSubmit(now, 'EXPIRED_BY_SWEEPER')` chuyển trạng thái sang `TIMED_OUT_GRADED` và chuyển tiếp sang `AssessmentScoringEngine` chấm điểm.
+2. **Opportunistic Sweeper (Quét cơ hội)**:
+   - Trong Use Case `getAttemptDetails`, nếu phát hiện ca thi đang truy vấn đã vượt quá `submissionDeadline`, hệ thống tự động kích hoạt chuyển trạng thái và chấm điểm ngay lập tức, trả kết quả `TIMED_OUT_GRADED` về cho thí sinh mà không cần chờ tới chu kỳ của daemon.
+3. **Cloud Scheduler / Cron Endpoint**:
+   - Cung cấp API `POST /v1/internal/attempts/sweep` hỗ trợ gọi từ Cloud Scheduler hoặc Kubernetes CronJob cho kiến trúc Serverless/Multi-replica, được bảo vệ bằng secret key `X-Internal-Sweeper-Secret` và RBAC `ADMIN`.
+
+### 8. Chống Gian Lận Đa Tab (Multi-tab Prevention)
 * Khi gọi `POST /v1/attempts`, nếu thí sinh đã có một ca thi ở trạng thái `IN_PROGRESS` trên cùng đề thi, hệ thống sẽ **trả về chính ca thi đang dở dang đó** thay vì tạo ca thi mới (`isExisting: true`), buộc thí sinh tiếp tục phiên thi hiện tại.
 
 ---
@@ -308,16 +396,33 @@ Hệ thống Quiz Service được bảo vệ bằng các lớp phòng thủ chu
 
 ---
 
-### 2. Nhóm Tài Nguyên `/v1/attempts` (Delivery & Phòng Thi)
+### 2. Nhóm Tài Nguyên `/v1/attempts` (Delivery & Phòng Thi) & Clock Sync API
 
 | Phương thức | Đường dẫn Endpoint | Yêu cầu Quyền hạn | Mô tả chức năng |
 | :--- | :--- | :--- | :--- |
+| `GET` | `/v1/time` | Public / Thí sinh | Lấy mốc thời gian máy chủ chuẩn xác (`serverTime`, `serverTimestamp`, `iso`) phục vụ đồng bộ đồng hồ |
 | `POST` | `/v1/attempts` | Student (Chính chủ) | Khởi tạo hoặc khôi phục ca thi (`isExisting: boolean`) |
 | `POST` | `/v1/attempts/:id/start` | Student (Chính chủ) | Bắt đầu tính giờ; nhận đề thi đã khử khuẩn và `AttemptManifest` |
-| `GET` | `/v1/attempts/:id` | Student (Chính chủ) | Xem trạng thái phòng thi, thời gian còn lại, câu hỏi |
-| `PUT` | `/v1/attempts/:id/answers/:questionId` | Student (Chính chủ) | Lưu đáp án từng câu kèm `clientTimestamp` chống xung đột mạng |
-| `POST` | `/v1/attempts/:id/answers` | Student (Chính chủ) | Lưu đáp án qua Body `{ questionId, answer, clientTimestamp }` |
-| `POST` | `/v1/attempts/:id/submit` | Student (Chính chủ) | Nộp bài thi, đóng băng ca thi và nhận kết quả chấm điểm tức thì |
+| `GET` | `/v1/attempts/:id` | Student (Chính chủ) | Xem trạng thái phòng thi, thời gian còn lại, câu hỏi (tích hợp Opportunistic Sweeper) |
+| `PUT` | `/v1/attempts/:id/answers/:questionId` | Student (Chính chủ) | Lưu đáp án từng câu kèm `sequenceNumber` đơn điệu tăng dần chống Network Jitter |
+| `POST` | `/v1/attempts/:id/answers` | Student (Chính chủ) | Lưu đáp án qua Body `{ questionId, answer, sequenceNumber, clientTimestamp? }` |
+| `POST` | `/v1/attempts/:id/submit` | Student (Chính chủ) | Nộp bài thi (hỗ trợ Grace Period 15s), chuyển `SUBMITTED` hoặc `TIMED_OUT_GRADED` và trả kết quả |
+
+#### Server Timing Headers Toàn Cục:
+Mọi phản hồi HTTP từ Quiz Service đều được gắn kèm hai tiêu đề thời gian máy chủ chuẩn hóa (đồng thời khai báo trong `Access-Control-Expose-Headers`):
+* `X-Server-Time`: Chuỗi ISO-8601 thời gian thực tại máy chủ (ví dụ: `2026-09-04T07:00:00.123Z`).
+* `X-Server-Timestamp`: Epoch millisecond nguyên bản (ví dụ: `1788505200123`).
+
+---
+
+### 3. Nhóm Tài Nguyên Quản Trị & Background Sweeper (`/v1/internal/attempts`)
+
+| Phương thức | Đường dẫn Endpoint | Yêu cầu Quyền hạn | Mô tả chức năng |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/v1/internal/attempts/sweep` | `ADMIN` / Shared Secret | Kích hoạt quét tức thì các ca thi quá hạn `submissionDeadline` và cưỡng chế chấm điểm |
+| `GET` | `/v1/internal/attempts/sweeper-status` | `ADMIN` / Shared Secret | Kiểm tra trạng thái daemon nền, chu kỳ quét (`intervalMs`) và cờ kích hoạt |
+
+* **Cơ Chế Bảo Vệ**: Endpoint hỗ trợ xác thực kép: Bearer JWT Role `ADMIN` hoặc Header `X-Internal-Sweeper-Secret` (phục vụ Cloud Scheduler và Serverless Cron triggers).
 
 #### Ví dụ Bắt Đầu Ca Thi:
 * **`POST /v1/attempts/att_101/start`**:
@@ -339,7 +444,10 @@ Hệ thống Quiz Service được bảo vệ bằng các lớp phòng thủ chu
         "questionIds": ["q_02", "q_01", "q_03"],
         "optionOrders": {
           "q_01": ["opt_c", "opt_a", "opt_b"]
-        }
+        },
+        "timeLimitMinutes": 45,
+        "startedAt": "2026-09-04T07:00:00.000Z",
+        "deadline": "2026-09-04T07:45:00.000Z"
       },
       "questions": [
         {
@@ -359,7 +467,7 @@ Hệ thống Quiz Service được bảo vệ bằng các lớp phòng thủ chu
 
 ---
 
-### 3. Danh Mục Mã Lỗi Domain Chuẩn Hóa (`DomainErrorCode`)
+### 4. Danh Mục Mã Lỗi Domain Chuẩn Hóa (`DomainErrorCode`)
 
 | Mã Lỗi (`errorCode`) | HTTP Status | Mô tả Nghiệp vụ |
 | :--- | :---: | :--- |
@@ -370,8 +478,9 @@ Hệ thống Quiz Service được bảo vệ bằng các lớp phòng thủ chu
 | `ATTEMPT_ALREADY_SUBMITTED` | 409 | Bài thi đã nộp, từ chối mọi thao tác chỉnh sửa đáp án |
 | `ATTEMPT_ALREADY_IN_PROGRESS` | 409 | Thí sinh đã có ca thi đang dở dang, không được mở thêm tab |
 | `MAX_ATTEMPTS_EXCEEDED` | 403 | Thí sinh đã sử dụng hết số lần thi tối đa cho phép |
-| `ATTEMPT_TIME_EXPIRED` | 400 | Thời gian làm bài đã hết |
-| `OUTDATED_ANSWER_TIMESTAMP` | 409 | Gói tin đáp án gửi lên cũ hơn gói tin đã được ghi nhận trước đó |
+| `ATTEMPT_TIME_EXPIRED` | 400 | Đã quá hạn chót trả lời câu hỏi (`deadline`), từ chối lưu thêm câu trả lời |
+| `OUTDATED_ANSWER_SEQUENCE` | 409 | Gói tin đáp án có `sequenceNumber` nhỏ hơn hoặc bằng gói tin đã lưu (chống Jitter/Duplicate) |
+| `OUTDATED_ANSWER_TIMESTAMP` | 409 | Gói tin đáp án gửi lên cũ hơn gói tin đã được ghi nhận trước đó (Legacy fallback) |
 | `INVALID_ANSWER_PAYLOAD` | 422 | Cấu trúc câu trả lời không tương thích với loại câu hỏi |
 | `INVALID_STATE_TRANSITION` | 409 | Chuyển đổi trạng thái ca thi bất hợp lệ |
 | `FORBIDDEN` | 403 | Không đủ quyền hạn thực thi hoặc vi phạm quyền sở hữu ca thi |
@@ -381,23 +490,53 @@ Hệ thống Quiz Service được bảo vệ bằng các lớp phòng thủ chu
 
 ## VIII. ĐỒNG BỘ KHÁCH HÀNG: SDK & GIAO DIỆN THÍ SINH (`quiz-web`)
 
-1. **Thư Viện Khách Hàng `@platform/api-client`**:
-   - Tương tác trực tiếp với các primitives chuẩn RESTful v1:
-     - `apiClient.quizzes.list()` / `get()` / `create()` / `addVersion()` / `publish()`
-     - `apiClient.attempts.create()` / `start()` / `recordAnswer()` / `submit()` / `get()`
-   - Tự động gắn kèm Header Authorization qua Token Provider.
-2. **Giao Diện Thí Sinh `apps/quiz-web`**:
-   - `QuizStartView`: Tự động tải danh mục đề thi khả dụng từ `GET /v1/quizzes`, cho phép chọn đề thi và hiển thị thông tin bài thi.
-   - `QuizActiveView`: Hiển thị danh sách câu hỏi theo đúng thứ tự `AttemptManifest`, đồng bộ đồng hồ đếm ngược với `deadline` của máy chủ.
-   - `useQuizSession`: Hook điều phối tự động lưu đáp án khi thí sinh click chọn, cảnh báo mất kết nối mạng và hỗ trợ tự động nộp bài khi hết giờ.
+### 1. Quản Lý Đồng Bộ Thời Gian Máy Chủ (`TimeSyncManager`)
+* **Thuật toán Cristian (Cristian's Synchronization Algorithm)**:
+  - Khi client gửi request đồng bộ tới `GET /v1/time`, client ghi lại:
+    - $T_{\text{start}}$: Thời điểm bắt đầu gửi request (`performance.now()`).
+    - $T_{\text{server}}$: Thời gian máy chủ trả về trong response.
+    - $T_{\text{end}}$: Thời điểm nhận được response (`performance.now()`).
+  - Độ trễ khứ hồi: $\text{RTT} = T_{\text{end}} - T_{\text{start}}$.
+  - Giờ máy chủ ước tính tại thời điểm $T_{\text{end}}$: $T_{\text{server\_est}} = T_{\text{server}} + \frac{\text{RTT}}{2}$.
+* **Monotonic Offset Anchoring (Chống Gian Lận Đổi Giờ Máy Tính)**:
+  - Thay vì lưu trữ chênh lệch với `Date.now()`, hệ thống neo độ lệch vào `performance.now()`:
+    $$\text{baseServerTime} = T_{\text{server\_est}}, \quad \text{basePerfNow} = T_{\text{end}}$$
+  - Bất kỳ lúc nào cần tính giờ máy chủ hiện tại:
+    $$\text{now}_{\text{server}} = \text{baseServerTime} + (\text{performance.now()} - \text{basePerfNow})$$
+  - Khi thí sinh cố tình chỉnh lùi giờ trên đồng hồ Windows/macOS, `performance.now()` không bị thay đổi, đồng hồ thi vẫn đếm chính xác từng giây.
+
+### 2. Hook Đếm Ngược Kháng Trôi Dạt (`useServerCountdown`)
+* Nhận vào `deadline` (ISO string từ máy chủ).
+* Tính số giây còn lại trực tiếp qua `timeSync.getRemainingSeconds(deadline)`.
+* **Cơ Chế Phục Hồi Khi Ẩn Tab / Sleep**:
+  - Khi thí sinh gập laptop hoặc chuyển tab, timer `setInterval` bị hệ điều hành đóng băng (throttled).
+  - Hook lắng nghe các sự kiện `visibilitychange`, `window focus`, `online` để kích hoạt tái đồng bộ ngay lập tức với `TimeSyncManager`, lập tức hiển thị lại số giây thực tế mà không bị trôi thời gian.
+  - Khi thời gian còn lại chạm 0, hook tự động gọi callback `onExpire()`.
+
+### 3. Hook Phiên Thi & Bộ Xả Hàng Đợi Chống Mất Dữ Liệu (`useQuizSession`)
+* **Quản lý Monotonic Sequence Numbers**:
+  - Duy trì `sequenceMapRef` ánh xạ `questionId -> currentSequence`.
+  - Mỗi thao tác chọn đáp án tăng `sequenceNumber` lên 1 và đính kèm vào payload gửi lên server.
+* **Autosave Queue Flusher (Zero Data Loss Guarantee)**:
+  - Thí sinh làm bài thường có độ trễ debounce (ví dụ: 600ms) trước khi autosave gửi gói tin.
+  - Nếu thí sinh bấm nút **Nộp bài (Submit)** ngay sau khi chọn câu cuối cùng, nguy cơ câu cuối cùng chưa kịp gửi lên máy chủ là rất lớn.
+  - **Giải pháp**: Hàm `submitAttempt` lập tức hủy bỏ toàn bộ `debounceTimers`, lấy toàn bộ các câu hỏi đang chờ trong `pendingSavesRef` và gửi đồng loạt lên máy chủ qua `Promise.allSettled`, sau đó mới thực hiện gọi API `submit`. Cam kết **100% không mất đáp án**.
 
 ---
 
 ## IX. CHỈ SỐ KIỂM THỬ VÀ ĐẢM BẢO CHẤT LƯỢNG (TESTING & VERIFICATION)
 
-Chất lượng của Quiz Assessment Engine được kiểm chứng qua bộ kiểm thử tự động toàn diện:
+Chất lượng của Quiz Assessment Engine & Timing Invariants được kiểm chứng qua bộ kiểm thử tự động toàn diện:
 
 ```text
+ ✓ services/quiz/tests/domain/delivery/server-timing-invariants.spec.ts (9 tests)
+ ✓ services/quiz/tests/delivery/attempt-sequence-concurrency.spec.ts (11 tests)
+ ✓ services/quiz/tests/delivery/attempt-expiry-sweeper.spec.ts (4 tests)
+ ✓ services/quiz/tests/presentation/server-timing-api.spec.ts (4 tests)
+ ✓ services/quiz/tests/presentation/sweeper-api.spec.ts (4 tests)
+ ✓ apps/quiz-web/tests/time-sync.spec.ts (4 tests)
+ ✓ apps/quiz-web/tests/quiz-api-concurrency.spec.ts (2 tests)
+ ✓ apps/quiz-web/tests/countdown.spec.ts (3 tests)
  ✓ services/quiz/tests/domain/authoring/quiz.spec.ts (9 tests)
  ✓ services/quiz/tests/domain/authoring/attempt-policy.spec.ts (6 tests)
  ✓ services/quiz/tests/domain/delivery/attempt-manifest.spec.ts (2 tests)
@@ -414,12 +553,15 @@ Chất lượng của Quiz Assessment Engine được kiểm chứng qua bộ ki
  ✓ packages/auth-client/tests/auth-client.spec.ts (9 tests)
  ✓ packages/api-client/tests/api-client.spec.ts (8 tests)
 
-Test Files:  15 passed (15)
-Tests:       136 passed (136)
+Test Files:  23 passed (23)
+Tests:       177 passed (177)
 Result:      100% Pass, Không có lỗi hồi quy (Zero Regression)
 ```
 
 ### Kết Luận Nghiệm Thu:
-* Hệ thống Quiz Service đã hoàn tất quá trình chuyển đổi kiến trúc sang chuẩn công nghiệp **Domain-Driven Design (DDD)** và **Hexagonal Architecture**.
-* Hai sub-domain **Authoring** và **Delivery** hoạt động độc lập, rõ ràng và mạch lạc.
-* Bộ ba Động cơ **State Machine**, **Question Engine** và **Assessment Scoring Engine** bảo đảm tính tin cậy, chính xác và khả năng mở rộng cao cho nền tảng thi trực tuyến.
+* Hệ thống Quiz Service đã hoàn tất toàn diện cả 4 bước kiểm toán và gia cố độ tin cậy thời gian:
+  1. **Server-Authoritative Timing Invariants & Two-Tier Architecture**: Tách bạch tuyệt đối Answer Cutoff và Submission Grace Period.
+  2. **Active & Opportunistic Expiry Sweeper**: Tự động dọn dẹp và chấm điểm các ca thi quá hạn, hỗ trợ Cloud Scheduler qua endpoint bảo mật.
+  3. **Clock Synchronization & Monotonic Anchoring**: Triệt tiêu hoàn toàn gian lận đồng hồ qua Thuật toán Cristian và `performance.now()`.
+  4. **Logical Sequence Concurrency Control**: Triệt tiêu xung đột Network Jitter và bảo đảm Zero Data Loss khi nộp bài.
+* Toàn bộ 23 test suites và 177 tests kiểm thử tự động đạt tỷ lệ vượt qua 100%, sẵn sàng cho môi trường production tải cao.

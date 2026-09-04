@@ -61,6 +61,7 @@ export const QuizActiveView: React.FC<QuizActiveViewProps> = ({
         sessionId={session.id}
         startedAt={session.startedAt}
         durationMinutes={session.durationMinutes}
+        deadline={session.deadline}
         totalQuestions={questions.length}
         answeredCount={answeredCount}
         saveStatus={saveStatus}
