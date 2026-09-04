@@ -59,6 +59,10 @@ export function loadEnvIfAvailable(force = false): void {
 }
 
 export function getAuthDatabaseUrl(): string | undefined {
+  // Trong môi trường kiểm thử (Vitest/test), mặc định dùng In-Memory trừ khi chỉ định rõ TEST_WITH_REAL_DB
+  if ((process.env.NODE_ENV === 'test' || process.env.VITEST) && !process.env.TEST_WITH_REAL_DB) {
+    return undefined;
+  }
   loadEnvIfAvailable();
   const url = (process.env.AUTH_DATABASE_URL || process.env.DATABASE_URL)?.trim();
   if (!url) return undefined;
