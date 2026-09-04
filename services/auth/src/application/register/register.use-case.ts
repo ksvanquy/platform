@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 import { User } from '../../domain/user/user.entity.js';
+import { Role } from '../../domain/role/role.entity.js';
+import { Permission } from '../../domain/role/permission.entity.js';
 import { IUserRepository } from '../../domain/user/user.repository.port.js';
 import { TokenService, AuthTokens } from '../../infrastructure/token/token.service.js';
 import { hashPassword } from '../../infrastructure/persistence/in-memory-user.repository.js';
@@ -18,12 +20,14 @@ export interface RegisterResult {
     email: string;
     name: string;
     roles: readonly string[];
+    permissions: readonly string[];
     tenantId?: string;
     createdAt: string;
   };
   principal: {
     id: string;
     roles: readonly string[];
+    permissions?: readonly string[];
     tenantId?: string;
   };
 }
@@ -60,12 +64,32 @@ export class RegisterUseCase {
     const passwordHash = hashPassword(password);
     const tenantId = dto.tenantId?.trim() || 'tenant_default';
 
+    // Nạp vai trò STUDENT từ DB
+    const fetchedRole = this.userRepository.getRoleByCode
+      ? await this.userRepository.getRoleByCode('STUDENT')
+      : null;
+
+    const studentRole =
+      fetchedRole ||
+      new Role({
+        id: 'role_student',
+        code: 'STUDENT',
+        name: 'Student',
+        description: 'Student or examinee taking quizzes',
+        isSystem: true,
+        permissions: [
+          new Permission({ id: 'perm_quiz_read', code: 'quiz:read', resource: 'quiz', action: 'read' }),
+          new Permission({ id: 'perm_attempt_create', code: 'attempt:create', resource: 'attempt', action: 'create' }),
+          new Permission({ id: 'perm_attempt_submit', code: 'attempt:submit', resource: 'attempt', action: 'submit' }),
+        ],
+      });
+
     const newUser = new User({
       id: userId,
       email,
       name,
       passwordHash,
-      roles: ['STUDENT'],
+      roles: [studentRole],
       tenantId,
       createdAt: new Date(),
     });

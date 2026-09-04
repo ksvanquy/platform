@@ -8,6 +8,7 @@ export interface GetProfileResult {
   principal: {
     id: string;
     roles: readonly string[];
+    permissions?: readonly string[];
     tenantId?: string;
   };
   profile: {
@@ -15,6 +16,7 @@ export interface GetProfileResult {
     email: string;
     name: string;
     roles: readonly string[];
+    permissions: readonly string[];
     tenantId?: string;
     createdAt: string;
   };

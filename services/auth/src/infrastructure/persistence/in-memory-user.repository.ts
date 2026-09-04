@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
 import { User } from '../../domain/user/user.entity.js';
 import { IUserRepository } from '../../domain/user/user.repository.port.js';
+import { Role } from '../../domain/role/role.entity.js';
+import { Permission } from '../../domain/role/permission.entity.js';
+import { createDefaultRoles, createDefaultPermissions } from '../../domain/role/default-rbac.data.js';
 
 const SCRYPT_KEYLEN = 64;
 
@@ -15,7 +18,7 @@ export function hashPassword(password: string, salt?: string): string {
 }
 
 /**
- * Kiểm tra mật khẩu khớp với chuỗi băm (hỗ trợ cả scrypt và legacy sha256 salt nếu có).
+ * Kiểm tra mật khẩu khớp với chuỗi băm.
  */
 export function verifyPassword(password: string, storedHash: string): boolean {
   if (storedHash.startsWith('scrypt$')) {
@@ -27,26 +30,42 @@ export function verifyPassword(password: string, storedHash: string): boolean {
     return crypto.timingSafeEqual(Buffer.from(derivedKey, 'hex'), Buffer.from(expectedKey, 'hex'));
   }
 
-  // Backward compatibility fallback for legacy sha256 hash: quiz_salt_${password}
+  // Legacy fallback if any
   const legacyHash = crypto.createHash('sha256').update(`quiz_salt_${password}`).digest('hex');
   return crypto.timingSafeEqual(Buffer.from(legacyHash, 'utf8'), Buffer.from(storedHash, 'utf8'));
 }
 
 export class InMemoryUserRepository implements IUserRepository {
   private readonly users: Map<string, User> = new Map();
+  private readonly roles: Map<string, Role> = new Map();
+  private readonly permissions: Map<string, Permission> = new Map();
 
   constructor() {
+    this.seedRbac();
     this.seedUsers();
   }
 
+  private seedRbac(): void {
+    for (const perm of createDefaultPermissions()) {
+      this.permissions.set(perm.id, perm);
+    }
+    for (const role of createDefaultRoles()) {
+      this.roles.set(role.code, role);
+    }
+  }
+
   private seedUsers(): void {
+    const studentRole = this.roles.get('STUDENT')!;
+    const instructorRole = this.roles.get('INSTRUCTOR')!;
+    const adminRole = this.roles.get('ADMIN')!;
+
     const defaultUsers = [
       new User({
         id: 'usr_student_01',
         email: 'student@quiz.local',
         name: 'Nguyen Van Học Viên',
         passwordHash: hashPassword('student123'),
-        roles: ['STUDENT'],
+        roles: [studentRole],
         tenantId: 'tenant_default',
       }),
       new User({
@@ -54,7 +73,7 @@ export class InMemoryUserRepository implements IUserRepository {
         email: 'instructor@quiz.local',
         name: 'Tran Thi Giảng Viên',
         passwordHash: hashPassword('teacher123'),
-        roles: ['INSTRUCTOR'],
+        roles: [instructorRole],
         tenantId: 'tenant_default',
       }),
       new User({
@@ -62,7 +81,7 @@ export class InMemoryUserRepository implements IUserRepository {
         email: 'admin@quiz.local',
         name: 'Administrator',
         passwordHash: hashPassword('admin123'),
-        roles: ['ADMIN'],
+        roles: [adminRole],
         tenantId: 'tenant_default',
       }),
     ];
@@ -70,6 +89,18 @@ export class InMemoryUserRepository implements IUserRepository {
     for (const user of defaultUsers) {
       this.users.set(user.id, user);
     }
+  }
+
+  getRoleByCode(code: string): Role | null {
+    return this.roles.get(code.toUpperCase()) || null;
+  }
+
+  listRoles(): Role[] {
+    return Array.from(this.roles.values());
+  }
+
+  listPermissions(): Permission[] {
+    return Array.from(this.permissions.values());
   }
 
   async findById(id: string): Promise<User | null> {

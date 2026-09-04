@@ -1,9 +1,48 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getAuthDb, closeAuthDb, isAuthDbConfigured } from './connection.js';
-import { users } from './schema.js';
+import { users, roles, permissions, rolePermissions, userRoles } from './schema.js';
 import { hashPassword } from '../persistence/in-memory-user.repository.js';
+import { DEFAULT_PERMISSIONS_DATA } from '../../domain/role/default-rbac.data.js';
 import { eq } from 'drizzle-orm';
+
+export const SEED_ROLES = [
+  {
+    id: 'role_student',
+    code: 'STUDENT',
+    name: 'Student',
+    description: 'Student or examinee taking quizzes',
+    isSystem: true,
+  },
+  {
+    id: 'role_instructor',
+    code: 'INSTRUCTOR',
+    name: 'Instructor',
+    description: 'Instructor or teacher creating and reviewing quizzes',
+    isSystem: true,
+  },
+  {
+    id: 'role_admin',
+    code: 'ADMIN',
+    name: 'Administrator',
+    description: 'System administrator with full privileges',
+    isSystem: true,
+  },
+];
+
+export const SEED_ROLE_PERMISSIONS: Record<string, string[]> = {
+  role_student: ['quiz:read', 'attempt:create', 'attempt:submit'],
+  role_instructor: [
+    'quiz:read',
+    'quiz:write',
+    'quiz:create',
+    'quiz:update',
+    'quiz:publish',
+    'attempt:read',
+    'attempt:review',
+  ],
+  role_admin: ['*'],
+};
 
 export const SEED_USERS = [
   {
@@ -11,48 +50,48 @@ export const SEED_USERS = [
     email: 'admin@quiz.com',
     name: 'System Administrator',
     passwordHash: hashPassword('admin123'),
-    roles: ['ADMIN'],
     tenantId: 'tenant_default',
+    roleCode: 'ADMIN',
   },
   {
     id: 'usr_instructor_01',
     email: 'instructor@quiz.com',
     name: 'Tran Thi Giảng Viên',
     passwordHash: hashPassword('teacher123'),
-    roles: ['INSTRUCTOR'],
     tenantId: 'tenant_default',
+    roleCode: 'INSTRUCTOR',
   },
   {
     id: 'usr_student_01',
     email: 'student@quiz.com',
     name: 'Nguyen Van Học Viên',
     passwordHash: hashPassword('student123'),
-    roles: ['STUDENT'],
     tenantId: 'tenant_default',
+    roleCode: 'STUDENT',
   },
   {
     id: 'usr_admin_local',
     email: 'admin@quiz.local',
     name: 'System Administrator (Local)',
     passwordHash: hashPassword('admin123'),
-    roles: ['ADMIN'],
     tenantId: 'tenant_default',
+    roleCode: 'ADMIN',
   },
   {
     id: 'usr_instructor_local',
     email: 'instructor@quiz.local',
     name: 'Tran Thi Giảng Viên (Local)',
     passwordHash: hashPassword('teacher123'),
-    roles: ['INSTRUCTOR'],
     tenantId: 'tenant_default',
+    roleCode: 'INSTRUCTOR',
   },
   {
     id: 'usr_student_local',
     email: 'student@quiz.local',
     name: 'Nguyen Van Học Viên (Local)',
     passwordHash: hashPassword('student123'),
-    roles: ['STUDENT'],
     tenantId: 'tenant_default',
+    roleCode: 'STUDENT',
   },
 ];
 
@@ -62,28 +101,101 @@ export async function seedAuthDb(): Promise<void> {
     return;
   }
 
-  console.log('🌱 Seeding default accounts into Auth Service DB...');
+  console.log('🌱 Seeding Normalized RBAC into PostgreSQL Auth Service DB...');
   const db = getAuthDb();
 
+  // 1. Seed Permissions
+  console.log('  1/5 Seeding permissions...');
+  for (const perm of DEFAULT_PERMISSIONS_DATA) {
+    await db
+      .insert(permissions)
+      .values({
+        id: perm.id,
+        code: perm.code,
+        resource: perm.resource,
+        action: perm.action,
+        description: perm.description,
+      })
+      .onConflictDoNothing();
+  }
+
+  // 2. Seed Roles
+  console.log('  2/5 Seeding roles...');
+  for (const role of SEED_ROLES) {
+    await db
+      .insert(roles)
+      .values(role)
+      .onConflictDoNothing();
+  }
+
+  // 3. Seed Role-Permissions
+  console.log('  3/5 Mapping role permissions...');
+  for (const [roleId, permCodes] of Object.entries(SEED_ROLE_PERMISSIONS)) {
+    for (const code of permCodes) {
+      const permRow = await db
+        .select({ id: permissions.id })
+        .from(permissions)
+        .where(eq(permissions.code, code))
+        .limit(1);
+
+      if (permRow.length > 0) {
+        await db
+          .insert(rolePermissions)
+          .values({
+            roleId,
+            permissionId: permRow[0].id,
+          })
+          .onConflictDoNothing();
+      }
+    }
+  }
+
+  // 4. Seed Users & User-Roles
+  console.log('  4/5 Seeding users & assigning roles...');
   for (const user of SEED_USERS) {
     const existing = await db
-      .select()
+      .select({ id: users.id })
       .from(users)
       .where(eq(users.email, user.email))
       .limit(1);
 
+    let userId = user.id;
     if (existing.length === 0) {
-      await db.insert(users).values(user);
-      console.log(`  + Seeded user: ${user.email} (${user.roles.join(', ')})`);
+      await db.insert(users).values({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        passwordHash: user.passwordHash,
+        tenantId: user.tenantId,
+        isActive: true,
+      });
+      console.log(`    + Seeded user: ${user.email}`);
     } else {
-      console.log(`  = User already exists: ${user.email}`);
+      userId = existing[0].id;
+    }
+
+    // Assign role
+    const roleRow = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(eq(roles.code, user.roleCode))
+      .limit(1);
+
+    if (roleRow.length > 0) {
+      await db
+        .insert(userRoles)
+        .values({
+          userId,
+          roleId: roleRow[0].id,
+        })
+        .onConflictDoNothing();
     }
   }
 
-  console.log('✅ Auth DB seeding finished.');
+  console.log('✅ Normalized RBAC Auth DB seeding finished.');
 }
 
-// Allow direct execution (cross-platform Windows & POSIX support)
+// Direct execution support
 const isDirectRun = Boolean(
   process.argv[1] &&
   (

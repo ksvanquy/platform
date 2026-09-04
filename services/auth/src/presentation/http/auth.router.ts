@@ -208,5 +208,46 @@ export function createAuthRouter(
     res.json(tokenService.getJwks());
   });
 
+  // GET /v1/auth/roles (List all roles with permissions directly from PostgreSQL SoT)
+  router.get('/roles', async (_req: Request, res: Response) => {
+    try {
+      const roles = userRepository.listRoles ? await userRepository.listRoles() : [];
+      res.json({
+        success: true,
+        data: roles.map((r) => ({
+          id: r.id,
+          code: r.code,
+          name: r.name,
+          description: r.description,
+          isSystem: r.isSystem,
+          permissions: r.getPermissionCodes(),
+        })),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to list roles';
+      res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  // GET /v1/auth/permissions (List all system permissions directly from PostgreSQL SoT)
+  router.get('/permissions', async (_req: Request, res: Response) => {
+    try {
+      const perms = userRepository.listPermissions ? await userRepository.listPermissions() : [];
+      res.json({
+        success: true,
+        data: perms.map((p) => ({
+          id: p.id,
+          code: p.code,
+          resource: p.resource,
+          action: p.action,
+          description: p.description,
+        })),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to list permissions';
+      res.status(500).json({ success: false, error: message });
+    }
+  });
+
   return router;
 }

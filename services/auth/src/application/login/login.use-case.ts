@@ -14,6 +14,7 @@ export interface LoginResult {
     email: string;
     name: string;
     roles: readonly string[];
+    permissions: readonly string[];
     tenantId?: string;
   };
 }
@@ -55,7 +56,8 @@ export class LoginUseCase {
         id: user.id,
         email: user.email,
         name: user.name,
-        roles: user.roles,
+        roles: user.getRoleCodes(),
+        permissions: user.getEffectivePermissions(),
         tenantId: user.tenantId,
       },
     };
