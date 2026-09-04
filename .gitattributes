@@ -1,0 +1,14 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Cố định rõ ràng các định dạng file cụ thể dùng LF
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+
+# Giữ nguyên định dạng file nhị phân (hình ảnh, nén, v.v.)
+*.png binary
+*.jpg binary

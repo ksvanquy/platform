@@ -1,0 +1,46 @@
+{
+  "name": "platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Quiz Assessment and Examination Platform Monorepo",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "tsx watch services/quiz/src/presentation/server.ts",
+    "build": "tsc --noEmit -p services/quiz/tsconfig.json",
+    "test": "vitest run",
+    "lint": "tsc --noEmit -p services/quiz/tsconfig.json",
+    "build:packages": "tsc -p packages/contracts/tsconfig.json && tsc -p packages/auth-client/tsconfig.json && tsc -p packages/api-client/tsconfig.json",
+    "start": "node services/quiz/dist/presentation/server.js",
+    "dev:quiz": "tsx watch services/quiz/src/presentation/server.ts",
+    "dev:auth": "tsx watch services/auth/src/presentation/server.ts",
+    "dev:web": "npm run dev --prefix apps/quiz-web",
+    "dev:admin": "npm run dev --prefix apps/admin-web",
+    "db:generate:auth": "drizzle-kit generate --config=services/auth/drizzle.config.ts",
+    "db:migrate:auth": "tsx services/auth/src/infrastructure/db/migrate.ts",
+    "db:seed:auth": "tsx services/auth/src/infrastructure/db/seed.ts"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@types/supertest": "^7.2.1",
+    "drizzle-kit": "^0.31.10",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.2.1",
+    "postgres": "^3.4.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}

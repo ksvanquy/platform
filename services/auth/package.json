@@ -1,0 +1,35 @@
+{
+  "name": "@platform/auth-service",
+  "version": "1.0.0",
+  "description": "Authentication and Authorization Service (JWT, RBAC, OAuth)",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/presentation/server.ts",
+    "build": "tsc",
+    "start": "node dist/presentation/server.js",
+    "lint": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate": "tsx src/infrastructure/db/migrate.ts",
+    "db:seed": "tsx src/infrastructure/db/seed.ts"
+  },
+  "dependencies": {
+    "@platform/contracts": "workspace:*",
+    "drizzle-orm": "^0.45.1",
+    "express": "^5.2.1",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}

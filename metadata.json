@@ -1,0 +1,6 @@
+{
+  "name": "Quiz Core",
+  "description": "Generic Quiz Engine Core built with Hexagonal and DDD Architecture",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
