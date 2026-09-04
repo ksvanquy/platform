@@ -1,361 +1,425 @@
-# LỘ TRÌNH THỰC THI KIẾN TRÚC ASSESSMENT & QUIZ ENGINE
-*(Execution Plan: Domain-Driven Design & Hexagonal Architecture - Audited & Production-Hardened)*
-
-Tài liệu này xác lập kế hoạch chi tiết triển khai 3 bước chuyển đổi hệ thống từ mô hình phiên thi cơ bản sang một **Assessment Core Engine** chuẩn công nghiệp, tách bạch rõ ràng giữa hai sub-domain: **Authoring (Tác quyền/Đề thi)** và **Delivery (Phân phối/Phòng thi)**.
-
-Kế hoạch này đã được audit và tích hợp đầy đủ 5 tiêu chuẩn thực chiến:
-1. **Backward-Compatibility & Migration Facade** (Không làm vỡ 67 tests và 2 apps Frontend hiện hữu).
-2. **Idempotency & Concurrency Control** (Chống mất mát dữ liệu do out-of-order requests).
-3. **Graceful Auto-Submit on Timeout** (Thu bài và chấm điểm tự động thay vì hủy bài thi 0 điểm).
-4. **Attempt Policy & Concurrency Defense** (Chống mở nhiều tab gian lận và giới hạn số lượt thi).
-5. **Concrete AttemptManifest Snapshot** (Đóng băng tuyệt đối thứ tự câu hỏi và đáp án cho từng thí sinh).
+# TÀI LIỆU THIẾT KẾ KIẾN TRÚC VÀ ĐẶC TẢ HỆ THỐNG QUIZ SERVICE
+*(Quiz Assessment Core Engine: Domain-Driven Design & Hexagonal Architecture Specification)*  
+**Dự án:** Platform Core / Quiz Assessment Engine & Auth System  
+**Phiên bản:** v3.0 (Production-Ready Architecture)  
+**Ngày cập nhật:** September 4, 2026  
+**Trạng thái:** Hoàn tất 100% các tiêu chuẩn kiến trúc, kiểm thử tự động toàn diện (15/15 test files, 136/136 tests PASS).
 
 ---
 
-## TỔNG QUAN KIẾN TRÚC & SUB-DOMAINS
+## I. TỔNG QUAN HỆ THỐNG VÀ NGUYÊN TẮC THIẾT KẾ (SYSTEM OVERVIEW & DESIGN PRINCIPLES)
 
-```
+Quiz Service là lõi trung tâm của nền tảng thi và khảo sát trực tuyến, chịu trách nhiệm quản lý vòng đời đề thi (Authoring), điều phối quá trình làm bài thi (Delivery), thẩm định câu hỏi (Question Engine) và tự động chấm điểm (Scoring Engine). Hệ thống được xây dựng dựa trên các chuẩn mực kiến trúc công nghiệp:
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │                                   QUIZ CORE ENGINE                                      │
 ├────────────────────────────────────────────┬────────────────────────────────────────────┤
 │           SUB-DOMAIN AUTHORING             │            SUB-DOMAIN DELIVERY             │
 │  - Quiz (Entity)                           │  - Attempt (Aggregate Root)                │
 │  - QuizVersion (Immutable Snapshot)        │  - AttemptManifest (Frozen Order Snapshot) │
-│  - Publishing Policy (Draft -> Published)  │  - State Machine & Timer Enforcer          │
-│  - AttemptPolicy (Retake / Max Attempts)   │  - Auto-Submit on Timeout Mechanism        │
+│  - Publishing Policy (Invariants Check)    │  - State Machine & Deadline Timer          │
+│  - AttemptPolicy (Retake / Max Attempts)   │  - Graceful Auto-Submit on Timeout         │
 ├────────────────────────────────────────────┴────────────────────────────────────────────┤
-│                                SUB-DOMAIN ASSESSMENT ENGINE                             │
+│                                QUESTION & SCORING ENGINE                                │
 │  - Question Engine Registry (Single-choice, Multiple-choice, True/False, Extensible)    │
-│  - Scoring Strategy (ExactMatch, PartialCredit, NegativeMarking)                        │
+│  - Scoring Strategies (ExactMatch, PartialCredit, NegativeMarking)                      │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                             RESTFUL DOMAIN API & CLIENT MIGRATION                       │
-│  - RESTful /v1/attempts & /v1/quizzes: Chuẩn giao tiếp duy nhất giữa Client & Server    │
-│  - SDK @platform/api-client & apps/quiz-web kết nối trực tiếp Delivery / Authoring API  │
-│  - Tầng Facade quá độ đã hoàn thành nhiệm vụ và được loại bỏ hoàn toàn sạch sẽ           │
+│                             RESTFUL DOMAIN API & CLIENT INTEGRATION                     │
+│  - RESTful /v1/quizzes (Catalog & Authoring) & /v1/attempts (Delivery & Examination)    │
+│  - SDK @platform/api-client & apps/quiz-web kết nối trực tiếp Delivery RESTful API      │
+│  - Bảo vệ chữ ký số RS256/JWKS, Phân quyền RBAC & Chống truy cập trái phép ca thi (IDOR)│
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### 6 Tiêu Chuẩn Kiến Trúc Cốt Lõi Vận Hành:
+1. **Phân Định Sub-domain Rõ Rệt**: Tách biệt hoàn toàn giữa **Authoring** (biên soạn và xuất bản đề thi) và **Delivery** (quá trình thí sinh làm bài thi).
+2. **Đóng Băng Thứ Tự Đề Thi (`AttemptManifest` Snapshot)**: Thứ tự câu hỏi và thứ tự lựa chọn đáp án được xáo trộn (shuffle) duy nhất một lần khi bắt đầu và đóng băng vĩnh viễn trong ca thi. Thí sinh tải lại trang, đổi thiết bị hay mất mạng đều giữ nguyên đề thi.
+3. **Ranh Giới Khử Khuẩn Dữ Liệu (`DeliverySanitizer` Boundary)**: Tuyệt đối không gửi đáp án đúng (`correctAnswer`, `isCorrect`), giải thích (`explanation`) hay barem chấm điểm (`gradingRubric`) về phía trình duyệt khi thí sinh đang làm bài.
+4. **Kiểm Soát Xung Đột & Tính Bất Biến Lệnh (`Idempotency & Concurrency Defense`)**: Mọi thao tác lưu câu trả lời đều ghi nhận `clientTimestamp`, từ chối các gói tin đến muộn (Out-Of-Order request) do độ trễ mạng gây ra.
+5. **Thu Bài Tự Động Nhân Đạo (`Graceful Auto-Submit on Timeout`)**: Khi hết giờ làm bài, hệ thống không hủy bài thi hay chấm 0 điểm, mà tự động chuyển sang trạng thái `TIMED_OUT_GRADED` và chấm điểm các câu thí sinh đã kịp lưu trước thời điểm hết giờ.
+6. **Chống Gian Lận Đa Tab & Phân Quyền Hạt Mịn (Anti-Fraud & RBAC)**: Mỗi thí sinh chỉ được mở tối đa một lượt thi ở trạng thái `IN_PROGRESS` trên cùng một đề thi; chặn triệt để lỗ hổng IDOR, nghiêm cấm truy cập hoặc nộp bài vào ca thi của người khác.
+
 ---
 
-## BẢNG ÁNH XẠ CẤU TRÚC THƯ MỤC DỰ KIẾN (TARGET DIRECTORY STRUCTURE)
+## II. CẤU TRÚC PHÂN TẦNG VÀ TỔ CHỨC MÃ NGUỒN (`services/quiz/src`)
 
-```
+```text
 services/quiz/src/
-├── domain/
-│   ├── authoring/                     # [MỚI] Sub-domain Quản lý đề & Phiên bản
-│   │   ├── quiz.entity.ts             # Thực thể Quiz
-│   │   ├── quiz-version.entity.ts     # Thực thể bất biến QuizVersion
-│   │   ├── publishing.policy.ts       # Quy tắc kiểm tra tính hợp lệ khi Publish
-│   │   └── attempt.policy.ts          # Cấu hình số lượt thi & chính sách thi lại
-│   ├── delivery/                      # [MỚI] Sub-domain Phòng thi & Vận hành
-│   │   ├── attempt.aggregate.ts       # Aggregate Root Attempt
-│   │   ├── attempt-manifest.ts        # Snapshot thứ tự câu hỏi & options
-│   │   ├── attempt-status.ts          # State Machine enum & transition definitions
-│   │   └── delivery-sanitizer.ts      # Bóc tách đáp án bảo vệ đề thi
-│   ├── question-engine/               # [MỚI] Question Engine & Handlers
-│   │   ├── question.registry.ts       # Quản lý & tra cứu các loại câu hỏi
-│   │   ├── question-handler.interface.ts
+├── domain/                                    # Lớp Nghiệp Vụ Cốt Lõi (Domain)
+│   ├── authoring/                             # Sub-domain Quản lý đề & Phiên bản
+│   │   ├── quiz.entity.ts                     # Thực thể Quiz (Identity & Status)
+│   │   ├── quiz-version.entity.ts             # Thực thể bất biến QuizVersion (Snapshot)
+│   │   ├── publishing.policy.ts               # Bộ quy tắc Invariants khi xuất bản đề
+│   │   └── attempt.policy.ts                  # Chính sách số lượt thi & thi lại
+│   ├── delivery/                              # Sub-domain Phòng thi & Vận hành
+│   │   ├── attempt.aggregate.ts               # Aggregate Root Attempt
+│   │   ├── attempt-manifest.ts                # Snapshot thứ tự câu hỏi & options
+│   │   ├── attempt-status.ts                  # Máy trạng thái State Machine & Transitions
+│   │   └── delivery-sanitizer.ts              # Lọc đáp án bảo vệ đề thi
+│   ├── question-engine/                       # Động cơ Xử lý Câu hỏi
+│   │   ├── question.registry.ts               # Registry tra cứu & đăng ký handler
+│   │   ├── question-handler.interface.ts      # Hợp đồng QuestionTypeHandler
 │   │   └── handlers/
-│   │       ├── single-choice.handler.ts
-│   │       ├── multiple-choice.handler.ts
-│   │       └── true-false.handler.ts
-│   ├── scoring/                       # Module tính điểm kế thừa & mở rộng
-│   │   ├── scoring.strategy.ts
-│   │   └── strategies/
-│   │       ├── exact-match.strategy.ts
-│   │       ├── partial-credit.strategy.ts
-│   │       └── negative-marking.strategy.ts
-│   └── errors/                        # Domain Errors chuẩn hóa
+│   │       ├── single-choice.handler.ts       # Trắc nghiệm 1 đáp án
+│   │       ├── multiple-choice.handler.ts     # Trắc nghiệm nhiều đáp án
+│   │       └── true-false.handler.ts          # Câu hỏi Đúng / Sai
+│   ├── scoring/                               # Động cơ Tính điểm
+│   │   ├── assessment-scoring.engine.ts       # Điều phối chấm điểm toàn bài
+│   │   ├── scoring.strategy.ts                # Hợp đồng ScoringStrategy
+│   │   ├── strategies.ts                      # ExactMatch, PartialCredit, NegativeMarking
+│   │   └── scoring.factory.ts                 # Factory khởi tạo chiến lược chấm
+│   ├── context/                               # Ngữ cảnh phiên thi
+│   │   └── quiz-context.ts
+│   └── errors/                                # Danh mục Lỗi Nghiệp Vụ Chuẩn Hóa
 │       └── domain-errors.ts
-├── application/
-│   ├── use-cases/
-│   │   ├── authoring/                 # CreateQuiz, AddVersion, PublishQuiz
-│   │   └── delivery/                  # CreateAttempt, StartAttempt, RecordAnswer, SubmitAttempt
-│   └── ports/                         # QuizRepository, AttemptRepository
-├── infrastructure/
-│   └── repositories/                  # In-memory / DB storage implementations
-└── presentation/
+├── application/                               # Lớp Điều Phối Tác Vụ (Use Cases)
+│   ├── dtos/                                  # Data Transfer Objects
+│   │   └── quiz.dto.ts
+│   └── use-cases/
+│       ├── authoring/                         # AuthoringUseCases (create, version, publish)
+│       │   └── authoring.use-cases.ts
+│       ├── delivery/                          # DeliveryUseCases (create, start, answer, submit)
+│       │   └── delivery.use-cases.ts
+│       └── quiz.use-cases.ts
+├── infrastructure/                            # Lớp Hạ Tầng & Kho Lưu Trữ (Repositories)
+│   └── repositories/
+│       ├── in-memory-quiz.repository.ts       # Kho lưu trữ Quiz & Versions
+│       └── in-memory-assessment.repository.ts # Kho lưu trữ Ca thi (Attempts)
+└── presentation/                              # Lớp Giao Diện HTTP & Middlewares
+    ├── middlewares/
+    │   ├── auth.middleware.ts                 # Xác thực chữ ký số JWT RS256/HS256
+    │   └── rbac.middleware.ts                 # Phân quyền Role & Kiểm tra IDOR
     ├── routes/
-    │   ├── v1-quizzes.routes.ts       # RESTful Authoring routes
-    │   └── v1-attempts.routes.ts      # RESTful Delivery routes
-    └── server.ts
+    │   ├── v1-quizzes.routes.ts               # RESTful API Authoring & Catalog
+    │   └── v1-attempts.routes.ts              # RESTful API Delivery Phòng thi
+    └── server.ts                              # Máy chủ Express Port 3000 hợp nhất
 ```
 
 ---
 
-## BƯỚC 1: CHUẨN HÓA DOMAIN MODELS & STATE MACHINE
+## III. SUB-DOMAIN AUTHORING: QUẢN LÝ ĐỀ THI & PHIÊN BẢN BẤT BIẾN
 
-Mục tiêu: Đưa toàn bộ các quy tắc nghiệp vụ bất biến (Invariants) và máy trạng thái (State Machine) xuống tầng **Domain Model**, loại bỏ hoàn toàn việc tầng Presentation/Controller tự ý gán trạng thái.
+### 1. Thực Thể `Quiz` (Entity)
+Đại diện cho danh tính lâu dài của bài kiểm tra trong hệ thống:
+* **Thuộc tính**:
+  - `id`: Mã định danh duy nhất của bài thi (`quiz_<nanoId>`).
+  - `code`: Mã định danh ngắn gọn dùng cho tìm kiếm/liên kết (`e.g. 'CS101'`).
+  - `title`, `description`: Tiêu đề và mô tả bài thi.
+  - `ownerId`: Định danh của giảng viên/tác giả sở hữu đề thi.
+  - `status`: Vòng đời bài thi (`QuizStatus = 'DRAFT' | 'REVIEW' | 'PUBLISHED' | 'ARCHIVED'`).
+  - `currentPublishedVersionId`: Con trỏ tới phiên bản đang phát hành chính thức cho thí sinh.
+* **Quy tắc Nghiệp vụ**:
+  - Khi mới khởi tạo, đề thi luôn ở trạng thái `DRAFT`.
+  - Chỉ phiên bản được xuất bản (`PUBLISHED`) mới được hiển thị trong danh mục thi (`/v1/quizzes`).
 
-### 1.1. Sub-Domain Authoring: `Quiz` & `QuizVersion`
+### 2. Thực Thể `QuizVersion` (Immutable Snapshot)
+Mỗi phiên bản đề thi là một bản thiết kế (Blueprint) bất biến. Khi đã xuất bản, nội dung của phiên bản không bao giờ bị thay đổi nhằm đảm bảo tính công bằng và toàn vẹn dữ liệu cho các thí sinh đã hoặc đang thi:
+* **Thuộc tính**:
+  - `id`: Định danh phiên bản (`quiz_ver_<nanoId>`).
+  - `quizId`: Tham chiếu tới `Quiz`.
+  - `versionNumber`: Số thứ tự phiên bản tăng dần (1, 2, 3...).
+  - `durationMinutes`: Thời gian làm bài thi tính theo phút.
+  - `passingScore`: Điểm chuẩn đạt yêu cầu.
+  - `maxAttempts`: Số lượt làm bài tối đa cho phép (0 = không giới hạn, 1..N = giới hạn).
+  - `questions`: Danh sách câu hỏi đầy đủ metadata, barem điểm và đáp án đúng.
+  - `scoringPolicy`: Cấu hình chiến lược chấm (`ExactMatch`, `PartialCredit`, `NegativeMarking`).
+  - `randomizationPolicy`: `{ shuffleQuestions: boolean, shuffleOptions: boolean }`.
 
-1. **Thực thể `Quiz` (Entity)**:
-   * Đại diện cho danh tính lâu dài của bài thi (Identity).
-   * Thuộc tính:
-     ```typescript
-     export type QuizStatus = 'DRAFT' | 'REVIEW' | 'PUBLISHED' | 'ARCHIVED';
-     
-     export class Quiz {
-       id: string;
-       code: string;
-       title: string;
-       description: string;
-       ownerId: string;
-       currentPublishedVersionId?: string;
-       status: QuizStatus;
-       createdAt: Date;
-       updatedAt: Date;
-     }
-     ```
-   * Phương thức Domain:
-     * `createDraftVersion()`: Tạo phiên bản nháp mới khi có thay đổi.
-     * `requestReview()`: Chuyển sang chờ duyệt nội dung.
-     * `publish(versionId, invariantsChecker)`: Kích hoạt phiên bản thi chính thức nếu thỏa mãn điều kiện xuất bản.
-     * `archive()`: Lưu trữ đề thi, không cho phép mở ca thi mới.
+### 3. Quy Tắc Bất Biến Khi Xuất Bản (`PublishingPolicy`)
+Hệ thống từ chối xuất bản (`POST /v1/quizzes/:id/publish`) với mã lỗi `QUIZ_PUBLISH_INVARIANT_VIOLATION` (HTTP `422 Unprocessable Entity`) nếu vi phạm bất kỳ điều kiện nào:
+1. `EMPTY_QUESTIONS`: Đề thi không có câu hỏi nào.
+2. `INVALID_QUESTION_PAYLOAD`: Có câu hỏi thiếu prompt, thiếu options hoặc không có đáp án đúng.
+3. `ZERO_TOTAL_POINTS`: Tổng điểm của đề thi <= 0.
+4. `INVALID_SCORING_CONFIG`: Cấu hình scoring không tương thích với các loại câu hỏi trong đề.
 
-2. **Thực thể `QuizVersion` (Immutable Snapshot)**:
-   * Đại diện cho nội dung đề thi bất biến tại một mốc thời gian cụ thể.
-   * Thuộc tính:
-     ```typescript
-     export class QuizVersion {
-       id: string; // quiz_ver_<nanoId>
-       quizId: string;
-       versionNumber: number; // 1, 2, 3...
-       durationMinutes: number;
-       passingScore: number;
-       maxAttempts: number; // 0 = Không giới hạn, 1..N = Số lượt thi tối đa
-       questions: AuthoringQuestion[]; // Bản gốc đầy đủ metadata, đáp án đúng & lời giải
-       scoringPolicy: ScoringPolicyConfig;
-       randomizationPolicy: {
-         shuffleQuestions: boolean;
-         shuffleOptions: boolean;
-       };
-       createdAt: Date;
-     }
-     ```
-
-3. **Publishing Policy (Domain Invariants)**:
-   Không cho phép Publish nếu vi phạm bất kỳ điều kiện nào sau đây:
-   * `EMPTY_QUESTIONS`: Đề thi chưa có câu hỏi nào.
-   * `INVALID_QUESTION_PAYLOAD`: Có câu hỏi thiếu prompt, không có đáp án đúng, hoặc options bị trùng lặp.
-   * `ZERO_TOTAL_POINTS`: Tổng điểm của đề thi <= 0.
-   * `INVALID_SCORING_CONFIG`: Cấu hình scoring không hợp lệ với các loại câu hỏi trong đề.
+### 4. Chính Sách Lượt Thi (`AttemptPolicy`)
+* Kiểm soát số lần làm bài của từng thí sinh: Nếu số ca thi đã hoàn thành (`GRADED` / `TIMED_OUT_GRADED`) >= `maxAttempts`, hệ thống chặn khởi tạo ca thi mới (`MAX_ATTEMPTS_EXCEEDED` - HTTP `403 Forbidden`).
 
 ---
 
-### 1.2. Sub-Domain Delivery: `Attempt` (Aggregate Root) & State Machine
+## IV. SUB-DOMAIN DELIVERY: VẬN HÀNH PHÒNG THI, SNAPSHOT & STATE MACHINE
 
-1. **Bản chất cốt lõi**: `Quiz ≠ Attempt`. 
-   * `QuizVersion` là bản thiết kế (Blueprint).
-   * `Attempt` là một lượt thực thi của một thí sinh cụ thể (`User A` làm `QuizVersion v3` lần 1, lần 2...).
+### 1. Phân Định Bản Chất: `Quiz ≠ Attempt`
+* `QuizVersion` là **Bản thiết kế (Blueprint)**: 1 đề thi có thể có hàng nghìn thí sinh cùng làm.
+* `Attempt` là **Một lượt thực thi cụ thể (Execution Aggregate Root)**: Đại diện cho phiên thi của thí sinh X tại thời điểm Y.
 
-2. **Cấu trúc Đóng băng `AttemptManifest` (Snapshot)**:
-   * Giải quyết triệt để "Hố tử thần Đảo đề": Đảm bảo thí sinh dù reload trang, mất mạng hoặc đổi thiết bị vẫn nhận đúng thứ tự câu hỏi và thứ tự lựa chọn đã bốc lúc bắt đầu thi.
-   ```typescript
-   export interface AttemptManifest {
-     quizVersionId: string;
-     questionIds: string[];                  // Thứ tự câu hỏi đã shuffle (cố định)
-     optionOrders: Record<string, string[]>; // questionId -> danh sách optionIds đã shuffle
-     timeLimitMinutes: number;
-     startedAt: string;
-     deadline: string;
-   }
-   ```
+### 2. Đóng Băng Thứ Tự Đề Thi (`AttemptManifest` Snapshot)
+Giải quyết triệt để vấn đề xáo trộn ngẫu nhiên mỗi lần gọi API:
+* Khi thí sinh gọi `POST /v1/attempts/:id/start`, hệ thống thực hiện xáo trộn ngẫu nhiên câu hỏi và danh sách lựa chọn (nếu đề thi bật cờ shuffle), sau đó lưu cố định vào thuộc tính `manifest` của `Attempt`:
+  ```typescript
+  export interface AttemptManifest {
+    quizVersionId: string;
+    questionIds: string[];                  // Thứ tự câu hỏi đã shuffle (cố định)
+    optionOrders: Record<string, string[]>; // questionId -> danh sách optionIds đã shuffle
+    timeLimitMinutes: number;
+    startedAt: string;
+    deadline: string;
+  }
+  ```
+* Mọi lời gọi API lấy thông tin ca thi tiếp theo (`GET /v1/attempts/:id`) đều sắp xếp câu hỏi đúng theo thứ tự đã lưu trong `manifest`.
 
-3. **Thực thể `Attempt` (Aggregate Root)**:
-   * Thuộc tính:
-     ```typescript
-     export type AttemptStatus = 
-       | 'CREATED'           // Khởi tạo, chưa tính giờ
-       | 'IN_PROGRESS'       // Đang làm bài, đồng hồ đếm ngược
-       | 'SUBMITTED'         // Đã nộp bài, khóa chỉnh sửa
-       | 'GRADED'            // Đã chấm xong
-       | 'TIMED_OUT_GRADED'; // Hết giờ, tự động thu bài và chấm điểm các câu đã lưu
-     
-     export class Attempt {
-       id: string; // att_<nanoId>
-       userId: string;
-       quizId: string;
-       quizVersionId: string;
-       status: AttemptStatus;
-       startedAt?: Date;
-       deadline?: Date;
-       submittedAt?: Date;
-       manifest?: AttemptManifest;
-       answers: Map<string, CandidateAnswerRecord>;
-       scoreResult?: AttemptScoreResult;
-     }
-     ```
+### 3. Ranh Giới Khử Khuẩn Dữ Liệu (`DeliverySanitizer`)
+* Dữ liệu đề thi trả về cho thí sinh bắt buộc phải đi qua `DeliverySanitizer`:
+  - **Loại bỏ triệt để**: `correctAnswer`, `correctOptionId`, `correctOptionIds`, `isCorrect`, `explanation`, `gradingRubric`.
+  - **Giữ lại**: `id`, `type`, `prompt`, `points`, `options` (đã loại thuộc tính `isCorrect` và sắp xếp theo `AttemptManifest`).
 
-4. **Xử lý Đua lệnh & Tranh chấp ghi nhận câu trả lời (Concurrency & Idempotency)**:
-   * Dữ liệu câu trả lời lưu kèm `clientTimestamp` hoặc `sequenceNumber`:
-     ```typescript
-     export interface CandidateAnswerRecord {
-       answer: unknown;
-       answeredAt: Date;
-       clientTimestamp: number;
-     }
-     ```
-   * **Luật Domain**: Nếu request gửi đến có `clientTimestamp < currentAnswer.clientTimestamp`, Server từ chối ghi đè nhằm chống việc request gửi trước nhưng đến sau do mạng chập chờn (Out-Of-Order request).
+### 4. Máy Trạng Thái Vòng Đời Ca Thi (State Machine)
 
-5. **State Machine Transitions & Auto-Submit on Timeout**:
-   ```
-   [ CREATED ]
-       │  (start) -> Server sinh AttemptManifest, gán startedAt, tính deadline
-       ▼
-   [ IN_PROGRESS ]
-       │  (recordAnswer)  -> Ghi nhận câu trả lời từng câu (Idempotent + Timestamp check)
-       │  (submit)        -> Thí sinh chủ động nộp trước deadline + gracePeriod (15s)
-       │  (autoSubmit)    -> Thí sinh nộp muộn hoặc hết giờ -> Thu bài tự động
-       ▼
-   [ SUBMITTED ]
-       │  (grade)         -> Scoring Engine thực thi tính điểm
-       ▼
-   [ GRADED / TIMED_OUT_GRADED ]
-   ```
-   * **Graceful Auto-Submit**: Thay vì đánh rớt bài thi (0 điểm) khi hết giờ, hệ thống ghi nhận trạng thái `TIMED_OUT_GRADED`, thu thập toàn bộ các câu thí sinh đã kịp lưu trước mốc deadline và tiến hành chấm điểm bình thường.
+```text
+[ CREATED ]
+    │
+    │  (startAttempt) -> Khởi tạo AttemptManifest, tính deadline, kích hoạt đồng hồ
+    ▼
+[ IN_PROGRESS ]
+    │
+    │  (recordAnswer) -> Ghi nhận câu trả lời từng câu (Idempotent + Timestamp check)
+    │  (submitAttempt) -> Thí sinh chủ động nộp bài trước thời hạn
+    │  (autoSubmit)    -> Thí sinh nộp muộn hoặc hết giờ thi -> Chuyển sang TIMED_OUT_GRADED
+    ▼
+[ SUBMITTED ]
+    │
+    │  (gradeAttempt)  -> Kích hoạt Assessment Scoring Engine
+    ▼
+[ GRADED / TIMED_OUT_GRADED ]
+```
 
-6. **Chính sách Lượt thi (`AttemptPolicy` & Fraud Prevention)**:
-   * **Chống gian lận đa tab**: Một thí sinh chỉ được phép có duy nhất **1 Attempt ở trạng thái `IN_PROGRESS`** trên cùng một bài thi. Nếu cố tình gọi `POST /v1/attempts`, hệ thống trả về Attempt đang làm dở thay vì tạo mới.
-   * **Kiểm soát số lần thi**: Nếu số lượng Attempt đã hoàn thành >= `maxAttempts` của đề thi, từ chối khởi tạo lượt thi mới.
+* **Trạng thái `CREATED`**: Ca thi được tạo thành công, chưa tính giờ làm bài.
+* **Trạng thái `IN_PROGRESS`**: Thí sinh đã bấm vào phòng thi, đồng hồ máy chủ tính `startedAt` và xác lập mốc `deadline = startedAt + durationMinutes`.
+* **Trạng thái `SUBMITTED` / `GRADED`**: Bài thi đã nộp, khóa hoàn toàn khả năng chỉnh sửa đáp án (`ATTEMPT_ALREADY_SUBMITTED`).
+* **Trạng thái `TIMED_OUT_GRADED` (Graceful Auto-Submit)**: Khi thí sinh nộp bài sau mốc `deadline` (kèm thời gian dung sai Grace Period), hệ thống tự động thu nhận tất cả câu trả lời đã lưu trước thời điểm hết giờ và thực hiện chấm điểm công bằng.
+
+### 5. Kiểm Soát Tranh Chấp & Xung Đột Gói Tin (`Concurrency & Idempotency`)
+* Mỗi câu trả lời được lưu trữ dưới dạng:
+  ```typescript
+  export interface CandidateAnswerRecord {
+    answer: unknown;
+    answeredAt: Date;
+    clientTimestamp: number;
+  }
+  ```
+* **Quy tắc Chống Ghi Đè Ngược**: Nếu request gửi lên có `clientTimestamp < currentAnswer.clientTimestamp`, hệ thống từ chối cập nhật với mã lỗi `OUTDATED_ANSWER_TIMESTAMP` (HTTP `409 Conflict`), ngăn ngừa rủi ro mạng chập chờn gửi request trước nhưng đến sau.
+
+### 6. Chống Gian Lận Đa Tab (Multi-tab Prevention)
+* Khi gọi `POST /v1/attempts`, nếu thí sinh đã có một ca thi ở trạng thái `IN_PROGRESS` trên cùng đề thi, hệ thống sẽ **trả về chính ca thi đang dở dang đó** thay vì tạo ca thi mới (`isExisting: true`), buộc thí sinh tiếp tục phiên thi hiện tại.
 
 ---
 
-## BƯỚC 2: THIẾT KẾ RESTFUL RESOURCE ROUTES CHUẨN & COMPATIBILITY LAYER
+## V. QUESTION ENGINE & ASSESSMENT SCORING ENGINE
 
-Mục tiêu: Xóa bỏ các endpoint thiết kế theo giao diện (`/student/home`), chuyển sang hệ thống RESTful Resource Primitives chuẩn mực nhưng đảm bảo tương thích ngược 100% cho Frontend.
-
-### 2.1. Quản nguyên `/v1/quizzes` (Authoring & Catalog)
-
-| Phương thức | Đường dẫn | Quyền hạn | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/v1/quizzes` | Public / Student | Lấy danh sách đề thi đã Published (Catalog) |
-| `POST` | `/v1/quizzes` | Instructor / Admin | Khởi tạo đề thi mới (trạng thái DRAFT) |
-| `GET` | `/v1/quizzes/:id` | Authenticated | Xem chi tiết thông tin đề thi |
-| `POST` | `/v1/quizzes/:id/versions` | Instructor / Admin | Tạo phiên bản mới hoặc cập nhật bản thảo |
-| `GET` | `/v1/quizzes/:id/versions` | Instructor / Admin | Xem lịch sử các phiên bản của đề thi |
-| `POST` | `/v1/quizzes/:id/publish` | Instructor / Admin | Kiểm tra invariants và xuất bản đề thi |
-| `POST` | `/v1/quizzes/:id/archive` | Admin | Đóng/lưu trữ đề thi |
-
-### 2.2. Quản nguyên `/v1/attempts` (Delivery & Execution)
-
-| Phương thức | Đường dẫn | Quyền hạn | Mô tả & Xử lý |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/v1/attempts` | Student | Khởi tạo hoặc khôi phục lượt thi (`CREATED` / `IN_PROGRESS`). Body: `{ quizId }`. |
-| `POST` | `/v1/attempts/:id/start` | Student (Owner) | Bắt đầu tính giờ. Trả về `DeliveryQuestion[]` đã lột bỏ đáp án và sắp xếp theo `AttemptManifest`. |
-| `GET` | `/v1/attempts/:id` | Student (Owner) | Lấy thông tin trạng thái phòng thi, thời gian còn lại, câu hỏi (đã sanitize). |
-| `PUT` | `/v1/attempts/:id/answers/:questionId` | Student (Owner) | Lưu câu trả lời từng câu. Body: `{ answer, clientTimestamp }`. |
-| `POST` | `/v1/attempts/:id/submit` | Student (Owner) | Nộp bài thi (`SUBMITTED`), kích hoạt luồng chấm điểm sang `GRADED`. Hỗ trợ auto-submit nếu quá giờ. |
-| `GET` | `/v1/attempts/:id/result` | Student (Owner) / Admin | Lấy bảng kết quả, điểm số, và lời giải (nếu đề thi cho phép xem sau nộp). |
-| `GET` | `/v1/attempts` | Authenticated | Liệt kê lịch sử các lần thi của thí sinh (Hỗ trợ Retake & Analytics). |
-
-### 2.3. Quy tắc Bảo mật Delivery Data Leak (Sanitization Boundary)
-* Tại các route `/v1/attempts/:id` và `/v1/attempts/:id/start`, dữ liệu câu hỏi trả về Frontend bắt buộc phải đi qua lớp **`DeliverySanitizer`**:
-  * Loại bỏ triệt để: `correctAnswer`, `correctOptionId`, `correctOptionIds`, `gradingRubric`, `explanation`.
-  * Giữ lại: `id`, `type`, `prompt`, `metadata.options` (đã loại `isCorrect` và shuffle theo `AttemptManifest`).
-
-### 2.4. Đồng bộ RESTful API Trực tiếp & Loại bỏ Facade (Direct RESTful Migration)
-Sau giai đoạn chuyển tiếp an toàn, toàn bộ tầng Facade tương thích ngược (`/api/v1/*` và `legacy-facade.routes.ts`) đã được **loại bỏ hoàn toàn** để bảo toàn tính tinh gọn và nguyên bản của kiến trúc Hexagonal / RESTful:
-* Không còn các endpoint ngầm `/api/v1/sessions*` hay `/api/v1/quizzes/:id/start`. Các request tới endpoint legacy sẽ trả về `404 Not Found`.
-* SDK `@platform/api-client` tương tác trực tiếp với các Resource Primitives:
-  * `apiClient.quizzes.list()` / `get()` / `create()` / `addVersion()` / `publish()`
-  * `apiClient.attempts.create()` / `start()` / `recordAnswer()` / `submit()` / `get()`
-* Ứng dụng Frontend `quiz-web` đã chuyển đổi 100% sang chuẩn Delivery mới:
-  * `POST /v1/attempts`: Khởi tạo ca thi hoặc khôi phục ca thi đang dở dang (`IN_PROGRESS`).
-  * `POST /v1/attempts/:id/start`: Kích hoạt đồng hồ máy chủ và nhận danh sách câu hỏi đã được `DeliverySanitizer` lọc sạch đáp án.
-  * `PUT /v1/attempts/:id/answers/:questionId`: Lưu câu trả lời từng câu kèm `clientTimestamp` chống xung đột mạng trễ.
-  * `POST /v1/attempts/:id/submit`: Đóng băng ca thi và nhận bảng điểm chi tiết.
-  * Tích hợp bộ chọn đề thi động từ danh mục `GET /v1/quizzes`.
-
----
-
-## BƯỚC 3: CẮM QUESTION ENGINE & SCORING STRATEGY
-
-Mục tiêu: Thiết kế Question Engine mở rộng theo mẫu thiết kế **Strategy + Registry (Open-Closed Principle)**, hỗ trợ ngay 3 loại câu hỏi cốt lõi và sẵn sàng gắn thêm loại câu hỏi mới mà không sửa core logic.
-
-### 3.1. Kiến trúc Question Type Handler (Registry Pattern)
+### 1. Kiến Trúc Question Handler (Registry Pattern)
+Áp dụng mẫu thiết kế **Open-Closed Principle**, cho phép bổ sung thêm các loại câu hỏi mới mà không can thiệp vào lõi xử lý:
 
 ```typescript
 export interface QuestionTypeHandler<TQuestion = any, TAnswer = any> {
-  readonly type: QuestionType; // 'single-choice' | 'multiple-choice' | 'true-false'
-  
-  // 1. Lọc dữ liệu nhạy cảm trước khi gửi tới thí sinh
+  readonly type: string;
   sanitizeForDelivery(question: TQuestion, optionOrder?: string[]): DeliveryQuestion;
-  
-  // 2. Validate tính hợp lệ của câu trả lời gửi lên từ Client
   validateAnswerPayload(question: TQuestion, answer: TAnswer): boolean;
-  
-  // 3. Tính điểm câu hỏi dựa trên chiến lược chấm
   evaluate(question: TQuestion, answer: TAnswer, strategy: ScoringStrategy): QuestionEvaluation;
 }
 ```
 
-### 3.2. Ba loại câu hỏi cốt lõi ban đầu (MVP+)
+* **`SingleChoiceHandler` (`single-choice`)**:
+  - Trắc nghiệm chọn 1 đáp án đúng trong danh sách.
+  - Kiểm tra tính hợp lệ của `selectedOptionId`.
+  - So khớp trực tiếp với `correctOptionId`.
+* **`MultipleChoiceHandler` (`multiple-choice`)**:
+  - Trắc nghiệm chọn 1 hoặc nhiều đáp án đúng (`selectedOptionIds: string[]`).
+  - Hỗ trợ cả chấm điểm thành phần lẫn chấm tuyệt đối.
+* **`TrueFalseHandler` (`true-false`)**:
+  - Câu hỏi nhận định Đúng / Sai (`booleanValue: boolean`).
+  - So khớp trực tiếp giá trị boolean chuẩn.
 
-1. **`single-choice` (Trắc nghiệm 1 đáp án)**:
-   * Dữ liệu: Danh sách lựa chọn `{ id, text, isCorrect }`.
-   * Thí sinh nộp: `{ selectedOptionId: string }`.
-   * Đánh giá: So sánh chính xác `selectedOptionId === correctOptionId`.
-
-2. **`multiple-choice` (Trắc nghiệm nhiều đáp án)**:
-   * Dữ liệu: Danh sách lựa chọn trong đó có thể có >= 1 đáp án đúng.
-   * Thí sinh nộp: `{ selectedOptionIds: string[] }`.
-   * Đánh giá: Hỗ trợ tính điểm thành phần (Partial Credit) hoặc chỉ tính điểm khi đúng toàn bộ (Exact Match).
-
-3. **`true-false` (Đúng / Sai)**:
-   * Dữ liệu: Mệnh đề khẳng định và boolean chuẩn `correctValue: boolean`.
-   * Thí sinh nộp: `{ booleanValue: boolean }`.
-   * Đánh giá: So khớp boolean trực tiếp.
-
-### 3.3. Các chiến lược chấm điểm (`ScoringStrategy`)
-
+### 2. Các Chiến Lược Chấm Điểm (`ScoringStrategy`)
+Được điều phối qua `AssessmentScoringEngine`:
 * **`ExactMatchScoring`**:
-  * Chỉ cộng trọn vẹn điểm câu hỏi nếu toàn bộ đáp án của thí sinh trùng khớp 100% với đáp án đúng. Sai một chi tiết nhỏ = 0 điểm.
+  - Chỉ cho điểm tối đa nếu thí sinh chọn đúng 100% đáp án; sai bất kỳ chi tiết nào = 0 điểm.
 * **`PartialCreditScoring`**:
-  * Dành cho `multiple-choice`: Điểm nhận được = (Số ý đúng chọn được / Tổng số ý đúng) * MaxPoints (trừ điểm nếu chọn option sai để chống tick all).
+  - Dành cho câu hỏi nhiều đáp án (`multiple-choice`):
+  - `Điểm = (Số lựa chọn đúng - Số lựa chọn sai) / Tổng số đáp án đúng * MaxPoints` (không âm).
+  - Ngăn chặn triệt để hành vi gian lận tích chọn toàn bộ các ô (tick all).
 * **`NegativeMarkingScoring`**:
-  * Trừ điểm khi chọn sai để chống thí sinh đánh bừa (ví dụ: đúng +1, sai -0.25, không làm 0).
+  - Áp dụng trừ điểm phạt khi thí sinh trả lời sai, chống đánh bừa ngẫu nhiên.
 
 ---
 
-## BẢNG MÃ LỖI DOMAIN CHUẨN HÓA (DOMAIN ERROR CATALOG)
+## VI. BẢO MẬT, ĐỊNH DANH & PHÂN QUYỀN (SECURITY, AUTHENTICATION & RBAC)
 
-| Mã lỗi | HTTP Status | Mô tả nghiệp vụ |
-| :--- | :--- | :--- |
-| `QUIZ_NOT_FOUND` | 404 | Đề thi không tồn tại trong hệ thống |
-| `QUIZ_NOT_PUBLISHED` | 400 | Đề thi chưa được xuất bản, thí sinh không thể bắt đầu |
-| `QUIZ_PUBLISH_INVARIANT_VIOLATION`| 422 | Đề thi chưa đủ điều kiện xuất bản (thiếu câu hỏi, thang điểm sai) |
-| `ATTEMPT_NOT_FOUND` | 404 | Không tìm thấy lượt thi với ID yêu cầu |
-| `ATTEMPT_ALREADY_SUBMITTED` | 409 | Bài thi đã nộp, không được phép sửa câu trả lời |
-| `ATTEMPT_ALREADY_IN_PROGRESS` | 409 | Thí sinh đang có lượt thi dở dang, không được mở thêm tab thi mới |
-| `MAX_ATTEMPTS_EXCEEDED` | 403 | Thí sinh đã dùng hết số lượt làm bài cho phép của đề thi này |
-| `ATTEMPT_TIME_EXPIRED` | 400 | Quá thời gian quy định làm bài (kể cả grace period) |
-| `OUTDATED_ANSWER_TIMESTAMP` | 409 | Gói tin trả lời câu hỏi bị đến muộn hơn gói tin đã lưu trước đó |
-| `INVALID_ANSWER_PAYLOAD` | 422 | Định dạng câu trả lời không khớp với loại câu hỏi |
+Hệ thống Quiz Service được bảo vệ bằng các lớp phòng thủ chuyên sâu:
+
+1. **Xác Thực Chữ Ký Số JWT Chuẩn RS256**:
+   - Sử dụng khóa công khai RSA lấy từ JWKS Discovery (`/.well-known/jwks.json`) để xác thực chữ ký của Access Token.
+   - Hỗ trợ fallback HS256 nếu cấu hình môi trường dùng chung secret.
+   - Không cho phép token giả mạo chữ ký, token hết hạn hoặc token bị can thiệp payload ➜ Trả về HTTP `401 Unauthorized`.
+   - **Chấm dứt hoàn toàn Anonymous Fallback**: Không còn cơ chế tự động gán tài khoản mặc định `usr_student_01` cho request không có token.
+
+2. **Phân Quyền Vai Trò (RBAC Guard)**:
+   - Các route tạo đề, cập nhật phiên bản, xuất bản (`POST /v1/quizzes`, `POST /v1/quizzes/:id/versions`, `POST /v1/quizzes/:id/publish`) đều được bảo vệ bởi middleware:
+     ```typescript
+     requireRole('INSTRUCTOR', 'ADMIN')
+     ```
+   - Thí sinh (`STUDENT`) gửi request vào các route này lập tức bị từ chối với HTTP `403 Forbidden` (`errorCode: 'FORBIDDEN'`).
+
+3. **Bảo Vệ Ca Thi & Chống Lỗ Hổng IDOR (Anti-Cheating IDOR Defense)**:
+   - Toàn bộ các route làm bài thi (`/v1/attempts/:id/*`) đều kiểm tra định danh người dùng:
+     ```typescript
+     if (attempt.userId !== req.principal.id && !req.principal.roles.includes('ADMIN')) {
+       throw new ForbiddenError('You are not authorized to access this quiz attempt');
+     }
+     ```
+   - Thí sinh tuyệt đối không thể xem, nộp bài hoặc gửi đáp án vào ca thi của thí sinh khác.
 
 ---
 
-## KẾ HOẠCH TRIỂN KHAI & KIỂM THỬ (IMPLEMENTATION & VERIFICATION)
+## VII. ĐẶC TẢ CHI TIẾT RESTFUL API V1 (API SPECIFICATION)
 
-### Trình tự thực thi:
-1. **Pha 1 (Domain Core & State Machine)**: [HOÀN THÀNH - 100%]
-   - [x] Xây dựng `services/quiz/src/domain/authoring/` (`Quiz`, `QuizVersion`, `PublishingPolicy`, `AttemptPolicy`).
-   - [x] Xây dựng `services/quiz/src/domain/delivery/` (`Attempt`, `AttemptManifest`, `AttemptStatus`, `DeliverySanitizer`).
-   - [x] Cài đặt State Machine: `CREATED` -> `IN_PROGRESS` -> `SUBMITTED` -> `GRADED` / `TIMED_OUT_GRADED`.
-   - [x] Viết Unit Tests kiểm tra State Machine transitions, Graceful Auto-Submit và các ràng buộc Invariants (29 tests mới, tổng 96 tests passed).
-2. **Pha 2 (Question & Scoring Engine)**: [HOÀN THÀNH - 100%]
-   - [x] Triển khai `QuestionRegistry` và 3 handlers: `SingleChoiceHandler`, `MultipleChoiceHandler`, `TrueFalseHandler`.
-   - [x] Tích hợp với `ScoringStrategy` (ExactMatch, PartialCredit, NegativeMarking) qua `AssessmentScoringEngine`.
-   - [x] Viết Unit Tests kiểm tra tính điểm độc lập cho từng loại câu hỏi.
-3. **Pha 3 (Application, Presentation & RESTful Delivery)**: [HOÀN THÀNH - 100%]
-   - [x] Viết Use Cases: `AuthoringUseCases` (`createQuiz`, `addVersion`, `publishQuiz`, `getPublishedQuizzes`, `getQuizDetails`), `DeliveryUseCases` (`createAttempt`, `startAttempt`, `recordAnswer`, `submitAttempt`, `getAttemptDetails`).
-   - [x] Cắm RESTful routes `/v1/quizzes` và `/v1/attempts`.
-   - [x] Hoàn tất quá đoạn Facade và **loại bỏ triệt để Backward Compatibility Facade** (`/api/v1/*` và `legacy-facade.routes.ts`) để bảo đảm kiến trúc sạch (clean architecture).
-   - [x] Cập nhật SDK `@platform/api-client` kết nối trực tiếp các Resource Primitives chuẩn RESTful v1 (`attempts`, `quizzes`).
-   - [x] Đảm bảo 100% test suites (13 test files, 101 unit/integration tests) đều PASS.
-4. **Pha 4 (Kiểm thử toàn diện, Hậu kiểm & Frontend Migration)**: [HOÀN THÀNH - 100%]
-   - [x] Chạy toàn bộ Test Suite (101 tests PASS, 13 test files, không có regression).
-   - [x] Nâng cấp `apps/quiz-web` đồng bộ 100% với `/v1/attempts` và `/v1/quizzes` qua `quizApi`.
-   - [x] Tích hợp tính năng hiển thị và chọn đề thi khả dụng từ catalog trên giao diện `QuizStartView`.
-   - [x] Cập nhật proxy trong `apps/quiz-web/vite.config.ts` và `apps/admin-web/vite.config.ts` cho các route `/v1/quizzes` và `/v1/attempts`.
-   - [x] Kiểm tra xác thực toàn diện: Compile, Linting, Test Suites và Dev Server hoạt động ổn định tuyệt đối.
+### 1. Nhóm Tài Nguyên `/v1/quizzes` (Authoring & Catalog)
+
+| Phương thức | Đường dẫn Endpoint | Yêu cầu Quyền hạn | Mô tả chức năng |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/v1/quizzes` | Public / Thí sinh | Lấy danh mục các bài thi đã xuất bản (`PUBLISHED`) |
+| `POST` | `/v1/quizzes` | `INSTRUCTOR`, `ADMIN` | Tạo mới bài thi (trạng thái ban đầu `DRAFT`) |
+| `GET` | `/v1/quizzes/:id` | Authenticated | Lấy chi tiết thông tin bài thi |
+| `POST` | `/v1/quizzes/:id/versions` | `INSTRUCTOR`, `ADMIN` | Thêm phiên bản mới (câu hỏi, thời gian, điểm đạt, cấu hình) |
+| `POST` | `/v1/quizzes/:id/publish` | `INSTRUCTOR`, `ADMIN` | Kiểm tra Invariants và phát hành phiên bản làm bài chính thức |
+
+#### Ví dụ Request / Response Tạo Bài Thi:
+* **`POST /v1/quizzes`**:
+  ```json
+  // Request Body
+  {
+    "code": "CS101",
+    "title": "Nhập môn Lập trình Web",
+    "description": "Bài kiểm tra kiến thức HTML, CSS, JavaScript và Kiến trúc Web"
+  }
+  
+  // Response 201 Created
+  {
+    "success": true,
+    "data": {
+      "id": "quiz_101",
+      "code": "CS101",
+      "title": "Nhập môn Lập trình Web",
+      "status": "DRAFT",
+      "ownerId": "usr_instructor_01"
+    }
+  }
+  ```
+
+---
+
+### 2. Nhóm Tài Nguyên `/v1/attempts` (Delivery & Phòng Thi)
+
+| Phương thức | Đường dẫn Endpoint | Yêu cầu Quyền hạn | Mô tả chức năng |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/v1/attempts` | Student (Chính chủ) | Khởi tạo hoặc khôi phục ca thi (`isExisting: boolean`) |
+| `POST` | `/v1/attempts/:id/start` | Student (Chính chủ) | Bắt đầu tính giờ; nhận đề thi đã khử khuẩn và `AttemptManifest` |
+| `GET` | `/v1/attempts/:id` | Student (Chính chủ) | Xem trạng thái phòng thi, thời gian còn lại, câu hỏi |
+| `PUT` | `/v1/attempts/:id/answers/:questionId` | Student (Chính chủ) | Lưu đáp án từng câu kèm `clientTimestamp` chống xung đột mạng |
+| `POST` | `/v1/attempts/:id/answers` | Student (Chính chủ) | Lưu đáp án qua Body `{ questionId, answer, clientTimestamp }` |
+| `POST` | `/v1/attempts/:id/submit` | Student (Chính chủ) | Nộp bài thi, đóng băng ca thi và nhận kết quả chấm điểm tức thì |
+
+#### Ví dụ Bắt Đầu Ca Thi:
+* **`POST /v1/attempts/att_101/start`**:
+  ```json
+  // Response 200 OK
+  {
+    "success": true,
+    "data": {
+      "attempt": {
+        "id": "att_101",
+        "quizId": "quiz_demo",
+        "quizVersionId": "quiz_ver_demo_v1",
+        "status": "IN_PROGRESS",
+        "startedAt": "2026-09-04T07:00:00.000Z",
+        "deadline": "2026-09-04T07:45:00.000Z"
+      },
+      "manifest": {
+        "quizVersionId": "quiz_ver_demo_v1",
+        "questionIds": ["q_02", "q_01", "q_03"],
+        "optionOrders": {
+          "q_01": ["opt_c", "opt_a", "opt_b"]
+        }
+      },
+      "questions": [
+        {
+          "id": "q_02",
+          "type": "single-choice",
+          "prompt": "Giao thức nào cung cấp kết nối mạng bảo mật trên nền TLS?",
+          "points": 10,
+          "options": [
+            { "id": "opt_2a", "text": "HTTP" },
+            { "id": "opt_2b", "text": "HTTPS" }
+          ]
+        }
+      ]
+    }
+  }
+  ```
+
+---
+
+### 3. Danh Mục Mã Lỗi Domain Chuẩn Hóa (`DomainErrorCode`)
+
+| Mã Lỗi (`errorCode`) | HTTP Status | Mô tả Nghiệp vụ |
+| :--- | :---: | :--- |
+| `QUIZ_NOT_FOUND` | 404 | Không tìm thấy đề thi với ID được cung cấp |
+| `QUIZ_NOT_PUBLISHED` | 400 | Đề thi chưa được xuất bản, thí sinh không thể làm bài |
+| `QUIZ_PUBLISH_INVARIANT_VIOLATION` | 422 | Đề thi không đủ điều kiện xuất bản (rỗng câu hỏi, thang điểm sai) |
+| `ATTEMPT_NOT_FOUND` | 404 | Không tìm thấy ca thi tương ứng |
+| `ATTEMPT_ALREADY_SUBMITTED` | 409 | Bài thi đã nộp, từ chối mọi thao tác chỉnh sửa đáp án |
+| `ATTEMPT_ALREADY_IN_PROGRESS` | 409 | Thí sinh đã có ca thi đang dở dang, không được mở thêm tab |
+| `MAX_ATTEMPTS_EXCEEDED` | 403 | Thí sinh đã sử dụng hết số lần thi tối đa cho phép |
+| `ATTEMPT_TIME_EXPIRED` | 400 | Thời gian làm bài đã hết |
+| `OUTDATED_ANSWER_TIMESTAMP` | 409 | Gói tin đáp án gửi lên cũ hơn gói tin đã được ghi nhận trước đó |
+| `INVALID_ANSWER_PAYLOAD` | 422 | Cấu trúc câu trả lời không tương thích với loại câu hỏi |
+| `INVALID_STATE_TRANSITION` | 409 | Chuyển đổi trạng thái ca thi bất hợp lệ |
+| `FORBIDDEN` | 403 | Không đủ quyền hạn thực thi hoặc vi phạm quyền sở hữu ca thi |
+| `UNAUTHORIZED` | 401 | Thiếu token xác thực hoặc token không hợp lệ |
+
+---
+
+## VIII. ĐỒNG BỘ KHÁCH HÀNG: SDK & GIAO DIỆN THÍ SINH (`quiz-web`)
+
+1. **Thư Viện Khách Hàng `@platform/api-client`**:
+   - Tương tác trực tiếp với các primitives chuẩn RESTful v1:
+     - `apiClient.quizzes.list()` / `get()` / `create()` / `addVersion()` / `publish()`
+     - `apiClient.attempts.create()` / `start()` / `recordAnswer()` / `submit()` / `get()`
+   - Tự động gắn kèm Header Authorization qua Token Provider.
+2. **Giao Diện Thí Sinh `apps/quiz-web`**:
+   - `QuizStartView`: Tự động tải danh mục đề thi khả dụng từ `GET /v1/quizzes`, cho phép chọn đề thi và hiển thị thông tin bài thi.
+   - `QuizActiveView`: Hiển thị danh sách câu hỏi theo đúng thứ tự `AttemptManifest`, đồng bộ đồng hồ đếm ngược với `deadline` của máy chủ.
+   - `useQuizSession`: Hook điều phối tự động lưu đáp án khi thí sinh click chọn, cảnh báo mất kết nối mạng và hỗ trợ tự động nộp bài khi hết giờ.
+
+---
+
+## IX. CHỈ SỐ KIỂM THỬ VÀ ĐẢM BẢO CHẤT LƯỢNG (TESTING & VERIFICATION)
+
+Chất lượng của Quiz Assessment Engine được kiểm chứng qua bộ kiểm thử tự động toàn diện:
+
+```text
+ ✓ services/quiz/tests/domain/authoring/quiz.spec.ts (9 tests)
+ ✓ services/quiz/tests/domain/authoring/attempt-policy.spec.ts (6 tests)
+ ✓ services/quiz/tests/domain/delivery/attempt-manifest.spec.ts (2 tests)
+ ✓ services/quiz/tests/domain/delivery/attempt-state-machine.spec.ts (12 tests)
+ ✓ services/quiz/tests/security/sanitization-boundary.spec.ts (15 tests)
+ ✓ services/quiz/tests/security/rbac.spec.ts (10 tests)
+ ✓ services/quiz/tests/security/principal-context.spec.ts (9 tests)
+ ✓ services/quiz/tests/scoring/scoring.spec.ts (15 tests)
+ ✓ services/quiz/tests/session/quiz-session.spec.ts (7 tests)
+ ✓ services/quiz/src/application/use-cases.spec.ts (2 tests)
+ ✓ services/quiz/tests/presentation/assessment-api.spec.ts (10 tests)
+ ✓ services/auth/tests/auth.spec.ts (18 tests)
+ ✓ services/auth/tests/drizzle-persistence.spec.ts (4 tests)
+ ✓ packages/auth-client/tests/auth-client.spec.ts (9 tests)
+ ✓ packages/api-client/tests/api-client.spec.ts (8 tests)
+
+Test Files:  15 passed (15)
+Tests:       136 passed (136)
+Result:      100% Pass, Không có lỗi hồi quy (Zero Regression)
+```
+
+### Kết Luận Nghiệm Thu:
+* Hệ thống Quiz Service đã hoàn tất quá trình chuyển đổi kiến trúc sang chuẩn công nghiệp **Domain-Driven Design (DDD)** và **Hexagonal Architecture**.
+* Hai sub-domain **Authoring** và **Delivery** hoạt động độc lập, rõ ràng và mạch lạc.
+* Bộ ba Động cơ **State Machine**, **Question Engine** và **Assessment Scoring Engine** bảo đảm tính tin cậy, chính xác và khả năng mở rộng cao cho nền tảng thi trực tuyến.
