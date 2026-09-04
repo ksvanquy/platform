@@ -68,6 +68,56 @@ export class User {
     };
   }
 
+  /**
+   * Kiểm tra người dùng có được gán vai trò cụ thể hay không.
+   */
+  hasRole(roleCode: string): boolean {
+    const target = roleCode.toUpperCase().trim();
+    return this.roles.some((r) => r.code === target);
+  }
+
+  /**
+   * Kiểm tra người dùng có quyền thực hiện một hành động cụ thể không.
+   * Tự động trả về true nếu người dùng có vai trò ADMIN hoặc quyền wildcard (*).
+   */
+  hasPermission(permissionCode: string): boolean {
+    if (this.isAdmin()) return true;
+    const target = permissionCode.trim();
+    return this.roles.some((r) => r.hasPermission(target));
+  }
+
+  /**
+   * Xác định người dùng có phải là Quản trị viên tối cao hay không.
+   */
+  isAdmin(): boolean {
+    return this.roles.some((r) => r.isAdministrator());
+  }
+
+  /**
+   * Kiểm tra người dùng có thuộc về tenant được chỉ định (hoặc cùng tenant) không.
+   */
+  canAccessTenant(targetTenantId?: string): boolean {
+    if (!targetTenantId || !this.tenantId) return true;
+    return this.tenantId === targetTenantId;
+  }
+
+  /**
+   * Tạo bản sao User mới với danh sách roles được cập nhật.
+   */
+  withRoles(roles: readonly Role[]): User {
+    return new User({
+      id: this.id,
+      email: this.email,
+      name: this.name,
+      passwordHash: this.passwordHash,
+      roles,
+      tenantId: this.tenantId,
+      isActive: this.isActive,
+      createdAt: this.createdAt,
+      updatedAt: new Date(),
+    });
+  }
+
   toSafeProfile() {
     return {
       id: this.id,

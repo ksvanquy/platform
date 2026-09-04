@@ -1,18 +1,23 @@
 import { ITokenStorage } from '../../domain/token/token.storage.port.js';
-import { InMemoryTokenStorage } from './in-memory-token.storage.js';
 import { DrizzleTokenStorage } from './drizzle-user.repository.js';
-import { isAuthDbConfigured } from '../db/connection.js';
+import { getAuthDb, isAuthDbConfigured } from '../db/connection.js';
 
 /**
  * Factory khởi tạo TokenStorage tuân thủ Dependency Inversion Principle.
- * Tự động chọn DrizzleTokenStorage khi có kết nối PostgreSQL (AUTH_DATABASE_URL),
- * hoặc InMemoryTokenStorage trong môi trường kiểm thử / local mode.
+ * 100% PostgreSQL - Không hỗ trợ bất kỳ giải pháp In-Memory nào.
+ * Fail-Fast nếu thiếu kết nối database.
  */
-export function createTokenStorage(): ITokenStorage {
-  if (isAuthDbConfigured()) {
-    console.log('📦 Initializing DrizzleTokenStorage (PostgreSQL - Database-per-Service)');
-    return new DrizzleTokenStorage();
+export function createTokenStorage(db?: any): ITokenStorage {
+  if (db) {
+    return new DrizzleTokenStorage(db);
   }
-  console.log('🧠 Initializing InMemoryTokenStorage (Local / Testing Mode)');
-  return new InMemoryTokenStorage();
+
+  if (!isAuthDbConfigured()) {
+    throw new Error(
+      'FATAL CONFIGURATION ERROR: AUTH_DATABASE_URL is required. In-memory mode has been permanently removed.'
+    );
+  }
+
+  console.log('📦 Initializing DrizzleTokenStorage (PostgreSQL - Database-per-Service)');
+  return new DrizzleTokenStorage(getAuthDb());
 }

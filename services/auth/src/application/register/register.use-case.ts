@@ -4,7 +4,7 @@ import { Role } from '../../domain/role/role.entity.js';
 import { Permission } from '../../domain/role/permission.entity.js';
 import { IUserRepository } from '../../domain/user/user.repository.port.js';
 import { TokenService, AuthTokens } from '../../infrastructure/token/token.service.js';
-import { hashPassword } from '../../infrastructure/persistence/in-memory-user.repository.js';
+import { hashPassword } from '../../infrastructure/crypto/password.js';
 
 export interface RegisterDTO {
   email?: string;

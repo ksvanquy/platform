@@ -1,6 +1,6 @@
 import { IUserRepository } from '../../domain/user/user.repository.port.js';
 import { TokenService, AuthTokens } from '../../infrastructure/token/token.service.js';
-import { verifyPassword } from '../../infrastructure/persistence/in-memory-user.repository.js';
+import { verifyPassword } from '../../infrastructure/crypto/password.js';
 
 export interface LoginDTO {
   email?: string;

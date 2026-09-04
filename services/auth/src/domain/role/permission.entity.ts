@@ -27,4 +27,37 @@ export class Permission {
     this.description = props.description;
     this.createdAt = props.createdAt || new Date();
   }
+
+  /**
+   * Kiểm tra quyền hạn có phải là Wildcard tối cao (*) hay không.
+   */
+  isWildcard(): boolean {
+    return this.code === '*';
+  }
+
+  /**
+   * Khớp mã quyền hạn với mã yêu cầu (hỗ trợ wildcard).
+   */
+  matches(requiredCode: string): boolean {
+    if (this.isWildcard()) return true;
+    return this.code === requiredCode.trim();
+  }
+
+  /**
+   * Kiểm tra quyền có phạm vi can thiệp toàn cục (Bypass ownership) hay không.
+   */
+  isManageAll(): boolean {
+    return this.isWildcard() || this.action === 'manage_all' || this.action === 'read_all';
+  }
+
+  toJSON(): PermissionProps {
+    return {
+      id: this.id,
+      code: this.code,
+      resource: this.resource,
+      action: this.action,
+      description: this.description,
+      createdAt: this.createdAt,
+    };
+  }
 }

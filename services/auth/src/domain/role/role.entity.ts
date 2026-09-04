@@ -39,4 +39,47 @@ export class Role {
   getPermissionCodes(): readonly string[] {
     return Object.freeze(this.permissions.map((p) => p.code));
   }
+
+  /**
+   * Kiểm tra vai trò có sở hữu quyền hạn cụ thể hoặc Wildcard (*) không.
+   */
+  hasPermission(targetCode: string): boolean {
+    return this.permissions.some((p) => p.matches(targetCode));
+  }
+
+  /**
+   * Kiểm tra xem vai trò này có phải là vai trò quản trị viên toàn quyền hay không.
+   */
+  isAdministrator(): boolean {
+    return this.code === 'ADMIN' || this.hasPermission('*');
+  }
+
+  /**
+   * Tạo bản sao Role mới với danh sách quyền hạn được cập nhật.
+   */
+  withPermissions(permissions: readonly Permission[]): Role {
+    return new Role({
+      id: this.id,
+      code: this.code,
+      name: this.name,
+      description: this.description,
+      isSystem: this.isSystem,
+      permissions,
+      createdAt: this.createdAt,
+      updatedAt: new Date(),
+    });
+  }
+
+  toJSON() {
+    return {
+      id: this.id,
+      code: this.code,
+      name: this.name,
+      description: this.description,
+      isSystem: this.isSystem,
+      permissions: this.permissions.map((p) => (typeof p.toJSON === 'function' ? p.toJSON() : p)),
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
 }

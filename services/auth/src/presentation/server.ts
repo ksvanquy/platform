@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express, { Express } from 'express';
 import { IUserRepository } from '../domain/user/user.repository.port.js';
 import { createUserRepository } from '../infrastructure/persistence/repository.factory.js';
@@ -57,7 +59,19 @@ export function createAuthApp(
 // Start standalone server when executed
 const PORT = process.env.AUTH_PORT ? parseInt(process.env.AUTH_PORT, 10) : 3001;
 
-if (process.env.NODE_ENV !== 'test') {
+const isDirectRun = Boolean(
+  process.argv[1] &&
+  (
+    path.normalize(fileURLToPath(import.meta.url)).toLowerCase() ===
+      path.normalize(path.resolve(process.argv[1])).toLowerCase() ||
+    process.argv[1].replace(/\\/g, '/').endsWith('server.ts') ||
+    process.argv[1].replace(/\\/g, '/').endsWith('server.js')
+  ) &&
+  process.env.NODE_ENV !== 'test' &&
+  !process.env.VITEST
+);
+
+if (isDirectRun) {
   const { app } = createAuthApp();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🔐 Auth Service is running on http://localhost:${PORT}`);

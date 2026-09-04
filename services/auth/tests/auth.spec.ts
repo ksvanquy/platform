@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { InMemoryUserRepository } from '../src/infrastructure/persistence/in-memory-user.repository.js';
-import { InMemoryTokenStorage } from '../src/infrastructure/persistence/in-memory-token.storage.js';
+import { setupTestPostgresDb, TestPostgresContext } from './helpers/test-db.helper.js';
+import { DrizzleUserRepository, DrizzleTokenStorage } from '../src/infrastructure/persistence/drizzle-user.repository.js';
 import { TokenService } from '../src/infrastructure/token/token.service.js';
 import { LoginUseCase } from '../src/application/login/login.use-case.js';
 import { RegisterUseCase } from '../src/application/register/register.use-case.js';
@@ -11,17 +11,25 @@ import { LogoutUseCase } from '../src/application/logout/logout.use-case.js';
 import { createAuthApp } from '../src/presentation/server.js';
 
 describe('Auth Service Core & Use Cases', () => {
-  let userRepo: InMemoryUserRepository;
+  let testContext: TestPostgresContext;
+  let userRepo: DrizzleUserRepository;
+  let tokenStorage: DrizzleTokenStorage;
   let tokenService: TokenService;
 
-  beforeEach(() => {
-    userRepo = new InMemoryUserRepository();
+  beforeAll(async () => {
+    testContext = await setupTestPostgresDb();
+    userRepo = testContext.userRepo;
+    tokenStorage = testContext.tokenStorage;
     tokenService = new TokenService({
       secret: 'test-secret-key-32-chars-long-strictly',
       issuer: 'auth-service',
       audience: 'quiz-platform',
-      tokenStorage: new InMemoryTokenStorage(),
+      tokenStorage,
     });
+  });
+
+  afterAll(async () => {
+    await testContext.cleanup();
   });
 
   describe('RegisterUseCase', () => {
@@ -70,10 +78,12 @@ describe('Auth Service Core & Use Cases', () => {
 
   describe('GetProfileUseCase', () => {
     it('should return safe profile and principal for existing user', async () => {
+      const student = await userRepo.findByEmail('student@quiz.local');
+      expect(student).not.toBeNull();
       const getProfileUseCase = new GetProfileUseCase(userRepo);
-      const result = await getProfileUseCase.execute({ userId: 'usr_student_01' });
+      const result = await getProfileUseCase.execute({ userId: student!.id });
 
-      expect(result.profile.id).toBe('usr_student_01');
+      expect(result.profile.id).toBe(student!.id);
       expect(result.profile.email).toBe('student@quiz.local');
       expect((result.profile as any).passwordHash).toBeUndefined();
       expect(result.principal.roles).toContain('STUDENT');
@@ -176,7 +186,7 @@ describe('Auth Service Core & Use Cases', () => {
 
   describe('Hybrid Cookie Session & HTTP Endpoints', () => {
     it('POST /v1/auth/register should set HttpOnly refresh cookie and status 201', async () => {
-      const { app } = createAuthApp();
+      const { app } = createAuthApp(userRepo, tokenService);
       const res = await request(app)
         .post('/v1/auth/register')
         .send({
@@ -197,7 +207,7 @@ describe('Auth Service Core & Use Cases', () => {
     });
 
     it('POST /v1/auth/login and refresh via Cookie fallback', async () => {
-      const { app } = createAuthApp();
+      const { app } = createAuthApp(userRepo, tokenService);
       const loginRes = await request(app)
         .post('/v1/auth/login')
         .send({
@@ -225,7 +235,7 @@ describe('Auth Service Core & Use Cases', () => {
     });
 
     it('POST /v1/auth/logout should clear HttpOnly refresh cookie', async () => {
-      const { app } = createAuthApp();
+      const { app } = createAuthApp(userRepo, tokenService);
       const loginRes = await request(app)
         .post('/v1/auth/login')
         .send({
@@ -263,7 +273,7 @@ describe('Auth Service Core & Use Cases', () => {
     });
 
     it('should support legacy HS256 JWKS when explicitly configured', () => {
-      const hsService = new TokenService({ algorithm: 'HS256', secret: 'test-secret' });
+      const hsService = new TokenService({ algorithm: 'HS256', secret: 'test-secret', tokenStorage });
       const jwks = hsService.getJwks();
       expect(jwks.keys).toHaveLength(1);
       expect(jwks.keys[0].alg).toBe('HS256');
@@ -289,7 +299,7 @@ describe('Auth Service Core & Use Cases', () => {
 
   describe('Rate Limiting on POST /v1/auth/login (Brute-force Protection)', () => {
     it('should lock IP after 5 consecutive failed attempts and return HTTP 429', async () => {
-      const { app } = createAuthApp();
+      const { app } = createAuthApp(userRepo, tokenService);
       const testIp = '192.168.1.50';
 
       // 4 failed attempts should return HTTP 401
@@ -331,7 +341,7 @@ describe('Auth Service Core & Use Cases', () => {
     });
 
     it('should reset failure count upon successful login', async () => {
-      const { app } = createAuthApp();
+      const { app } = createAuthApp(userRepo, tokenService);
       const testIp = '192.168.1.51';
 
       // 2 failed attempts

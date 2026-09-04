@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { resolvePermissionsForRoles } from '../../domain/role/role.js';
 import { ITokenStorage } from '../../domain/token/token.storage.port.js';
 import { createTokenStorage } from '../persistence/token-storage.factory.js';
+import { isAuthDbConfigured } from '../db/connection.js';
 
 export interface TokenPayload {
   sub: string;
@@ -113,7 +114,7 @@ export class TokenService {
   private readonly issuer: string;
   private readonly audience: string;
   private readonly keyId: string;
-  private readonly tokenStorage: ITokenStorage;
+  private tokenStorage?: ITokenStorage;
 
   constructor(
     secretOrOptions?: string | TokenServiceOptions,
@@ -137,11 +138,18 @@ export class TokenService {
     this.issuer = options.issuer || issuer;
     this.audience = options.audience || audience;
     this.keyId = options.keyId || 'quiz-auth-key-1';
-    this.tokenStorage = options.tokenStorage || createTokenStorage();
+    this.tokenStorage = options.tokenStorage;
 
     const defaultKeys = getDefaultRsaKeyPair();
     this.privateKey = options.privateKey || defaultKeys.privateKey;
     this.publicKey = options.publicKey || defaultKeys.publicKey;
+  }
+
+  private getTokenStorage(): ITokenStorage {
+    if (!this.tokenStorage) {
+      this.tokenStorage = createTokenStorage();
+    }
+    return this.tokenStorage;
   }
 
   private base64UrlEncode(str: string): string {
@@ -213,11 +221,18 @@ export class TokenService {
     const refreshToken = crypto.randomBytes(32).toString('hex');
     const refreshExpiresAt = new Date(Date.now() + refreshExpiresIn * 1000);
 
-    const saveResult = this.tokenStorage.saveRefreshToken(refreshToken, payload.sub, refreshExpiresAt);
-    if (saveResult && typeof (saveResult as any).catch === 'function') {
-      (saveResult as Promise<void>).catch((err) => {
-        console.error('Failed to persist refresh token to storage:', err);
-      });
+    if (this.tokenStorage || isAuthDbConfigured()) {
+      try {
+        const storage = this.getTokenStorage();
+        const saveResult = storage.saveRefreshToken(refreshToken, payload.sub, refreshExpiresAt);
+        if (saveResult && typeof (saveResult as any).catch === 'function') {
+          (saveResult as Promise<void>).catch((err) => {
+            console.error('Failed to persist refresh token to storage:', err);
+          });
+        }
+      } catch (err) {
+        console.error('Failed to get token storage:', err);
+      }
     }
 
     return {
@@ -273,11 +288,11 @@ export class TokenService {
   }
 
   async validateRefreshToken(token: string): Promise<{ userId: string } | null> {
-    return await this.tokenStorage.validateRefreshToken(token);
+    return await this.getTokenStorage().validateRefreshToken(token);
   }
 
   async revokeRefreshToken(token: string): Promise<boolean> {
-    return await this.tokenStorage.revokeRefreshToken(token);
+    return await this.getTokenStorage().revokeRefreshToken(token);
   }
 
   /**

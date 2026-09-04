@@ -65,3 +65,23 @@ ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_roles_id
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_permissions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "users_tenant_id_idx" ON "users" ("tenant_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "roles_code_idx" ON "roles" ("code");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "permissions_code_idx" ON "permissions" ("code");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "permissions_resource_idx" ON "permissions" ("resource");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "user_roles_user_id_idx" ON "user_roles" ("user_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "user_roles_role_id_idx" ON "user_roles" ("role_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "role_permissions_role_id_idx" ON "role_permissions" ("role_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "role_permissions_perm_id_idx" ON "role_permissions" ("permission_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "refresh_tokens_user_id_idx" ON "refresh_tokens" ("user_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "refresh_tokens_expires_at_idx" ON "refresh_tokens" ("expires_at");

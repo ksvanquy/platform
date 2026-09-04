@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getAuthDb, closeAuthDb, isAuthDbConfigured } from './connection.js';
 import { users, roles, permissions, rolePermissions, userRoles } from './schema.js';
-import { hashPassword } from '../persistence/in-memory-user.repository.js';
+import { hashPassword } from '../crypto/password.js';
 import { DEFAULT_PERMISSIONS_DATA } from '../../domain/role/default-rbac.data.js';
 import { eq } from 'drizzle-orm';
 
@@ -31,14 +31,16 @@ export const SEED_ROLES = [
 ];
 
 export const SEED_ROLE_PERMISSIONS: Record<string, string[]> = {
-  role_student: ['quiz:read', 'attempt:create', 'attempt:submit'],
+  role_student: ['quiz:read', 'attempt:create', 'attempt:submit', 'attempt:read_self'],
   role_instructor: [
     'quiz:read',
     'quiz:write',
     'quiz:create',
     'quiz:update',
+    'quiz:delete',
     'quiz:publish',
     'attempt:read',
+    'attempt:read_self',
     'attempt:review',
   ],
   role_admin: ['*'],
@@ -95,14 +97,14 @@ export const SEED_USERS = [
   },
 ];
 
-export async function seedAuthDb(): Promise<void> {
-  if (!isAuthDbConfigured()) {
+export async function seedAuthDb(targetDb?: any): Promise<void> {
+  const db = targetDb || (isAuthDbConfigured() ? getAuthDb() : null);
+  if (!db) {
     console.warn('⚠️ AUTH_DATABASE_URL is not configured. Skipping PostgreSQL seeding.');
     return;
   }
 
   console.log('🌱 Seeding Normalized RBAC into PostgreSQL Auth Service DB...');
-  const db = getAuthDb();
 
   // 1. Seed Permissions
   console.log('  1/5 Seeding permissions...');

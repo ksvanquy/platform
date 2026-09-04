@@ -59,14 +59,9 @@ export function loadEnvIfAvailable(force = false): void {
 }
 
 export function getAuthDatabaseUrl(): string | undefined {
-  // Trong môi trường kiểm thử (Vitest/test), mặc định dùng In-Memory trừ khi chỉ định rõ TEST_WITH_REAL_DB
-  if ((process.env.NODE_ENV === 'test' || process.env.VITEST) && !process.env.TEST_WITH_REAL_DB) {
-    return undefined;
-  }
   loadEnvIfAvailable();
   const url = (process.env.AUTH_DATABASE_URL || process.env.DATABASE_URL)?.trim();
-  if (!url) return undefined;
-  if (url === 'AUTH_DATABASE_URL' || url === 'DATABASE_URL') return undefined;
+  if (!url || url === 'AUTH_DATABASE_URL' || url === 'DATABASE_URL') return undefined;
   if (!url.startsWith('postgres://') && !url.startsWith('postgresql://')) {
     return undefined;
   }
@@ -84,7 +79,9 @@ export function getAuthDb() {
 
   const connectionString = getAuthDatabaseUrl();
   if (!connectionString) {
-    throw new Error('AUTH_DATABASE_URL is not defined in environment variables.');
+    throw new Error(
+      'FATAL ERROR: AUTH_DATABASE_URL is not defined in environment variables. In-memory mode has been permanently removed; PostgreSQL is strictly required.'
+    );
   }
 
   sqlClient = postgres(connectionString, {

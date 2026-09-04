@@ -25,6 +25,7 @@
     "db:seed:auth": "tsx services/auth/src/infrastructure/db/seed.ts"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",

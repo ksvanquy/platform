@@ -695,15 +695,17 @@ Khi chạy `db:seed`, hệ thống sẽ nạp trực tiếp danh mục Roles, Pe
 
 Do không giữ tương thích ngược, toàn bộ các gói công việc được triển khai dứt điểm và nhất quán:
 
-1. **Gói WP-1: Định nghĩa lại Drizzle Schema (Clean Schema)**
-   - Cập nhật `services/auth/src/infrastructure/db/schema.ts`: Định nghĩa 6 bảng chuẩn hóa (`users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `refresh_tokens`). Không có bất kỳ cột mảng `roles` nào trên bảng `users`.
-2. **Gói WP-2: Xây dựng Migration Script và Seed Script Mới (Chuẩn Ownership Scope)**
-   - Cập nhật `services/auth/src/infrastructure/db/migrate.ts`: Tạo sạch các bảng với DDL mới.
-   - Cập nhật `services/auth/src/infrastructure/db/seed.ts`: Chèn trực tiếp permissions (kèm permissions phạm vi ownership như `quiz:manage_all`, `attempt:read_all`, `attempt:read_self`), roles, role_permissions, users, user_roles.
-3. **Gói WP-3: Tái cấu trúc Tầng Domain Auth Service**
-   - Cập nhật `services/auth/src/domain/role/permission.entity.ts`.
-   - Cập nhật `services/auth/src/domain/role/role.entity.ts`.
-   - Cập nhật `services/auth/src/domain/user/user.entity.ts`: Đảm bảo `toPrincipal()` sinh payload đầy đủ `{ id, roles, permissions, tenantId }`.
+1. **Gói WP-1: Định nghĩa lại Drizzle Schema (Clean Schema) [HOÀN THÀNH ✅]**
+   - Đã cập nhật `services/auth/src/infrastructure/db/schema.ts`: Định nghĩa 6 bảng chuẩn hóa 3NF (`users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `refresh_tokens`). Đã xóa bỏ hoàn toàn cột mảng `roles: text[]` trên bảng `users`.
+   - Bổ sung toàn bộ indexes hiệu năng cao (`tenant_id`, `code`, `resource`, `user_id`, `role_id`, `permission_id`) và relational definitions.
+   - Cập nhật đồng bộ migration script `services/auth/drizzle/migrations/0000_remarkable_grandmaster.sql`.
+2. **Gói WP-2: Xây dựng Migration Script và Seed Script Mới (Chuẩn Ownership Scope) [HOÀN THÀNH ✅]**
+   - Đã cập nhật `services/auth/src/infrastructure/db/migrate.ts`: Hỗ trợ chạy tự động `migrate(db, { migrationsFolder })` trực tiếp vào PostgreSQL mới.
+   - Đã cập nhật `services/auth/src/domain/role/default-rbac.data.ts` và `services/auth/src/infrastructure/db/seed.ts`: Nạp đủ 16 permissions chuẩn hóa, bao gồm phân định phạm vi Ownership (`quiz:manage_all`, `attempt:read_self`, `attempt:read_all`, `quiz:update`, `quiz:delete`, `quiz:publish`, `attempt:review`), nạp 3 roles (`STUDENT`, `INSTRUCTOR`, `ADMIN`), ánh xạ `role_permissions`, nạp users mặc định và gán `user_roles`.
+3. **Gói WP-3: Tái cấu trúc Tầng Domain Auth Service [HOÀN THÀNH ✅]**
+   - Đã cập nhật `services/auth/src/domain/role/permission.entity.ts`: Đầy đủ thuộc tính nguyên tử, phương thức khớp mã `matches()`, kiểm tra wildcard `isWildcard()`, kiểm tra quyền hạn toàn cục `isManageAll()`, và chuyển đổi `toJSON()`.
+   - Đã cập nhật `services/auth/src/domain/role/role.entity.ts`: Danh sách Permissions bất biến (`Object.freeze`), kiểm tra quyền hạn `hasPermission()` hỗ trợ wildcard `*`, định danh quản trị viên `isAdministrator()`, immutability builder `withPermissions()`, và `toJSON()`.
+   - Đã cập nhật `services/auth/src/domain/user/user.entity.ts`: Chuẩn hóa `toPrincipal()` trả về đầy đủ `{ id, roles, permissions, tenantId }`, tích hợp các domain policy methods: `hasRole()`, `hasPermission()` (tự động bypass cho Admin/Wildcard), `isAdmin()`, `canAccessTenant()`, và `withRoles()`.
 4. **Gói WP-4: Tái cấu trúc Tầng Persistence (100% PostgreSQL - Xóa bỏ hoàn toàn In-Memory)**
    - **Loại bỏ vĩnh viễn In-Memory Repositories**:
      - Xóa bỏ hoàn toàn `in-memory-user.repository.ts` và `in-memory-token.storage.ts`. Hệ thống không duy trì bất kỳ mã nguồn in-memory giả lập nào.

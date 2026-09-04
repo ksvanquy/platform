@@ -1,19 +1,34 @@
-import { pgTable, varchar, text, timestamp, boolean, primaryKey } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  varchar,
+  text,
+  timestamp,
+  boolean,
+  primaryKey,
+  index,
+} from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 
 /**
  * 1. Bảng Users chuẩn hóa (Identity-only bounded context).
  * Không còn chứa mảng chuỗi roles tĩnh. Mọi phân quyền thông qua user_roles.
  */
-export const users = pgTable('users', {
-  id: varchar('id', { length: 64 }).primaryKey(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  name: varchar('name', { length: 255 }).notNull(),
-  passwordHash: text('password_hash').notNull(),
-  tenantId: varchar('tenant_id', { length: 64 }).notNull().default('tenant_default'),
-  isActive: boolean('is_active').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(),
+    email: varchar('email', { length: 255 }).notNull().unique(),
+    name: varchar('name', { length: 255 }).notNull(),
+    passwordHash: text('password_hash').notNull(),
+    tenantId: varchar('tenant_id', { length: 64 }).notNull().default('tenant_default'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('users_tenant_id_idx').on(t.tenantId),
+  ]
+);
 
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
@@ -21,15 +36,21 @@ export type NewUserRow = typeof users.$inferInsert;
 /**
  * 2. Bảng Roles (Danh mục vai trò người dùng trong hệ thống)
  */
-export const roles = pgTable('roles', {
-  id: varchar('id', { length: 64 }).primaryKey(),
-  code: varchar('code', { length: 64 }).notNull().unique(), // 'ADMIN', 'INSTRUCTOR', 'STUDENT'
-  name: varchar('name', { length: 128 }).notNull(),
-  description: text('description'),
-  isSystem: boolean('is_system').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const roles = pgTable(
+  'roles',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(),
+    code: varchar('code', { length: 64 }).notNull().unique(), // 'ADMIN', 'INSTRUCTOR', 'STUDENT'
+    name: varchar('name', { length: 128 }).notNull(),
+    description: text('description'),
+    isSystem: boolean('is_system').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('roles_code_idx').on(t.code),
+  ]
+);
 
 export type RoleRow = typeof roles.$inferSelect;
 export type NewRoleRow = typeof roles.$inferInsert;
@@ -37,14 +58,21 @@ export type NewRoleRow = typeof roles.$inferInsert;
 /**
  * 3. Bảng Permissions (Danh mục quyền hạn nguyên tử - Fine-grained actions)
  */
-export const permissions = pgTable('permissions', {
-  id: varchar('id', { length: 64 }).primaryKey(),
-  code: varchar('code', { length: 128 }).notNull().unique(), // 'quiz:create', 'attempt:submit', '*'
-  resource: varchar('resource', { length: 64 }).notNull(),   // 'quiz', 'attempt', 'user', 'system'
-  action: varchar('action', { length: 64 }).notNull(),       // 'read', 'write', 'create', 'delete'
-  description: text('description'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const permissions = pgTable(
+  'permissions',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(),
+    code: varchar('code', { length: 128 }).notNull().unique(), // 'quiz:create', 'attempt:submit', '*'
+    resource: varchar('resource', { length: 64 }).notNull(),   // 'quiz', 'attempt', 'user', 'system'
+    action: varchar('action', { length: 64 }).notNull(),       // 'read', 'write', 'create', 'delete'
+    description: text('description'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('permissions_code_idx').on(t.code),
+    index('permissions_resource_idx').on(t.resource),
+  ]
+);
 
 export type PermissionRow = typeof permissions.$inferSelect;
 export type NewPermissionRow = typeof permissions.$inferInsert;
@@ -67,6 +95,8 @@ export const userRoles = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.roleId] }),
+    index('user_roles_user_id_idx').on(t.userId),
+    index('user_roles_role_id_idx').on(t.roleId),
   ]
 );
 
@@ -89,6 +119,8 @@ export const rolePermissions = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.roleId, t.permissionId] }),
+    index('role_permissions_role_id_idx').on(t.roleId),
+    index('role_permissions_perm_id_idx').on(t.permissionId),
   ]
 );
 
@@ -98,15 +130,68 @@ export type NewRolePermissionRow = typeof rolePermissions.$inferInsert;
 /**
  * 6. Bảng Refresh Tokens lưu trữ phiên làm việc lâu dài (được băm SHA-256)
  */
-export const refreshTokens = pgTable('refresh_tokens', {
-  tokenHash: text('token_hash').primaryKey(),
-  userId: varchar('user_id', { length: 64 })
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  revokedAt: timestamp('revoked_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const refreshTokens = pgTable(
+  'refresh_tokens',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: varchar('user_id', { length: 64 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('refresh_tokens_user_id_idx').on(t.userId),
+    index('refresh_tokens_expires_at_idx').on(t.expiresAt),
+  ]
+);
 
 export type RefreshTokenRow = typeof refreshTokens.$inferSelect;
 export type NewRefreshTokenRow = typeof refreshTokens.$inferInsert;
+
+/**
+ * 7. Relational Definitions cho Drizzle Queries
+ */
+export const usersRelations = relations(users, ({ many }) => ({
+  userRoles: many(userRoles),
+  refreshTokens: many(refreshTokens),
+}));
+
+export const rolesRelations = relations(roles, ({ many }) => ({
+  userRoles: many(userRoles),
+  rolePermissions: many(rolePermissions),
+}));
+
+export const permissionsRelations = relations(permissions, ({ many }) => ({
+  rolePermissions: many(rolePermissions),
+}));
+
+export const userRolesRelations = relations(userRoles, ({ one }) => ({
+  user: one(users, {
+    fields: [userRoles.userId],
+    references: [users.id],
+  }),
+  role: one(roles, {
+    fields: [userRoles.roleId],
+    references: [roles.id],
+  }),
+}));
+
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
+  role: one(roles, {
+    fields: [rolePermissions.roleId],
+    references: [roles.id],
+  }),
+  permission: one(permissions, {
+    fields: [rolePermissions.permissionId],
+    references: [permissions.id],
+  }),
+}));
+
+export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [refreshTokens.userId],
+    references: [users.id],
+  }),
+}));

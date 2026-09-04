@@ -49,8 +49,22 @@ app.get('/v1/time', (_req: Request, res: Response) => {
 });
 
 // Authentication Services Initialization (In-Process Integration on Port 3000)
-const authUserRepository = createUserRepository();
+let authUserRepository: any = null;
+let authRouterInstance: express.Router | null = null;
 const authTokenService = new TokenService();
+
+export function setAuthRepository(repo: any): void {
+  authUserRepository = repo;
+  authRouterInstance = createAuthRouter(repo, authTokenService);
+}
+
+function getAuthRouter(): express.Router {
+  if (!authRouterInstance) {
+    authUserRepository = createUserRepository();
+    authRouterInstance = createAuthRouter(authUserRepository, authTokenService);
+  }
+  return authRouterInstance;
+}
 
 // Root & Well-Known Discovery Endpoints
 app.get('/.well-known/jwks.json', (_req: Request, res: Response) => {
@@ -58,7 +72,17 @@ app.get('/.well-known/jwks.json', (_req: Request, res: Response) => {
 });
 
 // Mount Authentication Domain Routes (Port 3000 Unified Origin)
-app.use('/v1/auth', createAuthRouter(authUserRepository, authTokenService));
+app.use('/v1/auth', (req: Request, res: Response, next: any) => {
+  try {
+    const router = getAuthRouter();
+    return router(req, res, next);
+  } catch (err: any) {
+    return res.status(503).json({
+      success: false,
+      message: err?.message || 'Authentication service database not configured',
+    });
+  }
+});
 
 // Authentication Context Middleware for Quiz and Assessment Domains
 app.use(authContextMiddleware);

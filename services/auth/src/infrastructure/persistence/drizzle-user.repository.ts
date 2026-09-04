@@ -16,7 +16,11 @@ import {
 import { getAuthDb } from '../db/connection.js';
 
 export class DrizzleUserRepository implements IUserRepository {
-  private readonly db = getAuthDb();
+  private readonly db: any;
+
+  constructor(db?: any) {
+    this.db = db || getAuthDb();
+  }
 
   private mapRowsToUser(rows: any[]): User | null {
     if (!rows || rows.length === 0) return null;
@@ -254,7 +258,7 @@ export class DrizzleUserRepository implements IUserRepository {
   async listPermissions(): Promise<Permission[]> {
     const permRows = await this.db.select().from(permissions);
     return permRows.map(
-      (p) =>
+      (p: any) =>
         new Permission({
           id: p.id,
           code: p.code,
@@ -272,7 +276,11 @@ export class DrizzleUserRepository implements IUserRepository {
  * Token được băm SHA-256 trước khi lưu để bảo vệ người dùng.
  */
 export class DrizzleTokenStorage implements ITokenStorage {
-  private readonly db = getAuthDb();
+  private readonly db: any;
+
+  constructor(db?: any) {
+    this.db = db || getAuthDb();
+  }
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
