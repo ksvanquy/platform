@@ -232,7 +232,7 @@ export function createAuthRouter(
   // GET /v1/auth/roles/:code (Get single role with its full permissions)
   router.get('/roles/:code', async (req: Request, res: Response) => {
     try {
-      const code = req.params.code;
+      const code = (Array.isArray(req.params.code) ? req.params.code[0] : req.params.code) as string;
       const role = userRepository.getRoleByCode ? await userRepository.getRoleByCode(code) : null;
       if (!role) {
         res.status(404).json({
@@ -305,7 +305,7 @@ export function createAuthRouter(
   // POST /v1/auth/users/:id/roles & PUT /v1/auth/users/:id/roles (Assign roles to user)
   const handleAssignRoles = async (req: Request, res: Response) => {
     try {
-      const userId = req.params.id;
+      const userId = (Array.isArray(req.params.id) ? req.params.id[0] : req.params.id) as string;
       const { roles: roleCodes } = req.body || {};
       if (!Array.isArray(roleCodes)) {
         res.status(400).json({
