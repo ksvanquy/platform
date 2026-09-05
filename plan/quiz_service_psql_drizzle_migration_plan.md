@@ -488,8 +488,10 @@ import { QuizVersion } from '../../domain/authoring/quiz-version.entity.js';
 import { AuthoringRepositoryPort } from '../../domain/ports/assessment.repository.ports.js';
 
 export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
+  constructor(private customDb?: any) {}
+
   private get db() {
-    return getQuizDb();
+    return this.customDb || getQuizDb();
   }
 
   // --- QUẢN LÝ ĐỀ THI (QUIZ) ---
@@ -646,8 +648,10 @@ import { AttemptStatus } from '../../domain/delivery/attempt-status.js';
 import { DeliveryRepositoryPort } from '../../domain/ports/assessment.repository.ports.js';
 
 export class DrizzleDeliveryRepository implements DeliveryRepositoryPort {
+  constructor(private customDb?: any) {}
+
   private get db() {
-    return getQuizDb();
+    return this.customDb || getQuizDb();
   }
 
   async saveAttempt(attempt: Attempt): Promise<void> {
@@ -737,7 +741,12 @@ export class DrizzleDeliveryRepository implements DeliveryRepositoryPort {
       submittedAt: row.submittedAt || undefined,
       manifest: row.manifest || undefined,
       answers: row.answers || {},
-      scoreResult: row.scoreResult || undefined,
+      scoreResult: row.scoreResult
+        ? {
+            ...row.scoreResult,
+            evaluatedAt: new Date(row.scoreResult.evaluatedAt),
+          }
+        : undefined,
     });
   }
 }
@@ -759,7 +768,10 @@ import { DrizzleAuthoringRepository } from './drizzle-authoring.repository.js';
 import { DrizzleDeliveryRepository } from './drizzle-delivery.repository.js';
 import { isQuizDbConfigured } from '../db/connection.js';
 
-export function createAuthoringRepository(): AuthoringRepositoryPort {
+export function createAuthoringRepository(db?: any): AuthoringRepositoryPort {
+  if (db) {
+    return new DrizzleAuthoringRepository(db);
+  }
   if (!isQuizDbConfigured()) {
     throw new Error(
       'FATAL: QUIZ_DATABASE_URL is not configured. ' +
@@ -769,7 +781,10 @@ export function createAuthoringRepository(): AuthoringRepositoryPort {
   return new DrizzleAuthoringRepository();
 }
 
-export function createDeliveryRepository(): DeliveryRepositoryPort {
+export function createDeliveryRepository(db?: any): DeliveryRepositoryPort {
+  if (db) {
+    return new DrizzleDeliveryRepository(db);
+  }
   if (!isQuizDbConfigured()) {
     throw new Error(
       'FATAL: QUIZ_DATABASE_URL is not configured. ' +
@@ -1025,27 +1040,48 @@ Toàn bộ quá trình chuyển đổi được chia thành 8 gói công việc 
 - Tạo factory `services/quiz/src/infrastructure/repositories/assessment-repository.factory.ts`.
 
 ### **Gói WP-6: Seed Dữ Liệu Mẫu & Cập nhật Server Entry Point**
-- Tạo file `services/quiz/src/infrastructure/db/seed.ts` để nạp đề thi mẫu vào PostgreSQL.
+- Tạo file `services/quiz/src/infrastructure/db/seed.ts` để nạp đề thi mẫu vào PostgreSQL `quiz_db`.
 - Cập nhật `services/quiz/src/presentation/server.ts`:
-  - Thay thế `new InMemoryAssessmentRepository()` bằng:
+  - Khai báo các biến singleton và phương thức DI `setAssessmentRepositories`:
     ```typescript
-    const authoringRepo = createAuthoringRepository();
-    const deliveryRepo = createDeliveryRepository();
-    const authoringUseCases = new AuthoringUseCases(authoringRepo);
-    const deliveryUseCases = new DeliveryUseCases(authoringRepo, deliveryRepo);
-    const sweeperService = new AttemptExpirySweeperService(deliveryRepo, deliveryRepo);
-    ```
+    let authoringRepo = createAuthoringRepository();
+    let deliveryRepo = createDeliveryRepository();
+    let authoringUseCases = new AuthoringUseCases(authoringRepo);
+    let deliveryUseCases = new DeliveryUseCases(authoringRepo, deliveryRepo);
+    let sweeperService = new AttemptExpirySweeperService(authoringRepo, deliveryRepo);
 
-### **Gói WP-7: Xóa Bỏ Hoàn Toàn In-Memory Persistence (Zero In-Memory Cleanup)**
+    export function setAssessmentRepositories(
+      authoring: AuthoringRepositoryPort,
+      delivery: DeliveryRepositoryPort
+    ): void {
+      authoringRepo = authoring;
+      deliveryRepo = delivery;
+      authoringUseCases = new AuthoringUseCases(authoring);
+      deliveryUseCases = new DeliveryUseCases(authoring, delivery);
+      sweeperService = new AttemptExpirySweeperService(authoring, delivery);
+    }
+    ```
+  - Khởi tạo `sweeperService.start(30000)` an toàn trong môi trường Production/Dev (ngừng khi test).
+
+### **Gói WP-7: Xóa Bỏ Hoàn Toàn In-Memory Persistence & Di Trú Test Suite**
 - Xóa vĩnh viễn:
   - `services/quiz/src/infrastructure/repositories/in-memory-quiz.repository.ts` (DELETED).
   - `services/quiz/src/infrastructure/repositories/in-memory-assessment.repository.ts` (DELETED).
-- Rà soát toàn bộ dự án để đảm bảo không còn bất kỳ dòng code nào tham chiếu tới các lớp in-memory đã xóa.
+- Cập nhật các file kiểm thử hiện hữu đang phụ thuộc vào In-Memory sang sử dụng PostgreSQL PGlite (`setupTestQuizDb()`):
+  - `tests/delivery/attempt-sequence-concurrency.spec.ts`: Sử dụng DrizzleDeliveryRepository qua PGlite.
+  - `tests/delivery/attempt-expiry-sweeper.spec.ts`: Sử dụng DrizzleDeliveryRepository & DrizzleAuthoringRepository qua PGlite.
+  - `tests/security/ownership-policy.spec.ts`: Sử dụng DrizzleAuthoringRepository qua PGlite.
+  - `tests/presentation/assessment-api.spec.ts`: Khởi tạo `setupTestQuizDb()` và gọi `setAssessmentRepositories(testContext.authoringRepo, testContext.deliveryRepo)`.
+  - `tests/presentation/sweeper-api.spec.ts`: Khởi tạo `setupTestQuizDb()` và gọi `setAssessmentRepositories(testContext.authoringRepo, testContext.deliveryRepo)`.
+  - `tests/security/principal-context.spec.ts`: Thay thế `InMemoryQuizRepository` bằng `createTestQuizDb()`.
 
-### **Gói WP-8: Kiểm Thử Toàn Diện & Đảm Bảo Tương Thích**
-- Viết test suite kiểm thử tích hợp Drizzle persistence cho Quiz Service (`services/quiz/tests/delivery/drizzle-assessment-persistence.spec.ts`).
-- Kiểm thử hành vi Sweeper Service trên PostgreSQL: xác thực câu truy vấn tìm ca thi quá hạn và chuyển trạng thái thành `TIMED_OUT_GRADED`.
-- Chạy kiểm tra chất lượng code: `compile_applet`, `vitest run`, đảm bảo 100% test suites vượt qua xanh tuyệt đối.
+### **Gói WP-8: Kiểm Thử Toàn Diện 100% PostgreSQL & Đảm Bảo Tương Thích Tuyệt Đối**
+- Viết test suite kiểm thử tích hợp Drizzle persistence chuyên sâu cho Quiz Service (`services/quiz/tests/delivery/drizzle-assessment-persistence.spec.ts`):
+  - Kiểm thử lưu trữ và đọc JSONB `questions`, `scoring_policy`, `randomization_policy`.
+  - Kiểm thử lưu trữ và cập nhật `answers` có điều kiện monotonic `sequenceNumber`.
+  - Kiểm thử chỉ mục `idx_attempts_sweeper` với câu truy vấn `findExpiredInProgressAttempts()`.
+  - Kiểm thử chuyển trạng thái `TIMED_OUT_GRADED` và lưu trữ `score_result`.
+- Chạy kiểm tra chất lượng code: `compile_applet`, `vitest run`, đảm bảo 100% test suites vượt qua xanh tuyệt đối trên nền PostgreSQL.
 
 ---
 
