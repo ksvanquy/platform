@@ -1,6 +1,6 @@
 /**
  * Port lưu trữ và quản trị vòng đời Refresh Token tuân thủ Hexagonal / Clean Architecture.
- * Hỗ trợ lưu trữ bền vững (PostgreSQL qua Drizzle ORM) hoặc bộ nhớ tạm (In-Memory cho Test).
+ * Lưu trữ bền vững 100% trên PostgreSQL qua Drizzle ORM (Zero In-Memory).
  */
 export interface ITokenStorage {
   /**

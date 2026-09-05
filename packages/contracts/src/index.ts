@@ -1,4 +1,5 @@
 export * from './auth/principal.js';
+export * from './auth/ownership.js';
 export * from './quiz/quiz.js';
 export * from './quiz/attempt.js';
 

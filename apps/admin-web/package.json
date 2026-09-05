@@ -9,9 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@platform/contracts": "workspace:*",
-    "@platform/auth-client": "workspace:*",
-    "@platform/api-client": "workspace:*",
+    "@platform/contracts": "*",
+    "@platform/auth-client": "*",
+    "@platform/api-client": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

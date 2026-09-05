@@ -706,19 +706,20 @@ Do không giữ tương thích ngược, toàn bộ các gói công việc đư�
    - Đã cập nhật `services/auth/src/domain/role/permission.entity.ts`: Đầy đủ thuộc tính nguyên tử, phương thức khớp mã `matches()`, kiểm tra wildcard `isWildcard()`, kiểm tra quyền hạn toàn cục `isManageAll()`, và chuyển đổi `toJSON()`.
    - Đã cập nhật `services/auth/src/domain/role/role.entity.ts`: Danh sách Permissions bất biến (`Object.freeze`), kiểm tra quyền hạn `hasPermission()` hỗ trợ wildcard `*`, định danh quản trị viên `isAdministrator()`, immutability builder `withPermissions()`, và `toJSON()`.
    - Đã cập nhật `services/auth/src/domain/user/user.entity.ts`: Chuẩn hóa `toPrincipal()` trả về đầy đủ `{ id, roles, permissions, tenantId }`, tích hợp các domain policy methods: `hasRole()`, `hasPermission()` (tự động bypass cho Admin/Wildcard), `isAdmin()`, `canAccessTenant()`, và `withRoles()`.
-4. **Gói WP-4: Tái cấu trúc Tầng Persistence (100% PostgreSQL - Xóa bỏ hoàn toàn In-Memory)**
+4. **Gói WP-4: Tái cấu trúc Tầng Persistence (100% PostgreSQL - Xóa bỏ hoàn toàn In-Memory) [HOÀN THÀNH ✅]**
    - **Loại bỏ vĩnh viễn In-Memory Repositories**:
-     - Xóa bỏ hoàn toàn `in-memory-user.repository.ts` và `in-memory-token.storage.ts`. Hệ thống không duy trì bất kỳ mã nguồn in-memory giả lập nào.
+     - Đã xóa bỏ hoàn toàn `in-memory-user.repository.ts` và `in-memory-token.storage.ts`. Hệ thống không duy trì bất kỳ mã nguồn in-memory giả lập nào.
    - **Tối ưu hóa và Độc quyền hóa Drizzle Persistence**:
      - `DrizzleUserRepository` là triển khai duy nhất của `IUserRepository`, chịu trách nhiệm thực hiện single-query JOIN lấy User cùng toàn bộ Roles và Permissions, danh sách Roles và Permissions trực tiếp từ các bảng quan hệ PostgreSQL.
      - `DrizzleTokenStorage` là triển khai duy nhất của `ITokenStorage`, quản lý toàn bộ vòng đời Refresh Token, kiểm tra revocation và rotation trực tiếp trong bảng `refresh_tokens`.
    - **Refactor Repository & Token Storage Factories**:
-     - Cập nhật `repository.factory.ts` và `token-storage.factory.ts` để chỉ khởi tạo Drizzle persistence kết nối PostgreSQL.
+     - Đã cập nhật `repository.factory.ts` và `token-storage.factory.ts` để chỉ khởi tạo Drizzle persistence kết nối PostgreSQL.
      - **Fail-Fast**: Nếu thiếu chuỗi kết nối (`AUTH_DATABASE_URL` hoặc `DATABASE_URL`), throw Fatal Error ngay khi khởi tạo thay vì âm thầm fallback sang In-Memory.
-   - **Kiểm thử Tích hợp trên PostgreSQL**: Mọi bài kiểm thử tích hợp cho tầng Auth & RBAC đều bắt buộc kết nối và chạy trực tiếp trên cơ sở dữ liệu PostgreSQL chuẩn (không dùng mock in-memory), đảm bảo kiểm chứng toàn vẹn các ràng buộc khóa ngoại (Foreign Key Constraints) và Cascade Deletion.
-5. **Gói WP-5: Chuẩn hóa Contracts & Cơ chế Thẩm định Ownership (RBAC + ABAC Lightweight)**
-   - Cập nhật `@platform/contracts`: Xuất khẩu `evaluateOwnership`, `ResourceOwnershipContext`, `OwnershipEvaluationResult`.
-   - Đảm bảo `Principal` contract chứa đầy đủ `id`, `roles`, `permissions`, `tenantId`.
+   - **Kiểm thử Tích hợp trên PostgreSQL**: Mọi bài kiểm thử tích hợp cho tầng Auth & RBAC (`drizzle-persistence.spec.ts`, `auth.spec.ts`) đều kết nối và chạy trực tiếp trên PostgreSQL/PGlite chuẩn (không dùng mock in-memory), đảm bảo kiểm chứng toàn vẹn các ràng buộc khóa ngoại (Foreign Key Constraints), cascade deletion và xác thực token.
+5. **Gói WP-5: Chuẩn hóa Contracts & Cơ chế Thẩm định Ownership (RBAC + ABAC Lightweight) [HOÀN THÀNH ✅]**
+   - Đã cập nhật `@platform/contracts`: Xuất khẩu đầy đủ `evaluateOwnership`, `ResourceOwnershipContext`, `OwnershipEvaluationResult` từ `src/auth/ownership.ts` và `src/index.ts`.
+   - Đã chuẩn hóa `Principal` contract chứa đầy đủ `id`, `roles`, `permissions`, `tenantId`.
+   - Đã xây dựng bộ kiểm thử tích hợp chuyên biệt (`services/auth/tests/ownership.spec.ts`) xác thực toàn diện: Tenant Isolation, Action Clearance, Admin/Wildcard/Manage-All Bypass, và Quyền sở hữu (Owner vs Non-owner).
 6. **Gói WP-6: Áp dụng Ownership Policy tại Quiz Service**
    - Tích hợp `evaluateOwnership` vào `AuthoringUseCases` (`addVersion`, `publishQuiz`, `updateQuiz`) để ngăn chặn Giảng viên sửa bài của nhau.
    - Xác thực `attempt.userId === principal.id` trong `DeliveryUseCases` để đảm bảo sinh viên chỉ thao tác trên bài thi của mình.

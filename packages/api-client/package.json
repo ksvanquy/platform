@@ -18,7 +18,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@platform/contracts": "workspace:*"
+    "@platform/contracts": "*"
   },
   "devDependencies": {
     "typescript": "^5.7.0"

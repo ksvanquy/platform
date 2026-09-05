@@ -11,8 +11,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@platform/auth-service": "workspace:*",
-    "@platform/contracts": "workspace:*",
+    "@platform/auth-service": "*",
+    "@platform/contracts": "*",
     "express": "^5.2.1"
   },
   "devDependencies": {

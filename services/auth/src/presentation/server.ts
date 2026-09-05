@@ -61,12 +61,8 @@ const PORT = process.env.AUTH_PORT ? parseInt(process.env.AUTH_PORT, 10) : 3001;
 
 const isDirectRun = Boolean(
   process.argv[1] &&
-  (
-    path.normalize(fileURLToPath(import.meta.url)).toLowerCase() ===
-      path.normalize(path.resolve(process.argv[1])).toLowerCase() ||
-    process.argv[1].replace(/\\/g, '/').endsWith('server.ts') ||
-    process.argv[1].replace(/\\/g, '/').endsWith('server.js')
-  ) &&
+  path.normalize(fileURLToPath(import.meta.url)).toLowerCase() ===
+    path.normalize(path.resolve(process.argv[1])).toLowerCase() &&
   process.env.NODE_ENV !== 'test' &&
   !process.env.VITEST
 );
