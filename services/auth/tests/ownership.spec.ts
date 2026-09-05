@@ -23,10 +23,19 @@ describe('Contracts & Ownership Evaluation (Clean Zero-Tenant Principal + Decoup
       expect(isAllowed).toBe(true);
     });
 
+    it('should allow bidirectional compatibility between tenant_core and tenant_default', () => {
+      expect(evaluateTenantIsolation({ tenantId: 'tenant_core' }, { tenantId: 'tenant_default' })).toBe(true);
+      expect(evaluateTenantIsolation({ tenantId: 'tenant_default' }, { tenantId: 'tenant_core' })).toBe(true);
+    });
+
     it('should deny access when tenantContext does not match resource.tenantId (Cross-Tenant)', () => {
       const tenantContext: TenantContext = { tenantId: 'tenant_other' };
       const isAllowed = evaluateTenantIsolation(tenantContext, { tenantId: 'tenant_default' });
       expect(isAllowed).toBe(false);
+
+      // Verify strict isolation between tenant_foreign and tenant_core
+      expect(evaluateTenantIsolation({ tenantId: 'tenant_foreign' }, { tenantId: 'tenant_core' })).toBe(false);
+      expect(evaluateTenantIsolation({ tenantId: 'tenant_core' }, { tenantId: 'tenant_foreign' })).toBe(false);
     });
   });
 

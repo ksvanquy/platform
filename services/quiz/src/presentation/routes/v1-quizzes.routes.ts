@@ -9,7 +9,12 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   // GET /v1/quizzes - Danh mục đề thi đã xuất bản
   router.get('/', async (req: Request, res: Response) => {
     try {
-      const quizzes = await authoring.getPublishedQuizzes();
+      const activeTenantId =
+        req.tenantContext?.tenantId ||
+        (req.headers['x-tenant-id'] as string) ||
+        (req.query.tenantId as string) ||
+        undefined;
+      const quizzes = await authoring.getPublishedQuizzes(activeTenantId);
       res.status(200).json({
         success: true,
         data: quizzes.map((q) => ({
@@ -18,6 +23,8 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           title: q.title,
           description: q.description,
           status: q.status,
+          tenantId: q.tenantId,
+          isPublic: q.isPublic,
           currentPublishedVersionId: q.currentPublishedVersionId,
         })),
       });

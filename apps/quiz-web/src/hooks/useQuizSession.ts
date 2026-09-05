@@ -62,7 +62,12 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
         }
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Không thể bắt đầu bài thi. Vui lòng kiểm tra Backend server.');
+      const msg = err.message || '';
+      if (msg.includes('Cross-tenant') || msg.includes('cross-tenant')) {
+        setErrorMessage('Không thể truy cập: Đề thi này không thuộc tổ chức (Workspace) bạn đang kích hoạt. Vui lòng chuyển đúng tổ chức hoặc chọn đề thi công khai.');
+      } else {
+        setErrorMessage(msg || 'Không thể bắt đầu bài thi. Vui lòng kiểm tra Backend server.');
+      }
       throw err;
     }
   }, [userId]);

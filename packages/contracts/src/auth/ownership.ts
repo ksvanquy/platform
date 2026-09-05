@@ -29,11 +29,22 @@ export function evaluateTenantIsolation(
   if (!tenantContext || !resource) {
     return false;
   }
-  return Boolean(
-    tenantContext.tenantId &&
-    resource.tenantId &&
-    tenantContext.tenantId === resource.tenantId
-  );
+  const ctxTenant = tenantContext.tenantId?.trim();
+  const resTenant = resource.tenantId?.trim();
+  if (!ctxTenant || !resTenant) {
+    return false;
+  }
+  if (ctxTenant === resTenant) {
+    return true;
+  }
+  // Cho phép tương thích ngược giữa tenant_default và tenant_core (cùng đại diện không gian đào tạo mặc định)
+  if (
+    (ctxTenant === 'tenant_core' && resTenant === 'tenant_default') ||
+    (ctxTenant === 'tenant_default' && resTenant === 'tenant_core')
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**

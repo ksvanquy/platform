@@ -236,8 +236,15 @@ export class AuthoringUseCases {
     await this.authoringRepo.saveQuiz(quiz);
   }
 
-  async getPublishedQuizzes(): Promise<Quiz[]> {
-    return this.authoringRepo.listPublishedQuizzes();
+  async getPublishedQuizzes(tenantId?: string): Promise<Quiz[]> {
+    const all = await this.authoringRepo.listPublishedQuizzes();
+    if (!tenantId) {
+      return all;
+    }
+    return all.filter((q) => {
+      if (q.isPublic === true) return true;
+      return evaluateTenantIsolation({ tenantId }, { tenantId: q.tenantId || 'tenant_default' });
+    });
   }
 
   async getQuizDetails(
