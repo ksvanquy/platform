@@ -26,6 +26,12 @@ export class RefreshUseCase {
       throw new Error('User not found');
     }
 
+    if (!user.isActive) {
+      await this.tokenService.revokeRefreshToken(dto.refreshToken);
+      await this.tokenService.revokeAllUserTokens?.(user.id);
+      throw new Error('Account is deactivated');
+    }
+
     // Xoá refresh token cũ (token rotation)
     await this.tokenService.revokeRefreshToken(dto.refreshToken);
 
@@ -37,6 +43,7 @@ export class RefreshUseCase {
       metadata: principal.metadata,
       email: user.email,
       name: user.name,
+      isActive: user.isActive,
     });
 
     return { tokens: newTokens };

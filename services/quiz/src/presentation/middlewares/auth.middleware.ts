@@ -120,9 +120,17 @@ export function verifyJwtSignature(token: string, secret = JWT_SECRET, publicKey
   }
 }
 
+type UserActiveChecker = (userId: string) => Promise<boolean> | boolean;
+let globalUserActiveChecker: UserActiveChecker | null = null;
+
+export function setUserActiveChecker(checker: UserActiveChecker | null): void {
+  globalUserActiveChecker = checker;
+}
+
 /**
  * Middleware trích xuất và xác thực chữ ký Principal từ Authorization header.
  * - Nếu token gửi lên không hợp lệ hoặc đã hết hạn: trả về 401 Unauthorized ngay lập tức.
+ * - Nếu tài khoản bị vô hiệu hóa (isActive === false): trả về 403 Forbidden ngay lập tức.
  * - Nếu không có header: cho qua để các route công khai (GET /health, GET /v1/quizzes) hoạt động bình thường,
  *   đồng thời KHÔNG tự động gán giả định bất kỳ user nào (loại bỏ fallback usr_student_01).
  * - Hỗ trợ x-user-id header an toàn cho môi trường test nội bộ nếu được bật.
@@ -165,6 +173,33 @@ export async function authContextMiddleware(
         errorCode: 'UNAUTHORIZED',
       });
       return;
+    }
+
+    // Kiểm tra trạng thái tài khoản ngay trong claim token
+    if (payload.isActive === false) {
+      res.status(403).json({
+        success: false,
+        message: 'Account is deactivated. Access denied.',
+        errorCode: 'FORBIDDEN',
+      });
+      return;
+    }
+
+    // Kiểm tra trạng thái tài khoản thời gian thực qua checker (nếu có)
+    if (globalUserActiveChecker) {
+      try {
+        const isActive = await globalUserActiveChecker(payload.sub);
+        if (!isActive) {
+          res.status(403).json({
+            success: false,
+            message: 'Account is deactivated. Access denied.',
+            errorCode: 'FORBIDDEN',
+          });
+          return;
+        }
+      } catch {
+        // ignore checker internal error
+      }
     }
 
     const roles = Array.isArray(payload.roles) ? payload.roles : ['STUDENT'];

@@ -26,18 +26,61 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [showToken, setShowToken] = useState(false);
   const [token, setToken] = useState<string | null>(null);
 
+  // User management state for ADMIN
+  const [userList, setUserList] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const isAdmin = user.roles?.includes('ADMIN');
+  const isInstructor = user.roles?.includes('INSTRUCTOR');
+
+  const fetchUsers = async () => {
+    if (!isAdmin) return;
+    setLoadingUsers(true);
+    try {
+      const list = await adminApi.listUsers();
+      setUserList(list);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   useEffect(() => {
     authClient.getAccessToken().then(setToken);
-  }, [user]);
+    if (isAdmin) {
+      fetchUsers();
+    }
+  }, [user, isAdmin]);
+
+  const handleToggleUserStatus = async (targetUser: any) => {
+    const nextStatus = !targetUser.isActive;
+    setUpdatingUserId(targetUser.id);
+    setStatusMessage(null);
+    try {
+      const res = await adminApi.updateUserStatus(targetUser.id, nextStatus);
+      if (res.success) {
+        setStatusMessage(
+          `✅ Đã ${nextStatus ? 'mở khóa' : 'khóa'} tài khoản ${targetUser.email}. Tất cả token của phiên cũ đã bị thu hồi!`
+        );
+        await fetchUsers();
+      } else {
+        setStatusMessage(`❌ Lỗi: ${res.error}`);
+      }
+    } catch (err: any) {
+      setStatusMessage(`❌ Lỗi: ${err.message}`);
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
 
   const handleWorkspaceChange = (newWorkspaceId: string) => {
     setActiveWorkspaceId(newWorkspaceId);
     setCurrentWorkspaceId(newWorkspaceId);
     setApiTestStatus(null);
   };
-
-  const isAdmin = user.roles?.includes('ADMIN');
-  const isInstructor = user.roles?.includes('INSTRUCTOR');
 
   const handleTestApi = async () => {
     setIsTestingApi(true);
@@ -265,6 +308,113 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* User Management & Account Lockout Card (Admin Only) */}
+      {isAdmin && (
+        <div className="p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <span className="text-lg">🛡️</span>
+                <h3 className="text-lg font-bold text-slate-100">
+                  Quản Trị Tài Khoản & Khóa / Vô Hiệu Hóa (Account Lockout)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400">
+                Khóa tài khoản sẽ ngay lập tức vô hiệu hóa phiên làm việc, thu hồi toàn bộ Refresh Tokens và chặn các Access Token cũ.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={fetchUsers}
+              disabled={loadingUsers}
+              className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+            >
+              {loadingUsers ? 'Đang tải...' : '🔄 Làm mới'}
+            </button>
+          </div>
+
+          {statusMessage && (
+            <div
+              className={`p-3.5 rounded-xl text-xs leading-relaxed border ${
+                statusMessage.startsWith('✅')
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}
+            >
+              {statusMessage}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 font-semibold">
+                  <th className="py-2.5 px-3">Họ tên & Email</th>
+                  <th className="py-2.5 px-3">Vai trò (Roles)</th>
+                  <th className="py-2.5 px-3">Trạng thái</th>
+                  <th className="py-2.5 px-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {userList.map((u) => {
+                  const isCurrent = u.id === user.id;
+                  const isBusy = updatingUserId === u.id;
+                  return (
+                    <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="font-semibold text-slate-200">{u.name}</div>
+                        <div className="text-[11px] font-mono text-slate-400">{u.email}</div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex flex-wrap gap-1">
+                          {(u.roles || []).map((r: string) => (
+                            <span
+                              key={r}
+                              className="px-2 py-0.5 rounded-md bg-slate-800 text-indigo-300 font-mono text-[10px]"
+                            >
+                              {r}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        {u.isActive ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                            🟢 Đang hoạt động
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/10 text-rose-300 border border-rose-500/20">
+                            🔴 Đã khóa
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        {isCurrent ? (
+                          <span className="text-[11px] text-slate-500 italic">Tài khoản hiện tại</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUserStatus(u)}
+                            disabled={isBusy}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50 ${
+                              u.isActive
+                                ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            }`}
+                          >
+                            {isBusy ? 'Đang xử lý...' : u.isActive ? '🔒 Khóa tài khoản' : '🔓 Mở khóa'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Footer Info */}
       <div className="text-center text-xs text-slate-500">

@@ -111,6 +111,31 @@ export class User {
     });
   }
 
+  /**
+   * Tạo bản sao User mới với trạng thái kích hoạt được cập nhật.
+   */
+  withActiveStatus(isActive: boolean): User {
+    return new User({
+      id: this.id,
+      email: this.email,
+      name: this.name,
+      passwordHash: this.passwordHash,
+      roles: this.roles,
+      metadata: this.metadata,
+      isActive,
+      createdAt: this.createdAt,
+      updatedAt: new Date(),
+    });
+  }
+
+  deactivate(): User {
+    return this.withActiveStatus(false);
+  }
+
+  activate(): User {
+    return this.withActiveStatus(true);
+  }
+
   toSafeProfile() {
     return {
       id: this.id,

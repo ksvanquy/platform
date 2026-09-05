@@ -17,4 +17,9 @@ export interface ITokenStorage {
    * Thu hồi (revoke) refresh token khi đăng xuất hoặc xoay vòng
    */
   revokeRefreshToken(token: string): Promise<boolean> | boolean;
+
+  /**
+   * Thu hồi toàn bộ refresh token của một user khi tài khoản bị khóa/vô hiệu hóa
+   */
+  revokeAllUserTokens?(userId: string): Promise<void> | void;
 }

@@ -13,19 +13,37 @@ export function hashPassword(password: string, salt?: string): string {
 }
 
 /**
- * Kiểm tra mật khẩu khớp với chuỗi băm.
+ * Kiểm tra mật khẩu khớp với chuỗi băm scrypt (RFC 7914).
+ * Thống nhất dùng duy nhất scrypt, loại bỏ hoàn toàn SHA-256 và quiz_salt_ legacy.
+ * Áp dụng crypto.timingSafeEqual chống tấn công Timing Attack.
  */
 export function verifyPassword(password: string, storedHash: string): boolean {
-  if (storedHash.startsWith('scrypt$')) {
-    const parts = storedHash.split('$');
-    if (parts.length !== 3) return false;
-    const salt = parts[1];
-    const expectedKey = parts[2];
-    const derivedKey = crypto.scryptSync(password, salt, SCRYPT_KEYLEN).toString('hex');
-    return crypto.timingSafeEqual(Buffer.from(derivedKey, 'hex'), Buffer.from(expectedKey, 'hex'));
+  if (!storedHash || typeof storedHash !== 'string' || !storedHash.startsWith('scrypt$')) {
+    return false;
   }
 
-  // Legacy fallback if any
-  const legacyHash = crypto.createHash('sha256').update(`quiz_salt_${password}`).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(legacyHash, 'utf8'), Buffer.from(storedHash, 'utf8'));
+  const parts = storedHash.split('$');
+  if (parts.length !== 3) {
+    return false;
+  }
+
+  const salt = parts[1];
+  const expectedKeyHex = parts[2];
+
+  if (!salt || !expectedKeyHex) {
+    return false;
+  }
+
+  try {
+    const expectedBuf = Buffer.from(expectedKeyHex, 'hex');
+    // SCRYPT_KEYLEN = 64 bytes (128 hex chars). Nếu độ dài không đúng chuẩn scrypt, từ chối ngay.
+    if (expectedBuf.length !== SCRYPT_KEYLEN) {
+      return false;
+    }
+
+    const derivedKeyBuf = crypto.scryptSync(password, salt, SCRYPT_KEYLEN);
+    return crypto.timingSafeEqual(derivedKeyBuf, expectedBuf);
+  } catch {
+    return false;
+  }
 }

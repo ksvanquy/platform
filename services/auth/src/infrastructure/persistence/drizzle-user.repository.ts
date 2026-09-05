@@ -300,6 +300,15 @@ export class DrizzleUserRepository implements IUserRepository {
 
     return await this.findById(userId);
   }
+
+  async updateStatus(id: string, isActive: boolean): Promise<User | null> {
+    await this.db
+      .update(users)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(users.id, id));
+
+    return await this.findById(id);
+  }
 }
 
 /**
@@ -355,5 +364,12 @@ export class DrizzleTokenStorage implements ITokenStorage {
       .where(eq(refreshTokens.tokenHash, tokenHash));
 
     return true;
+  }
+
+  async revokeAllUserTokens(userId: string): Promise<void> {
+    await this.db
+      .update(refreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
   }
 }

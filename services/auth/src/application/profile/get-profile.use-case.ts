@@ -34,6 +34,9 @@ export class GetProfileUseCase {
     if (!user) {
       throw new Error('User not found');
     }
+    if (!user.isActive) {
+      throw new Error('Account is deactivated');
+    }
 
     return {
       principal: user.toPrincipal(),

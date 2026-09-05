@@ -16,6 +16,7 @@ export interface LoginResult {
     roles: readonly string[];
     permissions: readonly string[];
     metadata?: Record<string, unknown>;
+    isActive: boolean;
   };
 }
 
@@ -40,6 +41,10 @@ export class LoginUseCase {
       throw new Error('Invalid email or password');
     }
 
+    if (!user.isActive) {
+      throw new Error('Account is deactivated. Please contact administrator.');
+    }
+
     const principal = user.toPrincipal();
     const tokens = this.tokenService.generateTokens({
       sub: principal.id,
@@ -48,6 +53,7 @@ export class LoginUseCase {
       metadata: principal.metadata,
       email: user.email,
       name: user.name,
+      isActive: user.isActive,
     });
 
     return {
@@ -59,6 +65,7 @@ export class LoginUseCase {
         roles: user.getRoleCodes(),
         permissions: user.getEffectivePermissions(),
         metadata: user.metadata,
+        isActive: user.isActive,
       },
     };
   }

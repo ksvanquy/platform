@@ -14,6 +14,7 @@ export interface TokenPayload {
   metadata?: Record<string, unknown>;
   email?: string;
   name?: string;
+  isActive?: boolean;
   iat?: number;
   exp?: number;
   iss?: string;
@@ -293,6 +294,13 @@ export class TokenService {
 
   async revokeRefreshToken(token: string): Promise<boolean> {
     return await this.getTokenStorage().revokeRefreshToken(token);
+  }
+
+  async revokeAllUserTokens(userId: string): Promise<void> {
+    const storage = this.getTokenStorage();
+    if (storage.revokeAllUserTokens) {
+      await storage.revokeAllUserTokens(userId);
+    }
   }
 
   /**

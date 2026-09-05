@@ -63,6 +63,14 @@ export class InMemoryUserRepository implements IUserRepository {
     return Array.from(this.users.values());
   }
 
+  async updateStatus(id: string, isActive: boolean): Promise<User | null> {
+    const user = this.users.get(id);
+    if (!user) return null;
+    const updated = user.withActiveStatus(isActive);
+    this.users.set(id, updated);
+    return updated;
+  }
+
   getRoleByCode(code: string): Role | null {
     return this.roles.get(code.toUpperCase().trim()) || null;
   }
@@ -95,5 +103,13 @@ export class InMemoryTokenStorage implements ITokenStorage {
 
   revokeRefreshToken(token: string): boolean {
     return this.tokens.delete(token);
+  }
+
+  revokeAllUserTokens(userId: string): void {
+    for (const [token, entry] of this.tokens.entries()) {
+      if (entry.userId === userId) {
+        this.tokens.delete(token);
+      }
+    }
   }
 }

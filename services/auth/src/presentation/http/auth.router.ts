@@ -7,6 +7,7 @@ import { LogoutUseCase } from '../../application/logout/logout.use-case.js';
 import { IUserRepository } from '../../domain/user/user.repository.port.js';
 import { TokenService } from '../../infrastructure/token/token.service.js';
 import { LoginRateLimiter, defaultLoginRateLimiter } from '../middlewares/rate-limit.middleware.js';
+import { createRequireAdminAuth } from '../middlewares/admin-auth.middleware.js';
 
 function getRefreshTokenFromCookie(req: Request): string | undefined {
   if ((req as any).cookies?.refreshToken) {
@@ -63,6 +64,7 @@ export function createAuthRouter(
   const getProfileUseCase = new GetProfileUseCase(userRepository);
   const refreshUseCase = new RefreshUseCase(userRepository, tokenService);
   const logoutUseCase = new LogoutUseCase(tokenService);
+  const requireAdminAuth = createRequireAdminAuth(tokenService);
 
   // POST /v1/auth/register
   router.post('/register', async (req: Request, res: Response) => {
@@ -114,7 +116,8 @@ export function createAuthRouter(
         return;
       }
 
-      res.status(401).json({
+      const statusCode = message.includes('Account is deactivated') ? 403 : 401;
+      res.status(statusCode).json({
         success: false,
         error: message,
       });
@@ -141,6 +144,14 @@ export function createAuthRouter(
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Refresh failed';
+      if (message.includes('Account is deactivated')) {
+        clearRefreshTokenCookie(req, res);
+        res.status(403).json({
+          success: false,
+          error: message,
+        });
+        return;
+      }
       res.status(401).json({
         success: false,
         error: message,
@@ -195,7 +206,7 @@ export function createAuthRouter(
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Authentication failed';
-      const statusCode = message === 'User not found' ? 404 : 500;
+      const statusCode = message === 'User not found' ? 404 : (message === 'Account is deactivated' ? 403 : 500);
       res.status(statusCode).json({
         success: false,
         error: message,
@@ -279,8 +290,8 @@ export function createAuthRouter(
     }
   });
 
-  // GET /v1/auth/users (List all registered users with roles & permissions)
-  router.get('/users', async (_req: Request, res: Response) => {
+  // GET /v1/auth/users (List all registered users with roles & permissions - Protected: ADMIN only)
+  router.get('/users', requireAdminAuth, async (_req: Request, res: Response) => {
     try {
       const allUsers = await userRepository.list();
       res.json({
@@ -302,7 +313,7 @@ export function createAuthRouter(
     }
   });
 
-  // POST /v1/auth/users/:id/roles & PUT /v1/auth/users/:id/roles (Assign roles to user)
+  // POST /v1/auth/users/:id/roles & PUT /v1/auth/users/:id/roles (Assign roles to user - Protected: ADMIN only)
   const handleAssignRoles = async (req: Request, res: Response) => {
     try {
       const userId = (Array.isArray(req.params.id) ? req.params.id[0] : req.params.id) as string;
@@ -348,8 +359,58 @@ export function createAuthRouter(
     }
   };
 
-  router.post('/users/:id/roles', handleAssignRoles);
-  router.put('/users/:id/roles', handleAssignRoles);
+  router.post('/users/:id/roles', requireAdminAuth, handleAssignRoles);
+  router.put('/users/:id/roles', requireAdminAuth, handleAssignRoles);
+
+  // PATCH /v1/auth/users/:id/status & PUT /v1/auth/users/:id/status (Lock/Unlock user - Protected: ADMIN only)
+  const handleUpdateUserStatus = async (req: Request, res: Response) => {
+    try {
+      const userId = (Array.isArray(req.params.id) ? req.params.id[0] : req.params.id) as string;
+      const { isActive } = req.body || {};
+
+      if (typeof isActive !== 'boolean') {
+        res.status(400).json({
+          success: false,
+          error: 'Body must include "isActive" as a boolean (e.g. { "isActive": false })',
+        });
+        return;
+      }
+
+      if (!userRepository.updateStatus) {
+        res.status(501).json({
+          success: false,
+          error: 'Status update not supported by current repository',
+        });
+        return;
+      }
+
+      const updated = await userRepository.updateStatus(userId, isActive);
+      if (!updated) {
+        res.status(404).json({
+          success: false,
+          error: `User '${userId}' not found`,
+        });
+        return;
+      }
+
+      // Khi tài khoản bị vô hiệu hóa (isActive = false), lập tức thu hồi toàn bộ Refresh Tokens
+      if (!isActive) {
+        await tokenService.revokeAllUserTokens(userId);
+      }
+
+      res.json({
+        success: true,
+        message: isActive ? 'Account successfully activated' : 'Account successfully deactivated and sessions revoked',
+        data: updated.toSafeProfile(),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update user status';
+      res.status(500).json({ success: false, error: message });
+    }
+  };
+
+  router.patch('/users/:id/status', requireAdminAuth, handleUpdateUserStatus);
+  router.put('/users/:id/status', requireAdminAuth, handleUpdateUserStatus);
 
   // POST /v1/auth/tokens/verify (Token Introspection RFC 7662)
   router.post('/tokens/verify', async (req: Request, res: Response) => {
@@ -376,6 +437,19 @@ export function createAuthRouter(
           error: 'Token is invalid or expired',
         });
         return;
+      }
+
+      // Introspection check: Người dùng sở hữu token có còn tồn tại và đang kích hoạt trong DB không?
+      if (payload.sub) {
+        const user = await userRepository.findById(payload.sub);
+        if (!user || !user.isActive) {
+          res.status(200).json({
+            success: true,
+            active: false,
+            error: 'User account is deactivated or deleted',
+          });
+          return;
+        }
       }
 
       res.json({

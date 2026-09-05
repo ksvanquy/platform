@@ -13,7 +13,7 @@ import {
 } from '../infrastructure/repositories/assessment-repository.factory.js';
 import { AuthoringUseCases } from '../application/use-cases/authoring/authoring.use-cases.js';
 import { DeliveryUseCases } from '../application/use-cases/delivery/delivery.use-cases.js';
-import { authContextMiddleware } from './middlewares/auth.middleware.js';
+import { authContextMiddleware, setUserActiveChecker } from './middlewares/auth.middleware.js';
 import { createV1QuizzesRouter } from './routes/v1-quizzes.routes.js';
 import { createV1AttemptsRouter } from './routes/v1-attempts.routes.js';
 import { AttemptExpirySweeperService } from '../application/services/attempt-expiry-sweeper.service.js';
@@ -67,12 +67,26 @@ const authTokenService = new TokenService();
 export function setAuthRepository(repo: any): void {
   authUserRepository = repo;
   authRouterInstance = createAuthRouter(repo, authTokenService);
+  setUserActiveChecker(async (userId: string) => {
+    if (authUserRepository) {
+      const user = await authUserRepository.findById(userId);
+      return user ? user.isActive : true;
+    }
+    return true;
+  });
 }
 
 function getAuthRouter(): express.Router {
   if (!authRouterInstance) {
     authUserRepository = createUserRepository();
     authRouterInstance = createAuthRouter(authUserRepository, authTokenService);
+    setUserActiveChecker(async (userId: string) => {
+      if (authUserRepository) {
+        const user = await authUserRepository.findById(userId);
+        return user ? user.isActive : true;
+      }
+      return true;
+    });
   }
   return authRouterInstance;
 }
