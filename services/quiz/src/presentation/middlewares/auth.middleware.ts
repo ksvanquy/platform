@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
-import type { Principal } from '@platform/contracts';
+import type { Principal, TenantContext } from '@platform/contracts';
 import { resolvePermissionsForRoles } from '@platform/contracts';
 import { getDefaultRsaKeyPair } from '@platform/auth-service';
 
@@ -8,8 +8,10 @@ declare global {
   namespace Express {
     interface Request {
       principal?: Principal;
+      tenantContext?: TenantContext;
       context?: {
         principal?: Principal;
+        tenantContext?: TenantContext;
       };
     }
   }
@@ -166,15 +168,15 @@ export async function authContextMiddleware(
     }
 
     const roles = Array.isArray(payload.roles) ? payload.roles : ['STUDENT'];
-    const permissions = Array.isArray(payload.permissions)
-      ? payload.permissions
-      : resolvePermissionsForRoles(roles);
+    const domainPermissions = resolvePermissionsForRoles(roles);
+    const tokenPermissions = Array.isArray(payload.permissions) ? payload.permissions : [];
+    const permissions = [...new Set([...domainPermissions, ...tokenPermissions])];
 
     principal = {
       id: payload.sub,
       roles,
       permissions,
-      tenantId: payload.tenantId,
+      metadata: payload.metadata,
     };
   }
 
@@ -192,13 +194,21 @@ export async function authContextMiddleware(
       id: String(req.headers['x-user-id']),
       roles,
       permissions: resolvePermissionsForRoles(roles),
-      tenantId: (req.headers['x-tenant-id'] as string) || 'tenant_default',
     };
   }
 
-  // Gán thông tin principal vào request (nếu có)
+  // 3. Phân giải TenantContext độc lập trực tiếp từ Header X-Tenant-ID (Domain-Driven Tenancy)
+  const rawTenantId = (req.headers['x-tenant-id'] as string) || undefined;
+  const tenantId = rawTenantId?.trim();
+  const tenantContext: TenantContext | undefined = tenantId ? { tenantId } : undefined;
+
+  // Gán thông tin principal và tenantContext vào request (nếu có)
   req.principal = principal;
-  req.context = { principal };
+  req.tenantContext = tenantContext;
+  req.context = {
+    principal,
+    tenantContext,
+  };
 
   next();
 }

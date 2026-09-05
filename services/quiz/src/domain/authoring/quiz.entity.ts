@@ -11,6 +11,7 @@ export interface QuizProps {
   description?: string;
   ownerId: string;
   tenantId?: string;
+  isPublic?: boolean;
   currentPublishedVersionId?: string;
   status?: QuizStatus;
   createdAt?: Date;
@@ -28,6 +29,7 @@ export class Quiz {
   private _description?: string;
   readonly ownerId: string;
   readonly tenantId: string;
+  private _isPublic: boolean;
   private _currentPublishedVersionId?: string;
   private _status: QuizStatus;
   readonly createdAt: Date;
@@ -50,6 +52,7 @@ export class Quiz {
     this._description = props.description;
     this.ownerId = props.ownerId;
     this.tenantId = props.tenantId || 'tenant_default';
+    this._isPublic = props.isPublic ?? false;
     this._currentPublishedVersionId = props.currentPublishedVersionId;
     this._status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ? new Date(props.createdAt) : new Date();
@@ -58,6 +61,10 @@ export class Quiz {
 
   get title(): string {
     return this._title;
+  }
+
+  get isPublic(): boolean {
+    return this._isPublic;
   }
 
   get description(): string | undefined {
@@ -79,12 +86,15 @@ export class Quiz {
   /**
    * Cập nhật thông tin tiêu đề/mô tả ở trạng thái DRAFT hoặc REVIEW
    */
-  updateDetails(title: string, description?: string): void {
+  updateDetails(title: string, description?: string, isPublic?: boolean): void {
     if (this._status === 'ARCHIVED') {
       throw new Error('Cannot update details of an ARCHIVED quiz');
     }
     this._title = title;
     this._description = description;
+    if (isPublic !== undefined) {
+      this._isPublic = isPublic;
+    }
     this._updatedAt = new Date();
   }
 
@@ -147,6 +157,7 @@ export class Quiz {
       description: this._description,
       ownerId: this.ownerId,
       tenantId: this.tenantId,
+      isPublic: this._isPublic,
       currentPublishedVersionId: this._currentPublishedVersionId,
       status: this._status,
       createdAt: this.createdAt.toISOString(),

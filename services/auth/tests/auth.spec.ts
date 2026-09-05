@@ -384,26 +384,28 @@ describe('Auth Service Core & Use Cases', () => {
     it('should compute dynamic effective permissions for Student and Instructor', async () => {
       const loginUseCase = new LoginUseCase(userRepo, tokenService);
 
-      // Student permissions
+      // Student permissions (Generic Identity scopes)
       const studentLogin = await loginUseCase.execute({
         email: 'student@quiz.local',
         password: 'student123',
       });
       expect(studentLogin.user.roles).toContain('STUDENT');
-      expect(studentLogin.user.permissions).toContain('quiz:read');
-      expect(studentLogin.user.permissions).toContain('attempt:create');
-      expect(studentLogin.user.permissions).toContain('attempt:submit');
-      expect(studentLogin.user.permissions).not.toContain('quiz:create');
+      expect(studentLogin.user.permissions).toContain('user:read');
+      expect(studentLogin.user.permissions).toContain('user:write');
+      expect(studentLogin.user.permissions).not.toContain('user:manage');
+      expect(studentLogin.user.permissions).not.toContain('quiz:read');
+      expect(studentLogin.user.permissions).not.toContain('attempt:create');
 
-      // Instructor permissions
+      // Instructor permissions (Generic Identity scopes)
       const instructorLogin = await loginUseCase.execute({
         email: 'instructor@quiz.local',
         password: 'teacher123',
       });
       expect(instructorLogin.user.roles).toContain('INSTRUCTOR');
-      expect(instructorLogin.user.permissions).toContain('quiz:create');
-      expect(instructorLogin.user.permissions).toContain('quiz:publish');
-      expect(instructorLogin.user.permissions).toContain('attempt:review');
+      expect(instructorLogin.user.permissions).toContain('user:read');
+      expect(instructorLogin.user.permissions).toContain('user:write');
+      expect(instructorLogin.user.permissions).not.toContain('user:manage');
+      expect(instructorLogin.user.permissions).not.toContain('quiz:create');
 
       // Admin permissions
       const adminLogin = await loginUseCase.execute({
@@ -423,12 +425,14 @@ describe('Auth Service Core & Use Cases', () => {
       expect(rolesRes.body.data.length).toBeGreaterThanOrEqual(3);
       const studentRole = rolesRes.body.data.find((r: any) => r.code === 'STUDENT');
       expect(studentRole).toBeDefined();
-      expect(studentRole.permissions).toContain('attempt:submit');
+      expect(studentRole.permissions).toContain('user:read');
+      expect(studentRole.permissions).not.toContain('attempt:submit');
 
       const permsRes = await request(app).get('/v1/auth/permissions');
       expect(permsRes.status).toBe(200);
       expect(permsRes.body.success).toBe(true);
-      expect(permsRes.body.data.some((p: any) => p.code === 'quiz:create')).toBe(true);
+      expect(permsRes.body.data.some((p: any) => p.code === 'user:read')).toBe(true);
+      expect(permsRes.body.data.some((p: any) => p.code === 'quiz:create')).toBe(false);
     });
   });
 });

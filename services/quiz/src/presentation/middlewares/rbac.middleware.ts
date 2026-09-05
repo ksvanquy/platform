@@ -74,10 +74,9 @@ export function requirePermission(...requiredPermissions: string[]) {
       return;
     }
 
-    const userPermissions =
-      principal.permissions && principal.permissions.length > 0
-        ? principal.permissions
-        : resolvePermissionsForRoles(principal.roles || []);
+    const rolePermissions = resolvePermissionsForRoles(principal.roles || []);
+    const directPermissions = principal.permissions || [];
+    const userPermissions = [...new Set([...rolePermissions, ...directPermissions])];
 
     const hasAll = requiredPermissions.every((perm) => hasPermission(userPermissions, perm));
 

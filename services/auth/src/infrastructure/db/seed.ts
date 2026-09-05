@@ -11,14 +11,14 @@ export const SEED_ROLES = [
     id: 'role_student',
     code: 'STUDENT',
     name: 'Student',
-    description: 'Student or examinee taking quizzes',
+    description: 'Standard end-user or student',
     isSystem: true,
   },
   {
     id: 'role_instructor',
     code: 'INSTRUCTOR',
     name: 'Instructor',
-    description: 'Instructor or teacher creating and reviewing quizzes',
+    description: 'Content author or instructor',
     isSystem: true,
   },
   {
@@ -31,18 +31,8 @@ export const SEED_ROLES = [
 ];
 
 export const SEED_ROLE_PERMISSIONS: Record<string, string[]> = {
-  role_student: ['quiz:read', 'attempt:create', 'attempt:submit', 'attempt:read_self'],
-  role_instructor: [
-    'quiz:read',
-    'quiz:write',
-    'quiz:create',
-    'quiz:update',
-    'quiz:delete',
-    'quiz:publish',
-    'attempt:read',
-    'attempt:read_self',
-    'attempt:review',
-  ],
+  role_student: ['user:read', 'user:write'],
+  role_instructor: ['user:read', 'user:write'],
   role_admin: ['*'],
 };
 

@@ -75,12 +75,11 @@ export class RegisterUseCase {
         id: 'role_student',
         code: 'STUDENT',
         name: 'Student',
-        description: 'Student or examinee taking quizzes',
+        description: 'Standard end-user or student',
         isSystem: true,
         permissions: [
-          new Permission({ id: 'perm_quiz_read', code: 'quiz:read', resource: 'quiz', action: 'read' }),
-          new Permission({ id: 'perm_attempt_create', code: 'attempt:create', resource: 'attempt', action: 'create' }),
-          new Permission({ id: 'perm_attempt_submit', code: 'attempt:submit', resource: 'attempt', action: 'submit' }),
+          new Permission({ id: 'perm_user_read', code: 'user:read', resource: 'user', action: 'read' }),
+          new Permission({ id: 'perm_user_write', code: 'user:write', resource: 'user', action: 'write' }),
         ],
       });
 

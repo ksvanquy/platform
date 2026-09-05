@@ -22,7 +22,7 @@ describe('Bước 4 — packages/auth-client', () => {
     email: 'student@example.com',
     name: 'Alice Student',
     roles: ['STUDENT'] as const,
-    tenantId: 'tenant_default',
+    metadata: { department: 'Science' },
   };
 
   beforeEach(() => {

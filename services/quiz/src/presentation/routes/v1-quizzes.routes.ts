@@ -30,7 +30,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   router.post('/', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
       const principal = req.principal;
-      const { code, title, description } = req.body;
+      const { code, title, description, isPublic } = req.body;
 
       const quiz = await authoring.createQuiz(
         {
@@ -38,8 +38,11 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           title,
           description,
           ownerId: principal?.id || 'anonymous_author',
+          tenantId: req.tenantContext?.tenantId,
+          isPublic: isPublic !== undefined ? Boolean(isPublic) : undefined,
         },
-        principal
+        principal,
+        req.tenantContext
       );
 
       res.status(201).json({ success: true, data: quiz });
@@ -52,7 +55,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   // GET /v1/quizzes/:id - Xem chi tiết đề thi
   router.get('/:id', async (req: Request, res: Response) => {
     try {
-      const details = await authoring.getQuizDetails(String(req.params.id), req.principal);
+      const details = await authoring.getQuizDetails(String(req.params.id), req.principal, req.tenantContext);
       res.status(200).json({ success: true, data: details });
     } catch (err: any) {
       const status = err instanceof DomainError ? err.statusCode : 404;
@@ -63,14 +66,16 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   // PUT /v1/quizzes/:id - Cập nhật thông tin đề thi (Chỉ chủ sở hữu hoặc ADMIN)
   router.put('/:id', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
-      const { title, description } = req.body;
+      const { title, description, isPublic } = req.body;
       const quiz = await authoring.updateQuiz(
         {
           quizId: String(req.params.id),
           title,
           description,
+          isPublic: isPublic !== undefined ? Boolean(isPublic) : undefined,
         },
-        req.principal
+        req.principal,
+        req.tenantContext
       );
 
       res.status(200).json({ success: true, data: quiz });
@@ -94,7 +99,8 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           scoringPolicy,
           randomizationPolicy: randomizationPolicy || { shuffleQuestions: false, shuffleOptions: false },
         },
-        req.principal
+        req.principal,
+        req.tenantContext
       );
 
       res.status(201).json({ success: true, data: version });
@@ -113,7 +119,8 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           quizId: String(req.params.id),
           versionId,
         },
-        req.principal
+        req.principal,
+        req.tenantContext
       );
 
       res.status(200).json({ success: true, data: result });

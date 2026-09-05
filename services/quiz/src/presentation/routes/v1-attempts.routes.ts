@@ -34,8 +34,10 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
         {
           userId,
           quizId,
+          tenantId: req.tenantContext?.tenantId,
         },
-        req.principal
+        req.principal,
+        req.tenantContext
       );
 
       res.status(isExisting ? 200 : 201).json({
@@ -60,7 +62,8 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
           attemptId: String(req.params.id),
           userId,
         },
-        req.principal
+        req.principal,
+        req.tenantContext
       );
 
       const now = new Date();
@@ -92,7 +95,8 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
         userId,
         now,
         15000,
-        req.principal
+        req.principal,
+        req.tenantContext
       );
       res.status(200).json({
         success: true,
@@ -129,7 +133,8 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
           sequenceNumber: sequenceNumber !== undefined ? Number(sequenceNumber) : undefined,
           clientTimestamp: clientTimestamp !== undefined ? Number(clientTimestamp) : undefined,
         },
-        req.principal
+        req.principal,
+        req.tenantContext
       );
 
       res.status(200).json({ success: true, message: 'Answer recorded successfully' });
@@ -156,7 +161,8 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
           sequenceNumber: sequenceNumber !== undefined ? Number(sequenceNumber) : undefined,
           clientTimestamp: clientTimestamp !== undefined ? Number(clientTimestamp) : undefined,
         },
-        req.principal
+        req.principal,
+        req.tenantContext
       );
 
       res.status(200).json({ success: true, message: 'Answer recorded successfully' });
@@ -177,7 +183,8 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
           attemptId: String(req.params.id),
           userId,
         },
-        req.principal
+        req.principal,
+        req.tenantContext
       );
 
       const now = new Date();

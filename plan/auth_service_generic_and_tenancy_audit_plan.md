@@ -149,7 +149,7 @@ Quiz Service là nơi quyết định 100% nghiệp vụ phân chia tổ chức:
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        LỘ TRÌNH THỰC HIỆN REFACTORING GENERIC AUTH                     │
 ├────────┬───────────────────────────────────────────────────────────────────────────────┤
-│  WP-1  │ Thiết kế lại Schema Users trong Auth Service (Bỏ tenantId, thay bằng metadata)│
+│  WP-1  │ [x] ĐÃ HOÀN THÀNH: Schema Users Auth Service (Bỏ tenantId, thay bằng metadata)│
 │  WP-2  │ Generic hóa Permissions & Roles trong Auth Service (Loại bỏ domain coupling)  │
 │  WP-3  │ Tái cấu trúc Hợp đồng (@platform/contracts & @platform/auth-client)          │
 │  WP-4  │ Đưa Toàn Bộ Logic Phân Lập Tenancy về Tự Chủ tại Quiz Service                 │
@@ -162,14 +162,14 @@ Quiz Service là nơi quyết định 100% nghiệp vụ phân chia tổ chức:
 
 ---
 
-### **Gói WP-1: Sạch Sẽ Tuyệt Đối Trong Auth Service (Clean-Cut Zero-Tenant Users)**
+### **Gói WP-1: Sạch Sẽ Tuyệt Đối Trong Auth Service (Clean-Cut Zero-Tenant Users) - [x] ĐÃ HOÀN THÀNH**
 *Mục tiêu: Xóa bỏ 100% mọi khái niệm, trường dữ liệu, getter hay shim liên quan đến `tenantId` trong Auth Service. Bỏ qua hoàn toàn tương thích ngược.*
 
-#### 1. Hành Động Triệt Để (Zero Backward Compatibility):
-- **Cắt bỏ hoàn toàn khỏi Domain Entity (`services/auth/src/domain/user/user.entity.ts`)**:
-  - Xóa bỏ hoàn toàn thuộc tính `tenantId`.
+#### 1. Hành Động Triệt Để (Zero Backward Compatibility) - [x] ĐÃ HOÀN THÀNH:
+- [x] **Cắt bỏ hoàn toàn khỏi Domain Entity (`services/auth/src/domain/user/user.entity.ts`)**:
+  - Đã xóa bỏ hoàn toàn thuộc tính `tenantId`.
   - **KHÔNG tạo getter `get tenantId()` và KHÔNG dùng fallback `'tenant_default'`**.
-  - Xóa bỏ hoàn toàn phương thức vi phạm Bounded Context `canAccessTenant(targetTenantId)`.
+  - Đã xóa bỏ hoàn toàn phương thức vi phạm Bounded Context `canAccessTenant(targetTenantId)`.
   - Entity `User` chỉ đại diện cho định danh cá nhân thuần túy:
     ```typescript
     export class User {
@@ -184,16 +184,16 @@ Quiz Service là nơi quyết định 100% nghiệp vụ phân chia tổ chức:
       readonly updatedAt: Date;
     }
     ```
-- **Làm sạch Database Schema (`services/auth/src/infrastructure/db/schema.ts`)**:
-  - Xóa triệt để cột `tenantId` và index `users_tenant_id_idx`.
+- [x] **Làm sạch Database Schema (`services/auth/src/infrastructure/db/schema.ts`)**:
+  - Đã xóa triệt để cột `tenantId` và index `users_tenant_id_idx`.
   - Bảng `users` chỉ lưu `metadata: jsonb('metadata').notNull().default({})` (dành cho thông tin mở rộng của người dùng như avatar, bio, settings).
-- **Làm sạch Drizzle Repository (`drizzle-user.repository.ts`) & In-Memory Repository**:
-  - Xóa bỏ mọi tham chiếu tới `tenantId` trong `mapRowsToUser`, `findById`, `findByEmail`, câu lệnh `insert` và `onConflictDoUpdate`.
-- **Làm sạch Use Cases & HTTP Router**:
-  - `RegisterUseCase`: Interface `RegisterDto` chỉ nhận `{ email, name, password, metadata }`. Xóa bỏ hoàn toàn tham số `tenantId`.
+- [x] **Làm sạch Drizzle Repository (`drizzle-user.repository.ts`) & In-Memory Repository**:
+  - Đã xóa bỏ mọi tham chiếu tới `tenantId` trong `mapRowsToUser`, `findById`, `findByEmail`, câu lệnh `insert` và `onConflictDoUpdate`.
+- [x] **Làm sạch Use Cases & HTTP Router**:
+  - `RegisterUseCase`: Interface `RegisterDto` chỉ nhận `{ email, name, password, metadata }`. Đã xóa bỏ hoàn toàn tham số `tenantId`.
   - `LoginUseCase` & `GetProfileUseCase`: User profile trả về `{ id, email, name, roles, permissions, metadata, createdAt }`. Không có trường `tenantId`.
-  - `auth.router.ts`: Xóa bỏ việc trích xuất và xử lý `tenantId` từ `req.body`.
-- **Làm sạch Token Service (`token.service.ts`)**:
+  - `auth.router.ts`: Đã xóa bỏ việc trích xuất và xử lý `tenantId` từ `req.body`.
+- [x] **Làm sạch Token Service (`token.service.ts`)**:
   - Interface `TokenPayload` loại bỏ hoàn toàn `tenantId?: string`.
   - JWT token được cấp phát chỉ chứa thông tin định danh và quyền toàn cục:
     ```typescript
@@ -206,10 +206,11 @@ Quiz Service là nơi quyết định 100% nghiệp vụ phân chia tổ chức:
       metadata?: Record<string, unknown>;
     }
     ```
-- **Làm sạch Seeding (`seed.ts`)**:
-  - Xóa bỏ mọi giá trị `defaultTenantId: 'tenant_default'` trong mảng `SEED_USERS`. Dữ liệu người dùng chỉ chứa `metadata: {}`.
+- [x] **Làm sạch Seeding (`seed.ts`)**:
+  - Đã xóa bỏ mọi giá trị `defaultTenantId: 'tenant_default'` trong mảng `SEED_USERS`. Dữ liệu người dùng chỉ chứa `metadata: {}`.
 
-#### 2. Kịch Bản Di Trú Dữ Liệu Dứt Điểm (Clean Direct Migration):
+#### 2. Kịch Bản Di Trú Dữ Liệu Dứt Điểm (Clean Direct Migration) - [x] ĐÃ HOÀN THÀNH:
+- Đã tạo và áp dụng migration `services/auth/drizzle/migrations/0001_remove_tenant_id_add_metadata.sql`:
 ```sql
 -- Thêm cột metadata mới cho thông tin mở rộng
 ALTER TABLE users ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}';
@@ -218,33 +219,38 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}';
 DROP INDEX IF EXISTS users_tenant_id_idx;
 ALTER TABLE users DROP COLUMN IF EXISTS tenant_id;
 ```
+- Test helper `test-db.helper.ts` đã được cập nhật để tự động đọc và chạy tuần tự tất cả migrations (`0000_...`, `0001_...`).
 
 ---
 
-### **Gói WP-2: Thanh Trừng Triệt Để Domain Coupling Khỏi Auth Service (Purge Domain Permissions)**
+### **Gói WP-2: Thanh Trừng Triệt Để Domain Coupling Khỏi Auth Service (Purge Domain Permissions)** - [x] ĐÃ HOÀN THÀNH
 *Mục tiêu: Auth Service không biết và không quan tâm đến bài thi hay lượt thi của Quiz Service.*
 
-#### 1. Cắt Bỏ Toàn Bộ Domain Permissions (`default-rbac.data.ts`):
-- **Hiện trạng ô nhiễm**: Auth Service đang khai báo `quiz:read`, `quiz:create`, `quiz:publish`, `quiz:manage_all`, `attempt:create`, `attempt:submit`, `attempt:grade`, `attempt:review`.
-- **Hành động cắt bỏ dứt điểm**:
-  - Xóa bỏ 100% các quyền có tiền tố `quiz:*` và `attempt:*` khỏi `DEFAULT_PERMISSIONS_DATA` và khỏi ma trận vai trò mặc định (`ROLE_PERMISSIONS_MAP`).
+#### 1. Cắt Bỏ Toàn Bộ Domain Permissions (`default-rbac.data.ts`) - [x] ĐÃ HOÀN THÀNH:
+- [x] **Xóa bỏ dứt điểm các domain permissions**:
+  - Đã xóa bỏ 100% các quyền có tiền tố `quiz:*` và `attempt:*` khỏi `DEFAULT_PERMISSIONS_DATA` và khỏi vai trò mặc định trong Auth Service.
+  - Cắt đứt quan hệ phụ thuộc giữa Auth Service và `@platform/contracts` đối với `SYSTEM_ROLES` và domain permissions.
   - Auth Service chỉ lưu trữ và cấp phát các quyền cốt lõi cấp hệ thống (System & Identity Scopes):
     - `*` (Full Admin)
     - `user:read`, `user:write`, `user:manage`
     - `role:read`, `role:write`
     - `permission:read`
     - `system:config`
-- **Nguyên tắc Phân quyền Nghiệp vụ (Domain RBAC)**:
-  - Quiz Service tự sở hữu toàn bộ ma trận quyền nghiệp vụ của chính nó.
-  - Quiz Service đối chiếu vai trò người dùng (ví dụ: `INSTRUCTOR`, `STUDENT`) do Auth Service cấp với Policy nội bộ của Quiz để cho phép tạo đề thi hoặc làm bài thi.
+- [x] **Cập nhật Seeding & Use Case Fallback**:
+  - `seed.ts` và `register.use-case.ts`: Cập nhật `SEED_ROLE_PERMISSIONS` và vai trò `STUDENT`/`INSTRUCTOR` chỉ sử dụng các scopes quản trị tài khoản (`user:read`, `user:write`).
+  - Đã tạo migration `0002_purge_domain_permissions.sql` để dọn dẹp triệt để dữ liệu quyền hạn cũ trong DB.
+- [x] **Độc Lập Phân Quyền Nghiệp Vụ (Domain RBAC trong Quiz Service)**:
+  - Quiz Service tự giải quyết và quản lý chính sách phân quyền bài thi (`resolvePermissionsForRoles`) trong `auth.middleware.ts` và `rbac.middleware.ts`.
+- [x] **Kiểm Thử Toàn Diện**:
+  - Đã cập nhật và xác nhận toàn bộ 4 test suites của Auth Service (49 tests) và toàn bộ 27 test files của hệ thống (221 tests) vượt qua 100%.
 
 ---
 
-### **Gói WP-3: Tái Cấu Trúc Hợp Đồng Sạch Sẽ (@platform/contracts & @platform/auth-client)**
+### **Gói WP-3: Tái Cấu Trúc Hợp Đồng Sạch Sẽ (@platform/contracts & @platform/auth-client)** - [x] ĐÃ HOÀN THÀNH
 *Mục tiêu: Phân định rạch ròi giữa Định Danh (Identity) và Ngữ Cảnh Tổ Chức (Tenant Context), loại bỏ hoàn toàn tenantId khỏi Principal.*
 
-#### 1. Làm Sạch Interface `Principal` (`packages/contracts/src/auth/principal.ts`):
-- **Bỏ qua tương thích ngược**: Xóa bỏ hoàn toàn thuộc tính `tenantId?: string` khỏi `Principal`.
+#### 1. Làm Sạch Interface `Principal` (`packages/contracts/src/auth/principal.ts`) - [x] ĐÃ HOÀN THÀNH:
+- [x] **Xóa bỏ hoàn toàn thuộc tính `tenantId?: string` khỏi `Principal`**:
   ```typescript
   export interface Principal {
     readonly id: string;
@@ -253,7 +259,7 @@ ALTER TABLE users DROP COLUMN IF EXISTS tenant_id;
     readonly metadata?: Record<string, unknown>;
   }
   ```
-- **Tách riêng Hợp đồng Ngữ Cảnh Tổ Chức (Tenant Context Contract)**:
+- [x] **Tách riêng Hợp đồng Ngữ Cảnh Tổ Chức (Tenant Context Contract)**:
   - Khởi tạo interface độc lập dành riêng cho các Resource Services:
     ```typescript
     export interface TenantContext {
@@ -270,16 +276,18 @@ ALTER TABLE users DROP COLUMN IF EXISTS tenant_id;
       readonly userId?: string;
     }
     ```
-- **Tái Cấu Trúc Hàm Thẩm Định Quyền Sở Hữu (`packages/contracts/src/auth/ownership.ts`)**:
+- [x] **Tái Cấu Trúc Hàm Thẩm Định Quyền Sở Hữu (`packages/contracts/src/auth/ownership.ts`)**:
   - Tách thành 2 hàm độc lập, rõ ràng về mặt toán học và logic ranh giới:
     1. `evaluateTenantIsolation(tenantContext: TenantContext, resource: TenantScopedResource): boolean`  
        $\rightarrow$ Đảm bảo request đang thao tác đúng tổ chức của tài nguyên.
-    2. `evaluateResourceOwnership(principal: Principal, resource: OwnedResource): boolean`  
+    2. `evaluateResourceOwnership(principal: Principal, resource: OwnedResource, requiredPermission?: string, manageAllPermission?: string): OwnershipEvaluationResult`  
        $\rightarrow$ Đảm bảo người dùng sở hữu tài nguyên hoặc có vai trò quản trị.
+    3. Duy trì hàm wrapper kết hợp `evaluateOwnership` hỗ trợ tham số `tenantContext?: TenantContext` tùy chọn.
 
-#### 2. Cập Nhật `@platform/auth-client`:
-- Loại bỏ trường `tenantId` khỏi `RegisterPayload`, `AuthResponse`, và `UserProfile`.
-- Client chỉ giao tiếp định danh cá nhân với Auth Service.
+#### 2. Cập Nhật `@platform/auth-client` - [x] ĐÃ HOÀN THÀNH:
+- [x] Loại bỏ trường `tenantId` khỏi `RegisterData`, `UserProfile`, `SessionManager.setSession`, `extractPrincipalFromToken`, và `setUser`.
+- [x] Client chỉ giao tiếp định danh cá nhân thuần túy (`id`, `email`, `name`, `roles`, `permissions`, `metadata`) với Auth Service.
+- [x] Đã cập nhật và xác nhận toàn bộ test suites cho `@platform/auth-client`, `services/auth`, và `services/quiz`.
 
 ---
 

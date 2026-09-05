@@ -34,7 +34,7 @@ export class RefreshUseCase {
       sub: principal.id,
       roles: principal.roles,
       permissions: principal.permissions,
-      tenantId: principal.tenantId,
+      metadata: principal.metadata,
       email: user.email,
       name: user.name,
     });

@@ -55,10 +55,30 @@ export function resolvePermissionsForRoles(roles: readonly string[]): readonly s
   return Object.freeze(Array.from(perms));
 }
 
+/**
+ * 1. Interface Principal đại diện cho danh tính người dùng thuần túy (Zero-Tenant Identity).
+ */
 export interface Principal {
-  id: string;
-  roles: readonly string[];
-  permissions?: readonly string[];
-  tenantId?: string;
-  metadata?: Record<string, unknown>;
+  readonly id: string;
+  readonly roles: readonly string[];
+  readonly permissions?: readonly string[];
+  readonly metadata?: Record<string, unknown>;
 }
+
+/**
+ * 2. Hợp đồng Ngữ Cảnh Tổ Chức (Tenant Context Contract) dành cho Resource Services.
+ */
+export interface TenantContext {
+  readonly tenantId: string;
+}
+
+export interface TenantScopedResource {
+  readonly tenantId: string;
+}
+
+export interface OwnedResource {
+  readonly ownerId?: string;
+  readonly instructorId?: string;
+  readonly userId?: string;
+}
+

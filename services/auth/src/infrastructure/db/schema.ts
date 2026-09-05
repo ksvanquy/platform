@@ -61,9 +61,9 @@ export const permissions = pgTable(
   'permissions',
   {
     id: varchar('id', { length: 64 }).primaryKey(),
-    code: varchar('code', { length: 128 }).notNull().unique(), // 'quiz:create', 'attempt:submit', '*'
-    resource: varchar('resource', { length: 64 }).notNull(),   // 'quiz', 'attempt', 'user', 'system'
-    action: varchar('action', { length: 64 }).notNull(),       // 'read', 'write', 'create', 'delete'
+    code: varchar('code', { length: 128 }).notNull().unique(), // 'user:read', 'role:write', '*'
+    resource: varchar('resource', { length: 64 }).notNull(),   // 'user', 'role', 'permission', 'system', '*'
+    action: varchar('action', { length: 64 }).notNull(),       // 'read', 'write', 'manage', 'config', '*'
     description: text('description'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

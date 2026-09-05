@@ -1,10 +1,15 @@
-import type { Principal } from './principal.js';
+import type {
+  Principal,
+  TenantContext,
+  TenantScopedResource,
+  OwnedResource,
+} from './principal.js';
 
-export interface ResourceOwnershipContext {
-  resourceType: 'quiz' | 'attempt' | 'user';
-  resourceId: string;
-  ownerId: string;
-  tenantId: string;
+export interface ResourceOwnershipContext extends OwnedResource {
+  resourceType?: 'quiz' | 'attempt' | 'user' | string;
+  resourceId?: string;
+  ownerId?: string;
+  tenantId?: string;
 }
 
 export interface OwnershipEvaluationResult {
@@ -14,64 +19,121 @@ export interface OwnershipEvaluationResult {
   isAdminBypass: boolean;
 }
 
-export function evaluateOwnership(
+/**
+ * 1. Đảm bảo request đang thao tác đúng tổ chức của tài nguyên (Tenant Isolation Check).
+ */
+export function evaluateTenantIsolation(
+  tenantContext: TenantContext,
+  resource: TenantScopedResource
+): boolean {
+  if (!tenantContext || !resource) {
+    return false;
+  }
+  return Boolean(
+    tenantContext.tenantId &&
+    resource.tenantId &&
+    tenantContext.tenantId === resource.tenantId
+  );
+}
+
+/**
+ * 2. Đảm bảo người dùng sở hữu tài nguyên hoặc có vai trò quản trị (RBAC Action Clearance + ABAC Ownership Check).
+ */
+export function evaluateResourceOwnership(
   principal: Principal,
-  resource: ResourceOwnershipContext,
-  requiredPermission: string,
+  resource: OwnedResource,
+  requiredPermission?: string,
   manageAllPermission?: string
 ): OwnershipEvaluationResult {
-  // 1. Kiểm tra Tenant Isolation
-  if (principal.tenantId && resource.tenantId && principal.tenantId !== resource.tenantId) {
-    return {
-      allowed: false,
-      reason: 'Cross-tenant access prohibited',
-      isOwner: false,
-      isAdminBypass: false,
-    };
-  }
-
   const permissions = principal.permissions || [];
 
-  // 2. Kiểm tra RBAC Action Clearance
-  const hasActionPerm =
-    permissions.includes('*') ||
-    permissions.includes(requiredPermission) ||
-    (requiredPermission === 'quiz:update' && permissions.includes('quiz:write')) ||
-    permissions.some((p) => {
-      if (p.endsWith(':*')) {
-        return requiredPermission.startsWith(p.slice(0, -1));
-      }
-      return false;
-    });
-  if (!hasActionPerm) {
-    return {
-      allowed: false,
-      reason: `Missing required permission: ${requiredPermission}`,
-      isOwner: false,
-      isAdminBypass: false,
-    };
+  // A. Kiểm tra RBAC Action Clearance (nếu có requiredPermission)
+  if (requiredPermission) {
+    const hasActionPerm =
+      permissions.includes('*') ||
+      permissions.includes(requiredPermission) ||
+      (requiredPermission === 'quiz:update' && permissions.includes('quiz:write')) ||
+      permissions.some((p) => {
+        if (p.endsWith(':*')) {
+          return requiredPermission.startsWith(p.slice(0, -1));
+        }
+        return false;
+      });
+
+    if (!hasActionPerm) {
+      return {
+        allowed: false,
+        reason: `Missing required permission: ${requiredPermission}`,
+        isOwner: false,
+        isAdminBypass: false,
+      };
+    }
   }
 
-  // 3. Kiểm tra Admin Bypass
+  // B. Kiểm tra Admin Bypass
   const isAdmin =
     principal.roles.includes('ADMIN') ||
     permissions.includes('*') ||
     (manageAllPermission ? permissions.includes(manageAllPermission) : false);
 
+  const resourceOwnerId = resource.ownerId ?? resource.instructorId ?? resource.userId;
+  const isOwner = Boolean(resourceOwnerId && resourceOwnerId === principal.id);
+
   if (isAdmin) {
-    return { allowed: true, isOwner: resource.ownerId === principal.id, isAdminBypass: true };
+    return {
+      allowed: true,
+      reason: undefined,
+      isOwner,
+      isAdminBypass: true,
+    };
   }
 
-  // 4. Thẩm định quyền sở hữu tài nguyên (ABAC Ownership)
-  const isOwner = resource.ownerId === principal.id;
+  // C. Thẩm định quyền sở hữu tài nguyên (ABAC Ownership)
   if (!isOwner) {
     return {
       allowed: false,
-      reason: `Access denied: Principal does not own this ${resource.resourceType}`,
+      reason: `Access denied: Principal does not own this resource`,
       isOwner: false,
       isAdminBypass: false,
     };
   }
 
-  return { allowed: true, isOwner: true, isAdminBypass: false };
+  return {
+    allowed: true,
+    isOwner: true,
+    isAdminBypass: false,
+  };
 }
+
+/**
+ * Hàm đánh giá kết hợp (Composite) hỗ trợ tương thích với các use case hiện có.
+ * Có thể truyền tenantContext trực tiếp để kiểm tra Tenant Isolation.
+ */
+export function evaluateOwnership(
+  principal: Principal,
+  resource: ResourceOwnershipContext,
+  requiredPermission: string,
+  manageAllPermission?: string,
+  tenantContext?: TenantContext
+): OwnershipEvaluationResult {
+  // Nếu có tenantContext và resource có tenantId thì kiểm tra Tenant Isolation
+  if (tenantContext && resource.tenantId) {
+    const isTenantValid = evaluateTenantIsolation(tenantContext, { tenantId: resource.tenantId });
+    if (!isTenantValid) {
+      return {
+        allowed: false,
+        reason: 'Cross-tenant access prohibited',
+        isOwner: false,
+        isAdminBypass: false,
+      };
+    }
+  }
+
+  return evaluateResourceOwnership(
+    principal,
+    resource,
+    requiredPermission,
+    manageAllPermission
+  );
+}
+

@@ -35,6 +35,7 @@ CREATE TABLE "quizzes" (
 	"description" text,
 	"owner_id" varchar(64) NOT NULL,
 	"tenant_id" varchar(64) DEFAULT 'tenant_default' NOT NULL,
+	"is_public" boolean DEFAULT false NOT NULL,
 	"current_published_version_id" varchar(64),
 	"status" varchar(32) DEFAULT 'DRAFT' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

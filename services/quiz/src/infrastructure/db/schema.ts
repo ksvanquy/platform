@@ -6,6 +6,7 @@ import {
   numeric,
   timestamp,
   jsonb,
+  boolean,
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
@@ -33,6 +34,7 @@ export const quizzes = pgTable(
     description: text('description'),
     ownerId: varchar('owner_id', { length: 64 }).notNull(),
     tenantId: varchar('tenant_id', { length: 64 }).notNull().default('tenant_default'),
+    isPublic: boolean('is_public').notNull().default(false),
     currentPublishedVersionId: varchar('current_published_version_id', { length: 64 }),
     status: varchar('status', { length: 32 }).notNull().default('DRAFT'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

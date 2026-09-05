@@ -12,7 +12,8 @@ export interface UserProfile {
   email: string;
   name?: string;
   roles: readonly string[];
-  tenantId?: string;
+  permissions?: readonly string[];
+  metadata?: Record<string, unknown>;
   avatarUrl?: string;
   [key: string]: any;
 }
@@ -156,7 +157,7 @@ export class SessionManager {
       tokens,
       user: user ?? this.sessionData.user,
       principal: user
-        ? { id: user.id, roles: user.roles, tenantId: user.tenantId }
+        ? { id: user.id, roles: user.roles, permissions: user.permissions, metadata: user.metadata }
         : this.extractPrincipalFromToken(tokens.accessToken),
       expiresAt,
     };
@@ -165,7 +166,7 @@ export class SessionManager {
   }
 
   private extractPrincipalFromToken(accessToken: string): Principal | null {
-    const payload = decodeJwtPayload<{ sub?: string; id?: string; roles?: string[]; permissions?: string[]; tenantId?: string }>(accessToken);
+    const payload = decodeJwtPayload<{ sub?: string; id?: string; roles?: string[]; permissions?: string[]; metadata?: Record<string, unknown> }>(accessToken);
     if (!payload) return null;
     const id = payload.sub || payload.id;
     if (!id) return null;
@@ -173,7 +174,7 @@ export class SessionManager {
       id,
       roles: payload.roles || ['CANDIDATE'],
       permissions: payload.permissions || [],
-      tenantId: payload.tenantId,
+      metadata: payload.metadata,
     };
   }
 
@@ -187,7 +188,7 @@ export class SessionManager {
       id: user.id,
       roles: user.roles,
       permissions: user.permissions || [],
-      tenantId: user.tenantId,
+      metadata: user.metadata,
     };
     this.saveToStorage();
   }

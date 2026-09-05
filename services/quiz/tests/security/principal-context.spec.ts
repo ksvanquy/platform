@@ -19,13 +19,11 @@ describe('Bước 3 — Quiz Service nhận Principal từ Authentication Contex
   const mockPrincipal: Principal = {
     id: 'usr_student_01',
     roles: ['STUDENT'],
-    tenantId: 'tenant_default',
   };
 
   const maliciousPrincipal: Principal = {
     id: 'usr_hacker_99',
     roles: ['STUDENT'],
-    tenantId: 'tenant_default',
   };
 
   beforeEach(async () => {
@@ -47,7 +45,6 @@ describe('Bước 3 — Quiz Service nhận Principal từ Authentication Contex
 
       expect(context.principal.id).toBe('usr_student_01');
       expect(context.principal.roles).toContain('STUDENT');
-      expect(context.principal.tenantId).toBe('tenant_default');
     });
 
     it('should start attempt using principal instead of frontend-supplied userId', async () => {
@@ -148,7 +145,6 @@ describe('Bước 3 — Quiz Service nhận Principal từ Authentication Contex
       expect(mockReq.principal).toBeDefined();
       expect(mockReq.principal.id).toBe('usr_student_02');
       expect(mockReq.principal.roles).toEqual(['STUDENT']);
-      expect(mockReq.principal.tenantId).toBe('tenant_academy');
       expect(mockReq.context.principal).toEqual(mockReq.principal);
     });
 
@@ -195,7 +191,6 @@ describe('Bước 3 — Quiz Service nhận Principal từ Authentication Contex
       authContextMiddleware(mockReq, mockRes, () => {});
 
       expect(mockReq.principal.id).toBe('usr_instructor_99');
-      expect(mockReq.principal.tenantId).toBe('tenant_special');
     });
   });
 });

@@ -2,8 +2,8 @@ import { Quiz } from '../../../domain/authoring/quiz.entity.js';
 import { QuizVersion, AuthoringQuestion, ScoringPolicyConfig, RandomizationPolicy } from '../../../domain/authoring/quiz-version.entity.js';
 import { AuthoringRepositoryPort } from '../../../domain/ports/assessment.repository.ports.js';
 import { QuizNotFoundError, OwnershipDomainError } from '../../../domain/errors/domain-errors.js';
-import { evaluateOwnership } from '@platform/contracts';
-import type { Principal } from '@platform/contracts';
+import { evaluateOwnership, evaluateTenantIsolation } from '@platform/contracts';
+import type { Principal, TenantContext } from '@platform/contracts';
 
 export interface CreateQuizInput {
   code: string;
@@ -11,12 +11,14 @@ export interface CreateQuizInput {
   description?: string;
   ownerId: string;
   tenantId?: string;
+  isPublic?: boolean;
 }
 
 export interface UpdateQuizInput {
   quizId: string;
   title: string;
   description?: string;
+  isPublic?: boolean;
 }
 
 export interface CreateQuizVersionInput {
@@ -37,14 +39,22 @@ export interface PublishQuizInput {
 export class AuthoringUseCases {
   constructor(private authoringRepo: AuthoringRepositoryPort) {}
 
-  async createQuiz(input: CreateQuizInput, principal?: Principal): Promise<Quiz> {
+  async createQuiz(
+    input: CreateQuizInput,
+    principal?: Principal,
+    tenantContext?: TenantContext
+  ): Promise<Quiz> {
     const existing = await this.authoringRepo.findQuizByCode(input.code);
     if (existing) {
       throw new Error(`Quiz with code "${input.code}" already exists`);
     }
 
     const ownerId = principal?.id || input.ownerId;
-    const tenantId = principal?.tenantId || input.tenantId || 'tenant_default';
+    const activeTenantId = tenantContext?.tenantId || input.tenantId || 'tenant_default';
+
+    if (tenantContext?.tenantId && input.tenantId && tenantContext.tenantId !== input.tenantId) {
+      throw new OwnershipDomainError('Cross-tenant quiz creation prohibited');
+    }
 
     const quizId = `quiz_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const quiz = new Quiz({
@@ -53,7 +63,8 @@ export class AuthoringUseCases {
       title: input.title,
       description: input.description,
       ownerId,
-      tenantId,
+      tenantId: activeTenantId,
+      isPublic: input.isPublic ?? false,
       status: 'DRAFT',
     });
 
@@ -61,7 +72,11 @@ export class AuthoringUseCases {
     return quiz;
   }
 
-  async addVersion(input: CreateQuizVersionInput, principal?: Principal): Promise<QuizVersion> {
+  async addVersion(
+    input: CreateQuizVersionInput,
+    principal?: Principal,
+    tenantContext?: TenantContext
+  ): Promise<QuizVersion> {
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
       throw new QuizNotFoundError(input.quizId);
@@ -77,7 +92,8 @@ export class AuthoringUseCases {
           tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:update',
-        'quiz:manage_all'
+        'quiz:manage_all',
+        tenantContext
       );
 
       if (!evaluation.allowed) {
@@ -107,7 +123,11 @@ export class AuthoringUseCases {
     return version;
   }
 
-  async updateQuiz(input: UpdateQuizInput, principal?: Principal): Promise<Quiz> {
+  async updateQuiz(
+    input: UpdateQuizInput,
+    principal?: Principal,
+    tenantContext?: TenantContext
+  ): Promise<Quiz> {
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
       throw new QuizNotFoundError(input.quizId);
@@ -123,7 +143,8 @@ export class AuthoringUseCases {
           tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:update',
-        'quiz:manage_all'
+        'quiz:manage_all',
+        tenantContext
       );
 
       if (!evaluation.allowed) {
@@ -133,12 +154,16 @@ export class AuthoringUseCases {
       }
     }
 
-    quiz.updateDetails(input.title, input.description);
+    quiz.updateDetails(input.title, input.description, input.isPublic);
     await this.authoringRepo.saveQuiz(quiz);
     return quiz;
   }
 
-  async publishQuiz(input: PublishQuizInput, principal?: Principal): Promise<{ quiz: Quiz; version: QuizVersion }> {
+  async publishQuiz(
+    input: PublishQuizInput,
+    principal?: Principal,
+    tenantContext?: TenantContext
+  ): Promise<{ quiz: Quiz; version: QuizVersion }> {
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
       throw new QuizNotFoundError(input.quizId);
@@ -154,7 +179,8 @@ export class AuthoringUseCases {
           tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:publish',
-        'quiz:manage_all'
+        'quiz:manage_all',
+        tenantContext
       );
 
       if (!evaluation.allowed) {
@@ -175,7 +201,11 @@ export class AuthoringUseCases {
     return { quiz, version };
   }
 
-  async deleteQuiz(quizId: string, principal?: Principal): Promise<void> {
+  async deleteQuiz(
+    quizId: string,
+    principal?: Principal,
+    tenantContext?: TenantContext
+  ): Promise<void> {
     const quiz = await this.authoringRepo.findQuizById(quizId);
     if (!quiz) {
       throw new QuizNotFoundError(quizId);
@@ -191,7 +221,8 @@ export class AuthoringUseCases {
           tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:delete',
-        'quiz:manage_all'
+        'quiz:manage_all',
+        tenantContext
       );
 
       if (!evaluation.allowed) {
@@ -209,7 +240,11 @@ export class AuthoringUseCases {
     return this.authoringRepo.listPublishedQuizzes();
   }
 
-  async getQuizDetails(quizId: string, principal?: Principal): Promise<{ quiz: Quiz; currentVersion?: QuizVersion }> {
+  async getQuizDetails(
+    quizId: string,
+    principal?: Principal,
+    tenantContext?: TenantContext
+  ): Promise<{ quiz: Quiz; currentVersion?: QuizVersion }> {
     const quiz = await this.authoringRepo.findQuizById(quizId);
     if (!quiz) {
       throw new QuizNotFoundError(quizId);
@@ -225,13 +260,18 @@ export class AuthoringUseCases {
           tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:read',
-        'quiz:manage_all'
+        'quiz:manage_all',
+        tenantContext
       );
 
       if (!evaluation.allowed) {
         throw new OwnershipDomainError(
           evaluation.reason || 'You do not have permission to view this non-published quiz'
         );
+      }
+    } else if (tenantContext && !quiz.isPublic) {
+      if (!evaluateTenantIsolation(tenantContext, { tenantId: quiz.tenantId })) {
+        throw new OwnershipDomainError('Cross-tenant access prohibited');
       }
     }
 

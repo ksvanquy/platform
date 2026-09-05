@@ -46,9 +46,9 @@ describe('Gói WP-7: Endpoints Quản trị RBAC & Token Service', () => {
 
       const instructor = res.body.data.find((r: any) => r.code === 'INSTRUCTOR');
       expect(instructor).toBeDefined();
-      expect(instructor.permissions).toContain('quiz:create');
-      expect(instructor.permissions).toContain('quiz:publish');
-      expect(instructor.permissions).toContain('attempt:review');
+      expect(instructor.permissions).toContain('user:read');
+      expect(instructor.permissions).toContain('user:write');
+      expect(instructor.permissions).not.toContain('quiz:create');
     });
 
     it('GET /v1/auth/roles/:code should return full details of a specific role', async () => {
@@ -57,8 +57,9 @@ describe('Gói WP-7: Endpoints Quản trị RBAC & Token Service', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.code).toBe('INSTRUCTOR');
       expect(res.body.data.name).toBe('Instructor');
-      expect(res.body.data.permissions).toContain('quiz:update');
-      expect(res.body.data.permissions).toContain('quiz:delete');
+      expect(res.body.data.permissions).toContain('user:read');
+      expect(res.body.data.permissions).toContain('user:write');
+      expect(res.body.data.permissions).not.toContain('quiz:update');
     });
 
     it('GET /v1/auth/roles/:code should return 404 for non-existent role', async () => {
@@ -75,21 +76,25 @@ describe('Gói WP-7: Endpoints Quản trị RBAC & Token Service', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(Array.isArray(res.body.data)).toBe(true);
-      expect(res.body.data.length).toBeGreaterThanOrEqual(14);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(8);
 
       const codes = res.body.data.map((p: any) => p.code);
       expect(codes).toContain('*');
-      expect(codes).toContain('quiz:read');
-      expect(codes).toContain('quiz:create');
-      expect(codes).toContain('quiz:update');
-      expect(codes).toContain('quiz:delete');
-      expect(codes).toContain('quiz:publish');
-      expect(codes).toContain('quiz:manage_all');
-      expect(codes).toContain('attempt:create');
-      expect(codes).toContain('attempt:submit');
-      expect(codes).toContain('attempt:read_self');
-      expect(codes).toContain('attempt:read_all');
-      expect(codes).toContain('attempt:review');
+      expect(codes).toContain('user:read');
+      expect(codes).toContain('user:write');
+      expect(codes).toContain('user:manage');
+      expect(codes).toContain('role:read');
+      expect(codes).toContain('role:write');
+      expect(codes).toContain('permission:read');
+      expect(codes).toContain('system:config');
+
+      // Assert complete purge of domain permissions from Auth Service
+      expect(codes).not.toContain('quiz:read');
+      expect(codes).not.toContain('quiz:create');
+      expect(codes).not.toContain('quiz:manage_all');
+      expect(codes).not.toContain('attempt:create');
+      expect(codes).not.toContain('attempt:submit');
+      expect(codes).not.toContain('attempt:review');
     });
   });
 
@@ -119,7 +124,8 @@ describe('Gói WP-7: Endpoints Quản trị RBAC & Token Service', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.roles).toEqual(['INSTRUCTOR']);
-      expect(res.body.data.permissions).toContain('quiz:create');
+      expect(res.body.data.permissions).toContain('user:read');
+      expect(res.body.data.permissions).not.toContain('quiz:create');
 
       // Verify in database
       const reloaded = await userRepo.findById(student!.id);
@@ -168,7 +174,7 @@ describe('Gói WP-7: Endpoints Quản trị RBAC & Token Service', () => {
       expect(res.body.active).toBe(true);
       expect(res.body.payload.sub).toBe(student!.id);
       expect(res.body.payload.roles).toContain('INSTRUCTOR');
-      expect(res.body.payload.permissions).toContain('quiz:create');
+      expect(res.body.payload.permissions).toContain('user:read');
     });
 
     it('POST /v1/auth/tokens/verify should return active: false for invalid or forged token', async () => {

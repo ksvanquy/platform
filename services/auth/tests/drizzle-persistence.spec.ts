@@ -115,9 +115,10 @@ describe('Auth Service Phase 4: 100% PostgreSQL Persistence & Fail-Fast', () => 
 
       // Check joined permissions from role_permissions table
       const permissions = student?.roles[0].permissions.map((p) => p.code) || [];
-      expect(permissions).toContain('quiz:read');
-      expect(permissions).toContain('attempt:create');
-      expect(permissions).toContain('attempt:read_self');
+      expect(permissions).toContain('user:read');
+      expect(permissions).toContain('user:write');
+      expect(permissions).not.toContain('quiz:read');
+      expect(permissions).not.toContain('attempt:create');
     });
 
     it('should persist a new user and map user_roles relationship in PostgreSQL', async () => {
@@ -131,7 +132,7 @@ describe('Auth Service Phase 4: 100% PostgreSQL Persistence & Fail-Fast', () => 
         name: 'Drizzle Test User',
         passwordHash: 'hashed_password_sample',
         roles: [studentRole!],
-        tenantId: 'tenant_default',
+        metadata: { locale: 'vi-VN', department: 'Engineering' },
       });
 
       await userRepo.save(newUser);
@@ -140,9 +141,9 @@ describe('Auth Service Phase 4: 100% PostgreSQL Persistence & Fail-Fast', () => 
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe('Drizzle Test User');
       expect(fetched?.roles[0].code).toBe('STUDENT');
-      expect(fetched?.hasPermission('quiz:read')).toBe(true);
-      expect(fetched?.metadata).toEqual({ defaultTenantId: 'tenant_default' });
-      expect(fetched?.tenantId).toBe('tenant_default');
+      expect(fetched?.hasPermission('user:read')).toBe(true);
+      expect(fetched?.metadata).toEqual({ locale: 'vi-VN', department: 'Engineering' });
+      expect((fetched as any)?.tenantId).toBeUndefined();
     });
 
     it('should list all system roles with their full permissions from PostgreSQL', async () => {
@@ -159,16 +160,26 @@ describe('Auth Service Phase 4: 100% PostgreSQL Persistence & Fail-Fast', () => 
       expect(adminRole?.isAdministrator()).toBe(true);
     });
 
-    it('should list all 16 normalized permissions from PostgreSQL', async () => {
+    it('should list all normalized system permissions from PostgreSQL', async () => {
       const userRepo = testContext.userRepo;
       const perms = await userRepo.listPermissions();
 
-      expect(perms.length).toBeGreaterThanOrEqual(16);
+      expect(perms.length).toBeGreaterThanOrEqual(8);
       const permCodes = perms.map((p) => p.code);
-      expect(permCodes).toContain('quiz:read');
-      expect(permCodes).toContain('quiz:manage_all');
-      expect(permCodes).toContain('attempt:read_self');
-      expect(permCodes).toContain('attempt:read_all');
+      expect(permCodes).toContain('*');
+      expect(permCodes).toContain('user:read');
+      expect(permCodes).toContain('user:write');
+      expect(permCodes).toContain('user:manage');
+      expect(permCodes).toContain('role:read');
+      expect(permCodes).toContain('role:write');
+      expect(permCodes).toContain('permission:read');
+      expect(permCodes).toContain('system:config');
+
+      // Purged domain permissions
+      expect(permCodes).not.toContain('quiz:read');
+      expect(permCodes).not.toContain('quiz:manage_all');
+      expect(permCodes).not.toContain('attempt:read_self');
+      expect(permCodes).not.toContain('attempt:read_all');
     });
   });
 });

@@ -27,7 +27,7 @@ export interface RegisterData {
   email: string;
   name: string;
   password: string;
-  tenantId?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface RegisterResponseData {
