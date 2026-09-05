@@ -10,12 +10,30 @@ export const SYSTEM_ROLES: Record<RoleType, Role> = {
   STUDENT: {
     name: 'STUDENT',
     description: 'Student or examinee taking quizzes',
-    permissions: ['quiz:read', 'attempt:create', 'attempt:submit'],
+    permissions: [
+      'quiz:read',
+      'attempt:create',
+      'attempt:start',
+      'attempt:record_answer',
+      'attempt:submit',
+      'attempt:read_own',
+      'attempt:read_self',
+    ],
   },
   INSTRUCTOR: {
     name: 'INSTRUCTOR',
     description: 'Instructor or teacher creating and reviewing quizzes',
-    permissions: ['quiz:read', 'quiz:write', 'quiz:create', 'quiz:publish', 'attempt:read', 'attempt:review'],
+    permissions: [
+      'quiz:read',
+      'quiz:write',
+      'quiz:create',
+      'quiz:update',
+      'quiz:delete',
+      'quiz:publish',
+      'attempt:read',
+      'attempt:read_self',
+      'attempt:review',
+    ],
   },
   ADMIN: {
     name: 'ADMIN',

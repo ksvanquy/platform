@@ -30,10 +30,13 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
         return res.status(400).json({ success: false, message: 'quizId is required', errorCode: 'INVALID_INPUT' });
       }
 
-      const { attempt, isExisting } = await delivery.createAttempt({
-        userId,
-        quizId,
-      });
+      const { attempt, isExisting } = await delivery.createAttempt(
+        {
+          userId,
+          quizId,
+        },
+        req.principal
+      );
 
       res.status(isExisting ? 200 : 201).json({
         success: true,
@@ -52,10 +55,13 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
       const userId = getAuthenticatedUserId(req, res);
       if (!userId) return;
 
-      const result = await delivery.startAttempt({
-        attemptId: String(req.params.id),
-        userId,
-      });
+      const result = await delivery.startAttempt(
+        {
+          attemptId: String(req.params.id),
+          userId,
+        },
+        req.principal
+      );
 
       const now = new Date();
       res.status(200).json({
@@ -80,8 +86,14 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
       const userId = getAuthenticatedUserId(req, res);
       if (!userId) return;
 
-      const result = await delivery.getAttemptDetails(String(req.params.id), userId);
       const now = new Date();
+      const result = await delivery.getAttemptDetails(
+        String(req.params.id),
+        userId,
+        now,
+        15000,
+        req.principal
+      );
       res.status(200).json({
         success: true,
         data: {
@@ -108,14 +120,17 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
         return res.status(400).json({ success: false, message: 'questionId is required', errorCode: 'INVALID_INPUT' });
       }
 
-      await delivery.recordAnswer({
-        attemptId: String(req.params.id),
-        userId,
-        questionId: String(questionId),
-        answer,
-        sequenceNumber: sequenceNumber !== undefined ? Number(sequenceNumber) : undefined,
-        clientTimestamp: clientTimestamp !== undefined ? Number(clientTimestamp) : undefined,
-      });
+      await delivery.recordAnswer(
+        {
+          attemptId: String(req.params.id),
+          userId,
+          questionId: String(questionId),
+          answer,
+          sequenceNumber: sequenceNumber !== undefined ? Number(sequenceNumber) : undefined,
+          clientTimestamp: clientTimestamp !== undefined ? Number(clientTimestamp) : undefined,
+        },
+        req.principal
+      );
 
       res.status(200).json({ success: true, message: 'Answer recorded successfully' });
     } catch (err: any) {
@@ -132,14 +147,17 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
 
       const { answer, sequenceNumber, clientTimestamp } = req.body;
 
-      await delivery.recordAnswer({
-        attemptId: String(req.params.id),
-        userId,
-        questionId: String(req.params.questionId),
-        answer,
-        sequenceNumber: sequenceNumber !== undefined ? Number(sequenceNumber) : undefined,
-        clientTimestamp: clientTimestamp !== undefined ? Number(clientTimestamp) : undefined,
-      });
+      await delivery.recordAnswer(
+        {
+          attemptId: String(req.params.id),
+          userId,
+          questionId: String(req.params.questionId),
+          answer,
+          sequenceNumber: sequenceNumber !== undefined ? Number(sequenceNumber) : undefined,
+          clientTimestamp: clientTimestamp !== undefined ? Number(clientTimestamp) : undefined,
+        },
+        req.principal
+      );
 
       res.status(200).json({ success: true, message: 'Answer recorded successfully' });
     } catch (err: any) {
@@ -154,10 +172,13 @@ export function createV1AttemptsRouter(delivery: DeliveryUseCases): Router {
       const userId = getAuthenticatedUserId(req, res);
       if (!userId) return;
 
-      const result = await delivery.submitAttempt({
-        attemptId: String(req.params.id),
-        userId,
-      });
+      const result = await delivery.submitAttempt(
+        {
+          attemptId: String(req.params.id),
+          userId,
+        },
+        req.principal
+      );
 
       const now = new Date();
       res.status(200).json({

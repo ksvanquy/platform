@@ -117,6 +117,14 @@ export class ForbiddenError extends DomainError {
   }
 }
 
+export class OwnershipDomainError extends DomainError {
+  constructor(message = 'Access denied: Resource ownership mismatch', details?: unknown) {
+    super(message, 'FORBIDDEN_OWNERSHIP_MISMATCH', 403, details);
+  }
+}
+
+export { OwnershipDomainError as ForbiddenDomainError };
+
 export class UnauthorizedError extends DomainError {
   constructor(message = 'Authentication required. Please provide a valid Bearer token') {
     super(message, 'UNAUTHORIZED', 401);

@@ -34,7 +34,15 @@ export function evaluateOwnership(
 
   // 2. Kiểm tra RBAC Action Clearance
   const hasActionPerm =
-    permissions.includes('*') || permissions.includes(requiredPermission);
+    permissions.includes('*') ||
+    permissions.includes(requiredPermission) ||
+    (requiredPermission === 'quiz:update' && permissions.includes('quiz:write')) ||
+    permissions.some((p) => {
+      if (p.endsWith(':*')) {
+        return requiredPermission.startsWith(p.slice(0, -1));
+      }
+      return false;
+    });
   if (!hasActionPerm) {
     return {
       allowed: false,

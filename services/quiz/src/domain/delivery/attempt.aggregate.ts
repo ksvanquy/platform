@@ -36,6 +36,7 @@ export interface AttemptProps {
   userId: string;
   quizId: string;
   quizVersionId: string;
+  tenantId?: string;
   status?: AttemptStatus;
   startedAt?: Date;
   deadline?: Date;
@@ -55,6 +56,7 @@ export class Attempt {
   readonly userId: string;
   readonly quizId: string;
   readonly quizVersionId: string;
+  readonly tenantId: string;
 
   private _status: AttemptStatus;
   private _startedAt?: Date;
@@ -82,6 +84,7 @@ export class Attempt {
     this.userId = props.userId;
     this.quizId = props.quizId;
     this.quizVersionId = props.quizVersionId;
+    this.tenantId = props.tenantId || 'tenant_default';
     this._status = props.status ?? 'CREATED';
     this._startedAt = props.startedAt ? new Date(props.startedAt) : undefined;
     this._deadline = props.deadline ? new Date(props.deadline) : undefined;
@@ -301,6 +304,7 @@ export class Attempt {
       userId: this.userId,
       quizId: this.quizId,
       quizVersionId: this.quizVersionId,
+      tenantId: this.tenantId,
       status: this._status,
       startedAt: this._startedAt ? this._startedAt.toISOString() : undefined,
       deadline: this._deadline ? this._deadline.toISOString() : undefined,

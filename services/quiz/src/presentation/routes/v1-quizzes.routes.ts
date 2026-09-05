@@ -26,18 +26,21 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
     }
   });
 
-  // POST /v1/quizzes - Khởi tạo đề thi mới (DRAFT) - Yêu cầu INSTRUCTOR hoặc ADMIN
+    // POST /v1/quizzes - Khởi tạo đề thi mới (DRAFT) - Yêu cầu INSTRUCTOR hoặc ADMIN
   router.post('/', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
       const principal = req.principal;
       const { code, title, description } = req.body;
 
-      const quiz = await authoring.createQuiz({
-        code,
-        title,
-        description,
-        ownerId: principal?.id || 'anonymous_author',
-      });
+      const quiz = await authoring.createQuiz(
+        {
+          code,
+          title,
+          description,
+          ownerId: principal?.id || 'anonymous_author',
+        },
+        principal
+      );
 
       res.status(201).json({ success: true, data: quiz });
     } catch (err: any) {
@@ -49,10 +52,30 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   // GET /v1/quizzes/:id - Xem chi tiết đề thi
   router.get('/:id', async (req: Request, res: Response) => {
     try {
-      const details = await authoring.getQuizDetails(String(req.params.id));
+      const details = await authoring.getQuizDetails(String(req.params.id), req.principal);
       res.status(200).json({ success: true, data: details });
     } catch (err: any) {
       const status = err instanceof DomainError ? err.statusCode : 404;
+      res.status(status).json({ success: false, message: err.message, errorCode: err.errorCode });
+    }
+  });
+
+  // PUT /v1/quizzes/:id - Cập nhật thông tin đề thi (Chỉ chủ sở hữu hoặc ADMIN)
+  router.put('/:id', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
+    try {
+      const { title, description } = req.body;
+      const quiz = await authoring.updateQuiz(
+        {
+          quizId: String(req.params.id),
+          title,
+          description,
+        },
+        req.principal
+      );
+
+      res.status(200).json({ success: true, data: quiz });
+    } catch (err: any) {
+      const status = err instanceof DomainError ? err.statusCode : 400;
       res.status(status).json({ success: false, message: err.message, errorCode: err.errorCode });
     }
   });
@@ -61,15 +84,18 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   router.post('/:id/versions', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
       const { durationMinutes, passingScore, maxAttempts, questions, scoringPolicy, randomizationPolicy } = req.body;
-      const version = await authoring.addVersion({
-        quizId: String(req.params.id),
-        durationMinutes,
-        passingScore,
-        maxAttempts,
-        questions,
-        scoringPolicy,
-        randomizationPolicy: randomizationPolicy || { shuffleQuestions: false, shuffleOptions: false },
-      });
+      const version = await authoring.addVersion(
+        {
+          quizId: String(req.params.id),
+          durationMinutes,
+          passingScore,
+          maxAttempts,
+          questions,
+          scoringPolicy,
+          randomizationPolicy: randomizationPolicy || { shuffleQuestions: false, shuffleOptions: false },
+        },
+        req.principal
+      );
 
       res.status(201).json({ success: true, data: version });
     } catch (err: any) {
@@ -82,10 +108,13 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   router.post('/:id/publish', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
       const { versionId } = req.body;
-      const result = await authoring.publishQuiz({
-        quizId: String(req.params.id),
-        versionId,
-      });
+      const result = await authoring.publishQuiz(
+        {
+          quizId: String(req.params.id),
+          versionId,
+        },
+        req.principal
+      );
 
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {

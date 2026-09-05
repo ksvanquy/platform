@@ -10,11 +10,14 @@ import {
   QuizNotPublishedError,
   AttemptNotFoundError,
   ForbiddenError,
+  OwnershipDomainError,
 } from '../../../domain/errors/domain-errors.js';
+import type { Principal } from '@platform/contracts';
 
 export interface CreateAttemptInput {
   userId: string;
   quizId: string;
+  tenantId?: string;
 }
 
 export interface StartAttemptInput {
@@ -47,13 +50,23 @@ export class DeliveryUseCases {
   /**
    * Tạo lượt thi mới hoặc tái sử dụng lượt thi đang dở dang (Idempotency + Multi-tab defense)
    */
-  async createAttempt(input: CreateAttemptInput): Promise<{ attempt: Attempt; isExisting: boolean }> {
+  async createAttempt(input: CreateAttemptInput, principal?: Principal): Promise<{ attempt: Attempt; isExisting: boolean }> {
+    if (principal && principal.id !== input.userId && !principal.roles.includes('ADMIN')) {
+      throw new OwnershipDomainError('Access denied: Cannot start an attempt on behalf of another user');
+    }
+
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
       throw new QuizNotFoundError(input.quizId);
     }
     if (quiz.status !== 'PUBLISHED' || !quiz.currentPublishedVersionId) {
       throw new QuizNotPublishedError(input.quizId);
+    }
+
+    // Tenant Isolation
+    const tenantId = principal?.tenantId || input.tenantId || quiz.tenantId || 'tenant_default';
+    if (principal?.tenantId && quiz.tenantId && principal.tenantId !== quiz.tenantId) {
+      throw new OwnershipDomainError('Cross-tenant access prohibited');
     }
 
     const version = await this.authoringRepo.findVersionById(quiz.currentPublishedVersionId);
@@ -91,6 +104,7 @@ export class DeliveryUseCases {
       userId: input.userId,
       quizId: input.quizId,
       quizVersionId: version.id,
+      tenantId,
       status: 'CREATED',
     });
 
@@ -101,7 +115,7 @@ export class DeliveryUseCases {
   /**
    * Bắt đầu tính giờ thi và phát đề thi đã khử khuẩn cho thí sinh
    */
-  async startAttempt(input: StartAttemptInput): Promise<{
+  async startAttempt(input: StartAttemptInput, principal?: Principal): Promise<{
     attempt: Attempt;
     manifest: AttemptManifest;
     questions: readonly DeliveryQuestion[];
@@ -110,8 +124,11 @@ export class DeliveryUseCases {
     if (!attempt) {
       throw new AttemptNotFoundError(input.attemptId);
     }
-    if (attempt.userId !== input.userId) {
-      throw new ForbiddenError('Access denied: You do not own this attempt');
+
+    const isOwner = attempt.userId === input.userId && (!principal || principal.id === attempt.userId);
+    const isAdmin = principal?.roles.includes('ADMIN') || (principal?.permissions?.includes('*') ?? false);
+    if (!isOwner && !isAdmin) {
+      throw new OwnershipDomainError('Access denied: You do not own this attempt');
     }
 
     const version = await this.authoringRepo.findVersionById(attempt.quizVersionId);
@@ -133,13 +150,15 @@ export class DeliveryUseCases {
   /**
    * Ghi nhận câu trả lời từng câu (Idempotent + Sequence-Based Concurrency Defense)
    */
-  async recordAnswer(input: RecordAnswerInput): Promise<void> {
+  async recordAnswer(input: RecordAnswerInput, principal?: Principal): Promise<void> {
     const attempt = await this.deliveryRepo.findAttemptById(input.attemptId);
     if (!attempt) {
       throw new AttemptNotFoundError(input.attemptId);
     }
-    if (attempt.userId !== input.userId) {
-      throw new ForbiddenError('Access denied: You do not own this attempt');
+
+    const isOwner = attempt.userId === input.userId && (!principal || principal.id === attempt.userId);
+    if (!isOwner) {
+      throw new OwnershipDomainError('Access denied: You do not own this attempt');
     }
 
     const sequenceNumber = input.sequenceNumber ?? input.clientTimestamp ?? Date.now();
@@ -154,7 +173,7 @@ export class DeliveryUseCases {
   /**
    * Nộp bài thi và kích hoạt chấm điểm chính thức (Auto-Submit on Timeout)
    */
-  async submitAttempt(input: SubmitAttemptInput): Promise<{
+  async submitAttempt(input: SubmitAttemptInput, principal?: Principal): Promise<{
     attempt: Attempt;
     scoreResult: AttemptScoreResult;
   }> {
@@ -162,8 +181,10 @@ export class DeliveryUseCases {
     if (!attempt) {
       throw new AttemptNotFoundError(input.attemptId);
     }
-    if (attempt.userId !== input.userId) {
-      throw new ForbiddenError('Access denied: You do not own this attempt');
+
+    const isOwner = attempt.userId === input.userId && (!principal || principal.id === attempt.userId);
+    if (!isOwner) {
+      throw new OwnershipDomainError('Access denied: You do not own this attempt');
     }
 
     const version = await this.authoringRepo.findVersionById(attempt.quizVersionId);
@@ -192,7 +213,8 @@ export class DeliveryUseCases {
     attemptId: string,
     userId: string,
     now: Date = new Date(),
-    gracePeriodMs = 15000
+    gracePeriodMs = 15000,
+    principal?: Principal
   ): Promise<{
     attempt: Attempt;
     questions?: readonly DeliveryQuestion[];
@@ -202,8 +224,25 @@ export class DeliveryUseCases {
     if (!attempt) {
       throw new AttemptNotFoundError(attemptId);
     }
-    if (attempt.userId !== userId) {
-      throw new ForbiddenError('Access denied: You do not own this attempt');
+
+    let allowed = attempt.userId === userId && (!principal || principal.id === attempt.userId);
+    if (!allowed && principal) {
+      const isAdminOrReviewer =
+        principal.roles.includes('ADMIN') ||
+        (principal.permissions?.includes('*') ?? false) ||
+        (principal.permissions?.includes('attempt:read_all') ?? false);
+      if (isAdminOrReviewer) {
+        allowed = true;
+      } else if (principal.permissions?.includes('attempt:review')) {
+        const quiz = await this.authoringRepo.findQuizById(attempt.quizId);
+        if (quiz && quiz.ownerId === principal.id) {
+          allowed = true;
+        }
+      }
+    }
+
+    if (!allowed) {
+      throw new OwnershipDomainError('Access denied: You do not own this attempt');
     }
 
     let autoSwept = false;

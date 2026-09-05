@@ -720,13 +720,21 @@ Do không giữ tương thích ngược, toàn bộ các gói công việc đư�
    - Đã cập nhật `@platform/contracts`: Xuất khẩu đầy đủ `evaluateOwnership`, `ResourceOwnershipContext`, `OwnershipEvaluationResult` từ `src/auth/ownership.ts` và `src/index.ts`.
    - Đã chuẩn hóa `Principal` contract chứa đầy đủ `id`, `roles`, `permissions`, `tenantId`.
    - Đã xây dựng bộ kiểm thử tích hợp chuyên biệt (`services/auth/tests/ownership.spec.ts`) xác thực toàn diện: Tenant Isolation, Action Clearance, Admin/Wildcard/Manage-All Bypass, và Quyền sở hữu (Owner vs Non-owner).
-6. **Gói WP-6: Áp dụng Ownership Policy tại Quiz Service**
-   - Tích hợp `evaluateOwnership` vào `AuthoringUseCases` (`addVersion`, `publishQuiz`, `updateQuiz`) để ngăn chặn Giảng viên sửa bài của nhau.
-   - Xác thực `attempt.userId === principal.id` trong `DeliveryUseCases` để đảm bảo sinh viên chỉ thao tác trên bài thi của mình.
-   - Trả về mã lỗi chuẩn `HTTP 403 Forbidden` (`FORBIDDEN_OWNERSHIP_MISMATCH`) khi vi phạm quyền sở hữu.
-7. **Gói WP-7: Endpoints Quản trị RBAC & Token Service**
-   - `GET /v1/auth/roles`: Liệt kê các vai trò và quyền hạn trực tiếp từ database.
-   - `GET /v1/auth/permissions`: Liệt kê toàn bộ quyền hạn hệ thống.
+6. **Gói WP-6: Áp dụng Ownership Policy tại Quiz Service [HOÀN THÀNH ✅]**
+   - Tích hợp `evaluateOwnership` vào `AuthoringUseCases` (`addVersion`, `publishQuiz`, `updateQuiz`, `deleteQuiz`) để ngăn chặn Giảng viên sửa bài của nhau.
+   - Xác thực `attempt.userId === principal.id` trong `DeliveryUseCases` (`startAttempt`, `recordAnswer`, `submitAttempt`, `getAttemptDetails`) để đảm bảo sinh viên chỉ thao tác trên bài thi của mình (Anti-IDOR).
+   - Trả về mã lỗi chuẩn `HTTP 403 Forbidden` (`FORBIDDEN_OWNERSHIP_MISMATCH`) khi vi phạm quyền sở hữu hoặc tenant isolation.
+   - Xây dựng bộ test suite `services/quiz/tests/security/ownership-policy.spec.ts` (14/14 tests green).
+7. **Gói WP-7: Endpoints Quản trị RBAC & Token Service [HOÀN THÀNH ✅]**
+   - `GET /v1/auth/roles`: Liệt kê các vai trò và quyền hạn trực tiếp từ database PostgreSQL SoT.
+   - `GET /v1/auth/roles/:code`: Tra cứu chi tiết một vai trò và danh sách quyền hạn cụ thể.
+   - `GET /v1/auth/permissions`: Liệt kê toàn bộ 16 quyền hạn hệ thống.
+   - `GET /v1/auth/users`: Liệt kê danh sách người dùng kèm vai trò và quyền hạn hiệu lực (Effective Permissions).
+   - `POST/PUT /v1/auth/users/:id/roles`: Gán hoặc cập nhật vai trò người dùng trong cơ sở dữ liệu.
+   - `POST /v1/auth/tokens/verify`: Endpoint thẩm tra Token (Token Introspection RFC 7662).
+   - `POST /v1/auth/tokens/revoke`: Endpoint thu hồi Refresh Token (Token Revocation RFC 7009).
+   - `GET /.well-known/jwks.json` & `GET /v1/auth/jwks`: Cung cấp Public Keys chuẩn RFC 7517.
+   - Xây dựng bộ test suite `services/auth/tests/rbac-admin-api.spec.ts` (13/13 tests green).
 8. **Gói WP-8: Kiểm thử Toàn diện & Xác thực Hệ thống (RBAC + ABAC Tests)**
    - Viết unit & integration tests kiểm thử kịch bản:
      - Giảng viên A tạo đề thi ➔ Giảng viên B tìm cách cập nhật đề thi của Giảng viên A ➔ Bị chặn với HTTP 403.

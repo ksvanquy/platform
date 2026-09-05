@@ -188,7 +188,7 @@ describe('Assessment Engine API Integration & Facade (Pha 3)', () => {
         .get(`/v1/attempts/${attemptId}`)
         .set(hackerHeaders);
       expect(hackerGetRes.status).toBe(403);
-      expect(hackerGetRes.body.errorCode).toBe('FORBIDDEN');
+      expect(['FORBIDDEN', 'FORBIDDEN_OWNERSHIP_MISMATCH']).toContain(hackerGetRes.body.errorCode);
 
       // 3. Hacker tries to record answer -> 403
       const hackerAnsRes = await request(app)
@@ -199,14 +199,14 @@ describe('Assessment Engine API Integration & Facade (Pha 3)', () => {
           answer: { selectedOptionId: 'opt_1' },
         });
       expect(hackerAnsRes.status).toBe(403);
-      expect(hackerAnsRes.body.errorCode).toBe('FORBIDDEN');
+      expect(['FORBIDDEN', 'FORBIDDEN_OWNERSHIP_MISMATCH']).toContain(hackerAnsRes.body.errorCode);
 
       // 4. Hacker tries to submit attempt -> 403
       const hackerSubmitRes = await request(app)
         .post(`/v1/attempts/${attemptId}/submit`)
         .set(hackerHeaders);
       expect(hackerSubmitRes.status).toBe(403);
-      expect(hackerSubmitRes.body.errorCode).toBe('FORBIDDEN');
+      expect(['FORBIDDEN', 'FORBIDDEN_OWNERSHIP_MISMATCH']).toContain(hackerSubmitRes.body.errorCode);
     });
 
     it('should return 404 for removed legacy facade endpoints', async () => {

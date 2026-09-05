@@ -269,6 +269,37 @@ export class DrizzleUserRepository implements IUserRepository {
         })
     );
   }
+
+  async assignRoles(userId: string, roleCodes: string[]): Promise<User | null> {
+    const existing = await this.findById(userId);
+    if (!existing) return null;
+
+    // Delete existing user_roles
+    await this.db.delete(userRoles).where(eq(userRoles.userId, userId));
+
+    // Insert new user_roles
+    for (const code of roleCodes) {
+      const normalized = code.toUpperCase().trim();
+      const roleRow = await this.db
+        .select({ id: roles.id })
+        .from(roles)
+        .where(eq(roles.code, normalized))
+        .limit(1);
+
+      if (roleRow.length > 0) {
+        await this.db
+          .insert(userRoles)
+          .values({
+            userId,
+            roleId: roleRow[0].id,
+            assignedAt: new Date(),
+          })
+          .onConflictDoNothing();
+      }
+    }
+
+    return await this.findById(userId);
+  }
 }
 
 /**

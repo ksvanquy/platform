@@ -10,6 +10,7 @@ export interface QuizProps {
   title: string;
   description?: string;
   ownerId: string;
+  tenantId?: string;
   currentPublishedVersionId?: string;
   status?: QuizStatus;
   createdAt?: Date;
@@ -26,6 +27,7 @@ export class Quiz {
   private _title: string;
   private _description?: string;
   readonly ownerId: string;
+  readonly tenantId: string;
   private _currentPublishedVersionId?: string;
   private _status: QuizStatus;
   readonly createdAt: Date;
@@ -47,6 +49,7 @@ export class Quiz {
     this._title = props.title;
     this._description = props.description;
     this.ownerId = props.ownerId;
+    this.tenantId = props.tenantId || 'tenant_default';
     this._currentPublishedVersionId = props.currentPublishedVersionId;
     this._status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ? new Date(props.createdAt) : new Date();
@@ -143,6 +146,7 @@ export class Quiz {
       title: this._title,
       description: this._description,
       ownerId: this.ownerId,
+      tenantId: this.tenantId,
       currentPublishedVersionId: this._currentPublishedVersionId,
       status: this._status,
       createdAt: this.createdAt.toISOString(),

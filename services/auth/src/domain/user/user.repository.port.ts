@@ -10,4 +10,5 @@ export interface IUserRepository {
   getRoleByCode?(code: string): Promise<Role | null> | (Role | null);
   listRoles?(): Promise<Role[]> | Role[];
   listPermissions?(): Promise<Permission[]> | Permission[];
+  assignRoles?(userId: string, roleCodes: string[]): Promise<User | null>;
 }

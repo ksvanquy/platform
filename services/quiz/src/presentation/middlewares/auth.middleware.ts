@@ -180,7 +180,11 @@ export async function authContextMiddleware(
 
   // 2. Service-to-service / Testing fallback qua header x-user-id (khi không có Bearer)
   if (!principal && req.headers['x-user-id']) {
-    const rolesHeader = req.headers['x-user-roles'] || req.headers['x-roles'];
+    const rolesHeader =
+      req.headers['x-user-roles'] ||
+      req.headers['x-user-role'] ||
+      req.headers['x-roles'] ||
+      req.headers['x-role'];
     const roles = rolesHeader
       ? String(rolesHeader).split(',').map((r) => r.trim().toUpperCase())
       : ['STUDENT'];

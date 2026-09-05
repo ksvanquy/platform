@@ -1,13 +1,22 @@
 import { Quiz } from '../../../domain/authoring/quiz.entity.js';
 import { QuizVersion, AuthoringQuestion, ScoringPolicyConfig, RandomizationPolicy } from '../../../domain/authoring/quiz-version.entity.js';
 import { AuthoringRepositoryPort } from '../../../domain/ports/assessment.repository.ports.js';
-import { QuizNotFoundError } from '../../../domain/errors/domain-errors.js';
+import { QuizNotFoundError, OwnershipDomainError } from '../../../domain/errors/domain-errors.js';
+import { evaluateOwnership } from '@platform/contracts';
+import type { Principal } from '@platform/contracts';
 
 export interface CreateQuizInput {
   code: string;
   title: string;
   description?: string;
   ownerId: string;
+  tenantId?: string;
+}
+
+export interface UpdateQuizInput {
+  quizId: string;
+  title: string;
+  description?: string;
 }
 
 export interface CreateQuizVersionInput {
@@ -28,11 +37,14 @@ export interface PublishQuizInput {
 export class AuthoringUseCases {
   constructor(private authoringRepo: AuthoringRepositoryPort) {}
 
-  async createQuiz(input: CreateQuizInput): Promise<Quiz> {
+  async createQuiz(input: CreateQuizInput, principal?: Principal): Promise<Quiz> {
     const existing = await this.authoringRepo.findQuizByCode(input.code);
     if (existing) {
       throw new Error(`Quiz with code "${input.code}" already exists`);
     }
+
+    const ownerId = principal?.id || input.ownerId;
+    const tenantId = principal?.tenantId || input.tenantId || 'tenant_default';
 
     const quizId = `quiz_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const quiz = new Quiz({
@@ -40,7 +52,8 @@ export class AuthoringUseCases {
       code: input.code,
       title: input.title,
       description: input.description,
-      ownerId: input.ownerId,
+      ownerId,
+      tenantId,
       status: 'DRAFT',
     });
 
@@ -48,10 +61,30 @@ export class AuthoringUseCases {
     return quiz;
   }
 
-  async addVersion(input: CreateQuizVersionInput): Promise<QuizVersion> {
+  async addVersion(input: CreateQuizVersionInput, principal?: Principal): Promise<QuizVersion> {
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
       throw new QuizNotFoundError(input.quizId);
+    }
+
+    if (principal) {
+      const evaluation = evaluateOwnership(
+        principal,
+        {
+          resourceType: 'quiz',
+          resourceId: quiz.id,
+          ownerId: quiz.ownerId,
+          tenantId: quiz.tenantId || 'tenant_default',
+        },
+        'quiz:update',
+        'quiz:manage_all'
+      );
+
+      if (!evaluation.allowed) {
+        throw new OwnershipDomainError(
+          evaluation.reason || 'You do not have permission to modify this quiz'
+        );
+      }
     }
 
     const existingVersions = await this.authoringRepo.listVersionsByQuizId(input.quizId);
@@ -74,10 +107,61 @@ export class AuthoringUseCases {
     return version;
   }
 
-  async publishQuiz(input: PublishQuizInput): Promise<{ quiz: Quiz; version: QuizVersion }> {
+  async updateQuiz(input: UpdateQuizInput, principal?: Principal): Promise<Quiz> {
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
       throw new QuizNotFoundError(input.quizId);
+    }
+
+    if (principal) {
+      const evaluation = evaluateOwnership(
+        principal,
+        {
+          resourceType: 'quiz',
+          resourceId: quiz.id,
+          ownerId: quiz.ownerId,
+          tenantId: quiz.tenantId || 'tenant_default',
+        },
+        'quiz:update',
+        'quiz:manage_all'
+      );
+
+      if (!evaluation.allowed) {
+        throw new OwnershipDomainError(
+          evaluation.reason || 'You do not have permission to update this quiz'
+        );
+      }
+    }
+
+    quiz.updateDetails(input.title, input.description);
+    await this.authoringRepo.saveQuiz(quiz);
+    return quiz;
+  }
+
+  async publishQuiz(input: PublishQuizInput, principal?: Principal): Promise<{ quiz: Quiz; version: QuizVersion }> {
+    const quiz = await this.authoringRepo.findQuizById(input.quizId);
+    if (!quiz) {
+      throw new QuizNotFoundError(input.quizId);
+    }
+
+    if (principal) {
+      const evaluation = evaluateOwnership(
+        principal,
+        {
+          resourceType: 'quiz',
+          resourceId: quiz.id,
+          ownerId: quiz.ownerId,
+          tenantId: quiz.tenantId || 'tenant_default',
+        },
+        'quiz:publish',
+        'quiz:manage_all'
+      );
+
+      if (!evaluation.allowed) {
+        throw new OwnershipDomainError(
+          evaluation.reason || 'You do not have permission to publish this quiz'
+        );
+      }
     }
 
     const version = await this.authoringRepo.findVersionById(input.versionId);
@@ -91,14 +175,64 @@ export class AuthoringUseCases {
     return { quiz, version };
   }
 
+  async deleteQuiz(quizId: string, principal?: Principal): Promise<void> {
+    const quiz = await this.authoringRepo.findQuizById(quizId);
+    if (!quiz) {
+      throw new QuizNotFoundError(quizId);
+    }
+
+    if (principal) {
+      const evaluation = evaluateOwnership(
+        principal,
+        {
+          resourceType: 'quiz',
+          resourceId: quiz.id,
+          ownerId: quiz.ownerId,
+          tenantId: quiz.tenantId || 'tenant_default',
+        },
+        'quiz:delete',
+        'quiz:manage_all'
+      );
+
+      if (!evaluation.allowed) {
+        throw new OwnershipDomainError(
+          evaluation.reason || 'You do not have permission to delete this quiz'
+        );
+      }
+    }
+
+    quiz.archive();
+    await this.authoringRepo.saveQuiz(quiz);
+  }
+
   async getPublishedQuizzes(): Promise<Quiz[]> {
     return this.authoringRepo.listPublishedQuizzes();
   }
 
-  async getQuizDetails(quizId: string): Promise<{ quiz: Quiz; currentVersion?: QuizVersion }> {
+  async getQuizDetails(quizId: string, principal?: Principal): Promise<{ quiz: Quiz; currentVersion?: QuizVersion }> {
     const quiz = await this.authoringRepo.findQuizById(quizId);
     if (!quiz) {
       throw new QuizNotFoundError(quizId);
+    }
+
+    if (quiz.status !== 'PUBLISHED' && principal) {
+      const evaluation = evaluateOwnership(
+        principal,
+        {
+          resourceType: 'quiz',
+          resourceId: quiz.id,
+          ownerId: quiz.ownerId,
+          tenantId: quiz.tenantId || 'tenant_default',
+        },
+        'quiz:read',
+        'quiz:manage_all'
+      );
+
+      if (!evaluation.allowed) {
+        throw new OwnershipDomainError(
+          evaluation.reason || 'You do not have permission to view this non-published quiz'
+        );
+      }
     }
 
     let currentVersion: QuizVersion | undefined;
