@@ -9,7 +9,7 @@ export interface GetProfileResult {
     id: string;
     roles: readonly string[];
     permissions?: readonly string[];
-    tenantId?: string;
+    metadata?: Record<string, unknown>;
   };
   profile: {
     id: string;
@@ -17,7 +17,7 @@ export interface GetProfileResult {
     name: string;
     roles: readonly string[];
     permissions: readonly string[];
-    tenantId?: string;
+    metadata?: Record<string, unknown>;
     createdAt: string;
   };
 }

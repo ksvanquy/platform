@@ -10,7 +10,7 @@ export interface RegisterDTO {
   email?: string;
   name?: string;
   password?: string;
-  tenantId?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface RegisterResult {
@@ -21,14 +21,15 @@ export interface RegisterResult {
     name: string;
     roles: readonly string[];
     permissions: readonly string[];
-    tenantId?: string;
+    metadata?: Record<string, unknown>;
+    isActive?: boolean;
     createdAt: string;
   };
   principal: {
     id: string;
     roles: readonly string[];
     permissions?: readonly string[];
-    tenantId?: string;
+    metadata?: Record<string, unknown>;
   };
 }
 
@@ -62,7 +63,6 @@ export class RegisterUseCase {
 
     const userId = `usr_${crypto.randomBytes(8).toString('hex')}`;
     const passwordHash = hashPassword(password);
-    const tenantId = dto.tenantId?.trim() || 'tenant_default';
 
     // Nạp vai trò STUDENT từ DB
     const fetchedRole = this.userRepository.getRoleByCode
@@ -84,13 +84,15 @@ export class RegisterUseCase {
         ],
       });
 
+    const meta: Record<string, unknown> = { ...(dto.metadata || {}) };
+
     const newUser = new User({
       id: userId,
       email,
       name,
       passwordHash,
       roles: [studentRole],
-      tenantId,
+      metadata: meta,
       createdAt: new Date(),
     });
 
@@ -101,7 +103,7 @@ export class RegisterUseCase {
       sub: principal.id,
       roles: principal.roles,
       permissions: principal.permissions,
-      tenantId: principal.tenantId,
+      metadata: principal.metadata,
       email: newUser.email,
       name: newUser.name,
     });

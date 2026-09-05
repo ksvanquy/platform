@@ -996,7 +996,7 @@ Toàn bộ quá trình chuyển đổi được chia thành 8 gói công việc 
 │ [DONE] │ WP-5: Xây dựng DrizzleAuthoringRepository & DrizzleDeliveryRepository (100% PSQL)   │
 │ [DONE] │ WP-6: Tạo Seed Script & Cập nhật Server Entry Point (services/quiz/src/server.ts)    │
 │ [DONE] │ WP-7: Xóa Bỏ Hoàn Toàn In-Memory Repositories & Di Trú Test Suite                   │
-│  WP-8  │ Viết Test Tích Hợp PostgreSQL cho Quiz Service & Chạy Toàn Bộ Test Suite       │
+│ [DONE] │ WP-8: Viết Test Tích Hợp PostgreSQL cho Quiz Service & Chạy Toàn Bộ Test Suite       │
 └────────┴───────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1071,13 +1071,16 @@ Toàn bộ quá trình chuyển đổi được chia thành 8 gói công việc 
   - `tests/security/principal-context.spec.ts`: Sử dụng `setupTestQuizDb()` và `DrizzleQuizLegacyRepository`.
   - `services/quiz/src/application/use-cases.spec.ts`: Xóa bỏ class mock `InMemoryQuizRepository`, chuyển đổi sang `setupTestQuizDb()` và `testCtx.legacyRepo` tương tác 100% PostgreSQL.
 
-### **Gói WP-8: Kiểm Thử Toàn Diện 100% PostgreSQL & Đảm Bảo Tương Thích Tuyệt Đối**
-- Viết test suite kiểm thử tích hợp Drizzle persistence chuyên sâu cho Quiz Service (`services/quiz/tests/delivery/drizzle-assessment-persistence.spec.ts`):
+### **[HOÀN THÀNH] Gói WP-8: Kiểm Thử Toàn Diện 100% PostgreSQL & Đảm Bảo Tương Thích Tuyệt Đối**
+- Đã viết test suite kiểm thử tích hợp Drizzle persistence chuyên sâu cho Quiz Service (`services/quiz/tests/delivery/drizzle-assessment-persistence.spec.ts`):
   - Kiểm thử lưu trữ và đọc JSONB `questions`, `scoring_policy`, `randomization_policy`.
   - Kiểm thử lưu trữ và cập nhật `answers` có điều kiện monotonic `sequenceNumber`.
   - Kiểm thử chỉ mục `idx_attempts_sweeper` với câu truy vấn `findExpiredInProgressAttempts()`.
   - Kiểm thử chuyển trạng thái `TIMED_OUT_GRADED` và lưu trữ `score_result`.
-- Chạy kiểm tra chất lượng code: `compile_applet`, `vitest run`, đảm bảo 100% test suites vượt qua xanh tuyệt đối trên nền PostgreSQL.
+- Kết quả kiểm tra toàn diện:
+  - `compile_applet`: Toàn bộ hệ sinh thái (Monorepo, Next.js Apps, Quiz Service) biên dịch thành công 100%.
+  - `lint_applet` (`tsc --noEmit -p services/quiz/tsconfig.json`): 0 lỗi.
+  - **Toàn bộ Test Suite: 17/17 test files passed (100%), 144/144 tests passed (100%)** trên nền PostgreSQL PGlite. Xóa bỏ hoàn toàn in-memory repositories và đáp ứng chuẩn ACID.
 
 ---
 

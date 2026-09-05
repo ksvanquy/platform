@@ -67,8 +67,8 @@ export function createAuthRouter(
   // POST /v1/auth/register
   router.post('/register', async (req: Request, res: Response) => {
     try {
-      const { email, name, password, tenantId } = req.body || {};
-      const result = await registerUseCase.execute({ email, name, password, tenantId });
+      const { email, name, password, metadata } = req.body || {};
+      const result = await registerUseCase.execute({ email, name, password, metadata });
       setRefreshTokenCookie(req, res, result.tokens.refreshToken);
       res.status(201).json({
         success: true,
@@ -289,7 +289,7 @@ export function createAuthRouter(
           id: u.id,
           email: u.email,
           name: u.name,
-          tenantId: u.tenantId,
+          metadata: u.metadata,
           isActive: u.isActive,
           roles: u.getRoleCodes(),
           permissions: u.getEffectivePermissions(),

@@ -11,7 +11,7 @@ export interface TokenPayload {
   sub: string;
   roles: readonly string[];
   permissions?: readonly string[];
-  tenantId?: string;
+  metadata?: Record<string, unknown>;
   email?: string;
   name?: string;
   iat?: number;

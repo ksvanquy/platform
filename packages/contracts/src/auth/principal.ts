@@ -60,4 +60,5 @@ export interface Principal {
   roles: readonly string[];
   permissions?: readonly string[];
   tenantId?: string;
+  metadata?: Record<string, unknown>;
 }

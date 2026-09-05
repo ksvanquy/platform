@@ -15,7 +15,7 @@ export interface LoginResult {
     name: string;
     roles: readonly string[];
     permissions: readonly string[];
-    tenantId?: string;
+    metadata?: Record<string, unknown>;
   };
 }
 
@@ -45,7 +45,7 @@ export class LoginUseCase {
       sub: principal.id,
       roles: principal.roles,
       permissions: principal.permissions,
-      tenantId: principal.tenantId,
+      metadata: principal.metadata,
       email: user.email,
       name: user.name,
     });
@@ -58,7 +58,7 @@ export class LoginUseCase {
         name: user.name,
         roles: user.getRoleCodes(),
         permissions: user.getEffectivePermissions(),
-        tenantId: user.tenantId,
+        metadata: user.metadata,
       },
     };
   }

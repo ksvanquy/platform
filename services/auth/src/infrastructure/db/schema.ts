@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   boolean,
+  jsonb,
   primaryKey,
   index,
 } from 'drizzle-orm/pg-core';
@@ -12,6 +13,7 @@ import { relations } from 'drizzle-orm';
 /**
  * 1. Bảng Users chuẩn hóa (Identity-only bounded context).
  * Không còn chứa mảng chuỗi roles tĩnh. Mọi phân quyền thông qua user_roles.
+ * Không chứa tenantId của domain cụ thể; metadata JSONB mở rộng lưu trữ thông tin phi định danh.
  */
 export const users = pgTable(
   'users',
@@ -20,14 +22,11 @@ export const users = pgTable(
     email: varchar('email', { length: 255 }).notNull().unique(),
     name: varchar('name', { length: 255 }).notNull(),
     passwordHash: text('password_hash').notNull(),
-    tenantId: varchar('tenant_id', { length: 64 }).notNull().default('tenant_default'),
+    metadata: jsonb('metadata').notNull().default({}),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    index('users_tenant_id_idx').on(t.tenantId),
-  ]
+  }
 );
 
 export type UserRow = typeof users.$inferSelect;

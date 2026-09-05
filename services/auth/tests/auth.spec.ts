@@ -115,7 +115,7 @@ describe('Auth Service Core & Use Cases', () => {
       expect(payload).not.toBeNull();
       expect(payload?.sub).toBe(result.user.id);
       expect(payload?.roles).toContain('STUDENT');
-      expect(payload?.tenantId).toBe('tenant_default');
+      expect((payload as any)?.tenantId).toBeUndefined();
     });
 
     it('should reject incorrect password', async () => {

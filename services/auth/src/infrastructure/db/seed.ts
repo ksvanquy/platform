@@ -52,7 +52,7 @@ export const SEED_USERS = [
     email: 'admin@quiz.com',
     name: 'System Administrator',
     passwordHash: hashPassword('admin123'),
-    tenantId: 'tenant_default',
+    metadata: {},
     roleCode: 'ADMIN',
   },
   {
@@ -60,7 +60,7 @@ export const SEED_USERS = [
     email: 'instructor@quiz.com',
     name: 'Tran Thi Giảng Viên',
     passwordHash: hashPassword('teacher123'),
-    tenantId: 'tenant_default',
+    metadata: {},
     roleCode: 'INSTRUCTOR',
   },
   {
@@ -68,7 +68,7 @@ export const SEED_USERS = [
     email: 'student@quiz.com',
     name: 'Nguyen Van Học Viên',
     passwordHash: hashPassword('student123'),
-    tenantId: 'tenant_default',
+    metadata: {},
     roleCode: 'STUDENT',
   },
   {
@@ -76,7 +76,7 @@ export const SEED_USERS = [
     email: 'admin@quiz.local',
     name: 'System Administrator (Local)',
     passwordHash: hashPassword('admin123'),
-    tenantId: 'tenant_default',
+    metadata: {},
     roleCode: 'ADMIN',
   },
   {
@@ -84,7 +84,7 @@ export const SEED_USERS = [
     email: 'instructor@quiz.local',
     name: 'Tran Thi Giảng Viên (Local)',
     passwordHash: hashPassword('teacher123'),
-    tenantId: 'tenant_default',
+    metadata: {},
     roleCode: 'INSTRUCTOR',
   },
   {
@@ -92,7 +92,7 @@ export const SEED_USERS = [
     email: 'student@quiz.local',
     name: 'Nguyen Van Học Viên (Local)',
     passwordHash: hashPassword('student123'),
-    tenantId: 'tenant_default',
+    metadata: {},
     roleCode: 'STUDENT',
   },
 ];
@@ -168,7 +168,7 @@ export async function seedAuthDb(targetDb?: any): Promise<void> {
         email: user.email,
         name: user.name,
         passwordHash: user.passwordHash,
-        tenantId: user.tenantId,
+        metadata: user.metadata || {},
         isActive: true,
       });
       console.log(`    + Seeded user: ${user.email}`);

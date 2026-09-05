@@ -7,7 +7,7 @@ export interface UserProps {
   name: string;
   passwordHash: string;
   roles: readonly Role[];
-  tenantId?: string;
+  metadata?: Record<string, unknown>;
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -17,6 +17,7 @@ export interface UserProps {
  * Aggregate Root: User
  * Quản lý định danh tài khoản và danh sách các vai trò (Roles) được gán từ PostgreSQL.
  * Quyền hạn (Permissions) được tính toán động (Dynamic Effective Permissions) từ các Roles trong DB.
+ * Pure Identity Model: 100% Generic IdP không chứa khái niệm tenancy.
  */
 export class User {
   readonly id: string;
@@ -24,7 +25,7 @@ export class User {
   readonly name: string;
   readonly passwordHash: string;
   readonly roles: readonly Role[];
-  readonly tenantId: string;
+  readonly metadata: Record<string, unknown>;
   readonly isActive: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -35,7 +36,7 @@ export class User {
     this.name = props.name.trim();
     this.passwordHash = props.passwordHash;
     this.roles = Object.freeze([...props.roles]);
-    this.tenantId = props.tenantId || 'tenant_default';
+    this.metadata = Object.freeze({ ...(props.metadata || {}) });
     this.isActive = props.isActive !== undefined ? props.isActive : true;
     this.createdAt = props.createdAt || new Date();
     this.updatedAt = props.updatedAt || new Date();
@@ -64,7 +65,7 @@ export class User {
       id: this.id,
       roles: this.getRoleCodes(),
       permissions: this.getEffectivePermissions(),
-      tenantId: this.tenantId,
+      metadata: this.metadata,
     };
   }
 
@@ -94,14 +95,6 @@ export class User {
   }
 
   /**
-   * Kiểm tra người dùng có thuộc về tenant được chỉ định (hoặc cùng tenant) không.
-   */
-  canAccessTenant(targetTenantId?: string): boolean {
-    if (!targetTenantId || !this.tenantId) return true;
-    return this.tenantId === targetTenantId;
-  }
-
-  /**
    * Tạo bản sao User mới với danh sách roles được cập nhật.
    */
   withRoles(roles: readonly Role[]): User {
@@ -111,7 +104,7 @@ export class User {
       name: this.name,
       passwordHash: this.passwordHash,
       roles,
-      tenantId: this.tenantId,
+      metadata: this.metadata,
       isActive: this.isActive,
       createdAt: this.createdAt,
       updatedAt: new Date(),
@@ -125,7 +118,7 @@ export class User {
       name: this.name,
       roles: this.getRoleCodes(),
       permissions: this.getEffectivePermissions(),
-      tenantId: this.tenantId,
+      metadata: this.metadata,
       isActive: this.isActive,
       createdAt: this.createdAt.toISOString(),
     };

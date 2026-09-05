@@ -141,6 +141,8 @@ describe('Auth Service Phase 4: 100% PostgreSQL Persistence & Fail-Fast', () => 
       expect(fetched?.name).toBe('Drizzle Test User');
       expect(fetched?.roles[0].code).toBe('STUDENT');
       expect(fetched?.hasPermission('quiz:read')).toBe(true);
+      expect(fetched?.metadata).toEqual({ defaultTenantId: 'tenant_default' });
+      expect(fetched?.tenantId).toBe('tenant_default');
     });
 
     it('should list all system roles with their full permissions from PostgreSQL', async () => {

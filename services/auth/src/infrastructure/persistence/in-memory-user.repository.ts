@@ -34,7 +34,7 @@ export class InMemoryUserRepository implements IUserRepository {
         name: seed.name,
         passwordHash: seed.passwordHash,
         roles: role ? [role] : [],
-        tenantId: seed.tenantId,
+        metadata: seed.metadata || {},
         isActive: true,
       });
       this.users.set(user.id, user);
