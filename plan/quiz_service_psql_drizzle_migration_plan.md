@@ -995,7 +995,7 @@ Toàn bộ quá trình chuyển đổi được chia thành 8 gói công việc 
 │ [DONE] │ WP-4: Tạo Migration Script & Chạy Drizzle-Kit Generate cho quiz_db            │
 │ [DONE] │ WP-5: Xây dựng DrizzleAuthoringRepository & DrizzleDeliveryRepository (100% PSQL)   │
 │ [DONE] │ WP-6: Tạo Seed Script & Cập nhật Server Entry Point (services/quiz/src/server.ts)    │
-│  WP-7  │ Xóa Bỏ Hoàn Toàn In-Memory Repositories & Di Trú Test Suite                   │
+│ [DONE] │ WP-7: Xóa Bỏ Hoàn Toàn In-Memory Repositories & Di Trú Test Suite                   │
 │  WP-8  │ Viết Test Tích Hợp PostgreSQL cho Quiz Service & Chạy Toàn Bộ Test Suite       │
 └────────┴───────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1053,17 +1053,23 @@ Toàn bộ quá trình chuyển đổi được chia thành 8 gói công việc 
   - Khởi tạo `sweeperService.start(30000)` an toàn trong môi trường Production/Dev khi có kết nối cơ sở dữ liệu (`NODE_ENV !== 'test' && isQuizDbConfigured()`).
   - Xuất khẩu đầy đủ các use case, sweeperService, và helper `setAssessmentRepositories` cho các module và test suites.
 
-### **Gói WP-7: Xóa Bỏ Hoàn Toàn In-Memory Persistence & Di Trú Test Suite**
-- Xóa vĩnh viễn:
+### **[HOÀN THÀNH] Gói WP-7: Xóa Bỏ Hoàn Toàn In-Memory Persistence & Di Trú Test Suite**
+- Đã xóa vĩnh viễn và hoàn toàn các file in-memory repositories:
   - `services/quiz/src/infrastructure/repositories/in-memory-quiz.repository.ts` (DELETED).
   - `services/quiz/src/infrastructure/repositories/in-memory-assessment.repository.ts` (DELETED).
-- Cập nhật các file kiểm thử hiện hữu đang phụ thuộc vào In-Memory sang sử dụng PostgreSQL PGlite (`setupTestQuizDb()`):
-  - `tests/delivery/attempt-sequence-concurrency.spec.ts`: Sử dụng DrizzleDeliveryRepository qua PGlite.
-  - `tests/delivery/attempt-expiry-sweeper.spec.ts`: Sử dụng DrizzleDeliveryRepository & DrizzleAuthoringRepository qua PGlite.
-  - `tests/security/ownership-policy.spec.ts`: Sử dụng DrizzleAuthoringRepository qua PGlite.
-  - `tests/presentation/assessment-api.spec.ts`: Khởi tạo `setupTestQuizDb()` và gọi `setAssessmentRepositories(testContext.authoringRepo, testContext.deliveryRepo)`.
-  - `tests/presentation/sweeper-api.spec.ts`: Khởi tạo `setupTestQuizDb()` và gọi `setAssessmentRepositories(testContext.authoringRepo, testContext.deliveryRepo)`.
-  - `tests/security/principal-context.spec.ts`: Thay thế `InMemoryQuizRepository` bằng `createTestQuizDb()`.
+- Đã thiết lập test database harness PostgreSQL chuẩn xác (`services/quiz/tests/helpers/test-db.helper.ts`):
+  - Khởi tạo PGlite instance biệt lập cho mỗi test suite.
+  - Tự động áp dụng file migration SQL chính thức (`drizzle/migrations/0000_slow_pet_avengers.sql`).
+  - Tự động seed dữ liệu mẫu hợp lệ (`quiz_demo`, `ver_demo_v1`, 3 câu hỏi trắc nghiệm).
+  - Cung cấp `testCtx.authoringRepo`, `testCtx.deliveryRepo`, `testCtx.legacyRepo`, `testCtx.db`, `testCtx.cleanup()`.
+- Đã di trú 100% test suites từ In-Memory sang PostgreSQL PGlite:
+  - `tests/delivery/attempt-sequence-concurrency.spec.ts`: Sử dụng `DrizzleDeliveryRepository` qua PGlite để kiểm thử Race Condition & Concurrency.
+  - `tests/delivery/attempt-expiry-sweeper.spec.ts`: Sử dụng `DrizzleDeliveryRepository` & `DrizzleAuthoringRepository` qua PGlite để kiểm thử background sweeper.
+  - `tests/security/ownership-policy.spec.ts`: Sử dụng `DrizzleAuthoringRepository` qua PGlite.
+  - `tests/presentation/assessment-api.spec.ts`: Sử dụng `setupTestQuizDb()` và tiêm phụ thuộc qua `setAssessmentRepositories(testContext.authoringRepo, testContext.deliveryRepo)`.
+  - `tests/presentation/sweeper-api.spec.ts`: Sử dụng `setupTestQuizDb()` và tiêm phụ thuộc qua `setAssessmentRepositories(testContext.authoringRepo, testContext.deliveryRepo)`.
+  - `tests/security/principal-context.spec.ts`: Sử dụng `setupTestQuizDb()` và `DrizzleQuizLegacyRepository`.
+  - `services/quiz/src/application/use-cases.spec.ts`: Xóa bỏ class mock `InMemoryQuizRepository`, chuyển đổi sang `setupTestQuizDb()` và `testCtx.legacyRepo` tương tác 100% PostgreSQL.
 
 ### **Gói WP-8: Kiểm Thử Toàn Diện 100% PostgreSQL & Đảm Bảo Tương Thích Tuyệt Đối**
 - Viết test suite kiểm thử tích hợp Drizzle persistence chuyên sâu cho Quiz Service (`services/quiz/tests/delivery/drizzle-assessment-persistence.spec.ts`):

@@ -100,7 +100,7 @@ describe('Gói WP-8: Drizzle Assessment Persistence Integration Tests (PostgreSQ
       });
 
       // Record answer với sequence number
-      attempt.recordAnswer('q1', 'opt_1', Date.now(), new Date(), 1);
+      attempt.recordAnswer('q1', 'opt_1', 1);
       await testCtx.deliveryRepo.saveAttempt(attempt);
 
       const savedAttempt = await testCtx.deliveryRepo.findAttemptById('att_psql_001');
@@ -110,7 +110,7 @@ describe('Gói WP-8: Drizzle Assessment Persistence Integration Tests (PostgreSQ
       expect(savedAttempt?.answers['q1'].sequenceNumber).toBe(1);
 
       // Cập nhật với sequence number cao hơn (2)
-      savedAttempt!.recordAnswer('q1', 'opt_1_updated', Date.now(), new Date(), 2);
+      savedAttempt!.recordAnswer('q1', 'opt_1_updated', 2);
       await testCtx.deliveryRepo.saveAttempt(savedAttempt!);
 
       const updatedAttempt = await testCtx.deliveryRepo.findAttemptById('att_psql_001');
@@ -141,17 +141,16 @@ describe('Gói WP-8: Drizzle Assessment Persistence Integration Tests (PostgreSQ
       expect(found).toBeDefined();
       expect(found?.status).toBe('IN_PROGRESS');
 
-      // Chuyển sang TIMED_OUT_GRADED và cập nhật điểm
-      found!.status = 'TIMED_OUT_GRADED';
-      found!.submittedAt = currentTime;
-      found!.scoreResult = {
+      // Chuyển sang TIMED_OUT_GRADED và cập nhật điểm theo domain methods
+      found!.submit(currentTime, 15000);
+      found!.grade({
         score: 5,
         totalPoints: 10,
         percentage: 50,
         passed: false,
         evaluatedAt: currentTime,
         feedback: 'Auto-graded upon expiration',
-      };
+      });
       await testCtx.deliveryRepo.saveAttempt(found!);
 
       const graded = await testCtx.deliveryRepo.findAttemptById('att_expired_psql');

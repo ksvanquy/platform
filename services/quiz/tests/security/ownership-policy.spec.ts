@@ -68,11 +68,11 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
     app.use(authContextMiddleware);
     app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases));
     app.use('/v1/attempts', createV1AttemptsRouter(deliveryUseCases));
-  });
+  }, 30000);
 
   afterEach(async () => {
     await testCtx?.cleanup();
-  });
+  }, 30000);
 
   describe('1. Authoring Use Cases - Quiz Ownership Policy', () => {
     it('Instructor A can create and own a quiz', async () => {
