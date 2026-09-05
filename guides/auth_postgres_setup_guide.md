@@ -1,6 +1,6 @@
 # HƯỚNG DẪN KẾT NỐI POSTGRESQL CHO AUTH SERVICE, SEED DỮ LIỆU VÀ CHẠY TEST BẰNG PNPM TRÊN WINDOWS (VS CODE)
 
-> **Mục tiêu:** Hướng dẫn kết nối cơ sở dữ liệu PostgreSQL có sẵn trên máy của bạn với **Auth Service** trong cấu trúc **Monorepo PNPM Workspace** (gồm 2 Server, 2 Client, 3 Packages), thực thi Migration & Seed dữ liệu qua Drizzle ORM bằng lệnh `pnpm`, và chạy toàn bộ bộ kiểm thử tự động (Vitest) trên môi trường **Windows** trong **Visual Studio Code (VS Code)**.
+> **Mục tiêu:** Hướng dẫn kết nối cơ sở dữ liệu PostgreSQL có sẵn trên máy của bạn với **Auth Service** trong cấu trúc **Monorepo PNPM Workspace** (gồm 2 Server, 2 Client, 3 Packages), thực thi Migration & Seed dữ liệu chuẩn hóa (Normalized RBAC & Generic Identity) qua Drizzle ORM bằng lệnh `pnpm`, và chạy toàn bộ bộ kiểm thử tự động (Vitest) trên môi trường **Windows** trong **Visual Studio Code (VS Code)**.
 
 ---
 
@@ -16,9 +16,9 @@ quiz-platform-monorepo/
 │
 ├── services/                       # [2 SERVERS PHÍA BACKEND]
 │   ├── auth/                       # @platform/auth-service: Dịch vụ xác thực JWT RS256,
-│   │                               # RBAC, Rate Limiting, quản lý PostgreSQL auth_db
+│   │                               # Normalized RBAC, Rate Limiting, quản lý PostgreSQL auth_db
 │   └── quiz/                       # @platform/quiz-service: Lõi khảo thí Assessment Core Engine
-│                                   # (Authoring, Delivery, State Machine, Auto-Submit)
+│                                   # (Domain Tenancy, Ownership Policy, State Machine, Auto-Submit)
 │
 ├── apps/                           # [2 CLIENTS PHÍA FRONTEND]
 │   ├── quiz-web/                   # @platform/quiz-web: Ứng dụng thi trực tuyến dành cho Học viên
@@ -27,19 +27,30 @@ quiz-platform-monorepo/
 ├── packages/                       # [3 THƯ VIỆN DÙNG CHUNG - SHARED PACKAGES]
 │   ├── contracts/                  # @platform/contracts: DTOs, Enums, Roles & System Permissions
 │   ├── auth-client/                # @platform/auth-client: SDK xác thực, quản lý phiên & Silent Refresh
-│   └── api-client/                 # @platform/api-client: HTTP SDK gọi API Quiz và Auth
+│   └── api-client/                 # @platform/api-client: HTTP SDK gọi API kèm header X-Tenant-ID tự động
 │
-└── guides/                         # Thư mục chứa tài liệu hướng dẫn kỹ thuật
-    └── auth_postgres_setup_guide.md
+└── guides/                         # Thư mục tài liệu hướng dẫn kỹ thuật
+    ├── auth_postgres_setup_guide.md # Hướng dẫn thiết lập Auth Service (Tài liệu này)
+    └── quiz_postgres_setup_guide.md # Hướng dẫn thiết lập Quiz Core Service
 ```
 
-### Kiến Trúc Lưu Trữ Auth Service (Database-per-Service):
-- **Cơ sở dữ liệu độc lập**: Auth Service sở hữu cơ sở dữ liệu riêng (`auth_db`), không chia sẻ bảng trực tiếp với Quiz Service.
-- **Bảng `users`**: Lưu trữ tài khoản với mật khẩu băm một chiều an toàn bằng `scryptSync` (kèm salt ngẫu nhiên 16 bytes), phân quyền vai trò JSONB (`ADMIN`, `INSTRUCTOR`, `STUDENT`).
-- **Bảng `refresh_tokens`**: Lưu trữ Refresh Token dưới dạng băm **SHA-256** (chống rò rỉ token nếu database bị dump), quản lý thu hồi (revocation) khi logout hoặc refresh.
-- **Dynamic Resilience Factory (`repository.factory.ts`)**: Tự động chuyển đổi thông minh:
-  - Khi có `AUTH_DATABASE_URL`: Kích hoạt `DrizzleUserRepository` & `DrizzleTokenStorage` (PostgreSQL).
-  - Khi chưa cấu hình URL hoặc môi trường test: Tự động fallback về `InMemoryUserRepository` (**Zero Startup Crash**).
+### Kiến Trúc Lưu Trữ Auth Service (Generic Identity & Normalized RBAC):
+- **Cơ sở dữ liệu độc lập (Database-per-Service)**: Auth Service sở hữu cơ sở dữ liệu riêng (`auth_db`), hoàn toàn tách biệt với `quiz_db` của Quiz Service.
+- **Định danh Thuần Túy (Generic Identity - Clean-Cut Tenancy)**:
+  - Cột `tenant_id` đã được **xóa bỏ vĩnh viễn** khỏi bảng `users`.
+  - Auth Service không chứa khái niệm "trường/tổ chức" của người dùng. Tài khoản thuộc về cá nhân (Global Identity).
+  - Bổ sung cột `metadata` kiểu `JSONB` để lưu trữ cài đặt cá nhân (ngôn ngữ, tùy biến) mà không phá vỡ ranh giới domain.
+  - Ngữ cảnh tổ chức (`TenantContext`) được bàn giao 100% tự chủ cho Quiz Service quản lý và truyền qua HTTP Header `X-Tenant-ID`.
+- **Cấu trúc 6 bảng chuẩn hóa trong `auth_db`**:
+  1. `users`: Lưu trữ tài khoản với mật khẩu băm an toàn bằng `scryptSync` (kèm salt ngẫu nhiên 16 bytes), cờ `isActive`, và `metadata JSONB`.
+  2. `roles`: Danh mục vai trò toàn cục (`STUDENT`, `INSTRUCTOR`, `ADMIN`).
+  3. `permissions`: Danh mục quyền hệ thống chuẩn hóa (`user:read`, `user:write`, `user:manage`, `role:read`, `role:write`, `permission:read`, `system:config`, `*`). Toàn bộ quyền domain `quiz:*` và `attempt:*` đã được thanh trừng triệt để.
+  4. `role_permissions`: Quan hệ nhiều-nhiều chuẩn hóa giữa Role và Permission.
+  5. `user_roles`: Gán vai trò cho người dùng trong hệ thống.
+  6. `refresh_tokens`: Lưu trữ Refresh Token băm **SHA-256** (chống lộ token nếu database bị dump), quản lý thu hồi (revocation) khi logout hoặc refresh.
+- **Dynamic Resilience Factory (`repository.factory.ts`)**:
+  - Khi có `AUTH_DATABASE_URL`: Kích hoạt `DrizzleUserRepository` & `DrizzleTokenStorage` (PostgreSQL quan hệ).
+  - Khi chạy unit test: Tự động khởi tạo engine PostgreSQL PGlite WebAssembly độc lập không phụ thuộc service ngoài.
 
 ---
 
@@ -93,7 +104,7 @@ JWT_SECRET=dev-quiz-platform-secret-key-32-chars-min
 ```
 
 > ⚠️ **Lưu ý định dạng URL & mã hóa ký tự đặc biệt trên Windows:**
-> - **Tuyệt đối không gắn `?schema=public` vào đuôi URL**: Một số ORM như Prisma thường dùng `?schema=public`, nhưng PostgreSQL thuần không có biến cấu hình GUC tên là `schema` (PostgreSQL dùng `search_path`). Nếu gắn `?schema=public`, PostgreSQL sẽ trả về lỗi `PostgresError: unrecognized configuration parameter "schema" (code 42704)`. Dù Auth Service đã được bổ sung cơ chế tự động làm sạch `sanitizePostgresUrl()`, bạn vẫn nên khai báo URL chuẩn: `postgres://postgres:password@localhost:5432/auth_db`.
+> - **Tuyệt đối không gắn `?schema=public` vào đuôi URL**: Một số ORM như Prisma thường dùng `?schema=public`, nhưng PostgreSQL thuần không có biến cấu hình GUC tên là `schema` (PostgreSQL dùng `search_path`). Nếu gắn `?schema=public`, PostgreSQL sẽ trả về lỗi `PostgresError: unrecognized configuration parameter "schema" (code 42704)`. Auth Service đã có bộ lọc `sanitizePostgresUrl()`, tuy nhiên bạn nên khai báo URL chuẩn: `postgres://postgres:password@localhost:5432/auth_db`.
 > - **Mã hóa URL (URL Encoding)**: Nếu mật khẩu PostgreSQL của bạn có ký tự đặc biệt (ví dụ: `@`, `#`, `$`, `%`, `&`, `/`), hãy đổi sang dạng mã hóa **URL Encode** (ví dụ: `@` thành `%40`, `#` thành `%23`).  
 > *Ví dụ: Mật khẩu là `P@ss123` => `postgres://postgres:P%40ss123@localhost:5432/auth_db`*.
 
@@ -112,7 +123,7 @@ pnpm install
 ---
 
 ### Bước 4.2: Chạy Migration (Khởi Tạo Cấu Trúc Bảng Database)
-Bạn có thể sử dụng 1 trong 2 lệnh pnpm tương đương sau:
+Thực thi toàn bộ các migration SQL của Auth Service (`0000`, `0001_remove_tenant_id_add_metadata`, `0002_purge_domain_permissions`):
 
 ```powershell
 # Cách 1: Chạy qua script tại root
@@ -125,14 +136,17 @@ pnpm --filter @platform/auth-service db:migrate
 **Màn hình xuất thông báo thành công:**
 ```text
 🔄 Running Auth Service PostgreSQL migrations...
+   + Migration 0000: Initial schema (users, roles, permissions, user_roles, role_permissions, refresh_tokens)
+   + Migration 0001: Remove tenant_id, add metadata JSONB
+   + Migration 0002: Purge domain permissions (quiz:*, attempt:*)
 ✅ Auth Service PostgreSQL migrations completed successfully.
 ```
-*(Lúc này trong database `auth_db` đã được tạo đầy đủ 2 bảng: `users` và `refresh_tokens`).*
+*(Lúc này trong database `auth_db` đã được tạo đầy đủ 6 bảng chuẩn hóa).*
 
 ---
 
-### Bước 4.3: Chạy Seed (Nạp Dữ Liệu Tài Khoản Mẫu)
-Tiếp theo, nạp danh sách người dùng mặc định vào database:
+### Bước 4.3: Chạy Seed (Nạp Dữ Liệu Quyền Hệ Thống & Tài Khoản Mẫu)
+Tiếp theo, nạp danh mục quyền hệ thống chuẩn hóa và danh sách người dùng mặc định vào database:
 
 ```powershell
 # Cách 1: Chạy qua script tại root
@@ -144,26 +158,32 @@ pnpm --filter @platform/auth-service db:seed
 
 **Màn hình xuất thông báo thành công:**
 ```text
-🌱 Seeding default accounts into Auth Service DB...
-  + Seeded user: admin@quiz.com (ADMIN)
-  + Seeded user: instructor@quiz.com (INSTRUCTOR)
-  + Seeded user: student@quiz.com (STUDENT)
-  + Seeded user: admin@quiz.local (ADMIN)
-  + Seeded user: instructor@quiz.local (INSTRUCTOR)
-  + Seeded user: student@quiz.local (STUDENT)
-✅ Auth DB seeding finished.
+🌱 Seeding Normalized RBAC into PostgreSQL Auth Service DB...
+  1/5 Seeding permissions (user:read, user:write, user:manage, role:*, permission:*, system:config, *)...
+  2/5 Seeding roles (STUDENT, INSTRUCTOR, ADMIN)...
+  3/5 Mapping role permissions...
+  4/5 Seeding users & assigning roles...
+    + Seeded user: admin@quiz.com (ADMIN)
+    + Seeded user: instructor@quiz.com (INSTRUCTOR)
+    + Seeded user: student@quiz.com (STUDENT)
+    + Seeded user: admin@quiz.local (ADMIN)
+    + Seeded user: instructor@quiz.local (INSTRUCTOR)
+    + Seeded user: student@quiz.local (STUDENT)
+✅ Normalized RBAC Auth DB seeding finished.
 ```
 
 ### 📋 Bảng Tài Khoản Mẫu Có Sẵn Sau Khi Seed:
 
-| Email Đăng Nhập | Mật Khẩu | Quyền (Roles) | Mục Đích Sử Dụng |
-| :--- | :--- | :--- | :--- |
-| `admin@quiz.com` | `admin123` | `["ADMIN"]` | Đăng nhập vào `apps/admin-web` để duyệt đề, quản trị hệ thống |
-| `instructor@quiz.com` | `teacher123` | `["INSTRUCTOR"]` | Đăng nhập vào `apps/admin-web` để tạo đề thi, soạn câu hỏi, publish |
-| `student@quiz.com` | `student123` | `["STUDENT"]` | Đăng nhập vào `apps/quiz-web` để tham gia làm bài thi, nộp bài |
-| `admin@quiz.local` | `admin123` | `["ADMIN"]` | Tài khoản Admin dự phòng môi trường local |
-| `instructor@quiz.local`| `teacher123` | `["INSTRUCTOR"]` | Tài khoản Giảng viên dự phòng môi trường local |
-| `student@quiz.local` | `student123` | `["STUDENT"]` | Tài khoản Học viên dự phòng môi trường local |
+| Email Đăng Nhập | Mật Khẩu | Quyền (Roles) | Quyền Hệ Thống (Effective Permissions) | Mục Đích Sử Dụng |
+| :--- | :--- | :--- | :--- | :--- |
+| `admin@quiz.com` | `admin123` | `["ADMIN"]` | `["*"]` | Quản trị viên toàn hệ thống, toàn quyền bypass |
+| `instructor@quiz.com` | `teacher123` | `["INSTRUCTOR"]` | `["user:read", "user:write"]` | Giảng viên, tác giả đề thi (soạn đề tại `admin-web`) |
+| `student@quiz.com` | `student123` | `["STUDENT"]` | `["user:read", "user:write"]` | Học viên, thí sinh (làm bài tại `quiz-web`) |
+| `admin@quiz.local` | `admin123` | `["ADMIN"]` | `["*"]` | Tài khoản Admin dự phòng môi trường local |
+| `instructor@quiz.local`| `teacher123` | `["INSTRUCTOR"]` | `["user:read", "user:write"]` | Tài khoản Giảng viên dự phòng môi trường local |
+| `student@quiz.local` | `student123` | `["STUDENT"]` | `["user:read", "user:write"]` | Tài khoản Học viên dự phòng môi trường local |
+
+*Ghi chú quan trọng:* Tài khoản Auth Service là **Generic Identity**. Bạn có thể sử dụng cùng một tài khoản để làm việc trên bất kỳ tổ chức/không gian làm việc nào (`tenant_core`, `tenant_foreign`, `tenant_polytechnic`) mà không cần tạo lại tài khoản.
 
 ---
 
@@ -173,15 +193,16 @@ Dự án sử dụng **Vitest** hỗ trợ chạy đa luồng cực nhanh trong 
 
 ### 5.1. Chạy Riêng Tests Của Auth Service
 ```powershell
-# Chạy các test case của Auth Service (18 auth tests + 4 persistence tests)
+# Chạy 4 test suites chuyên biệt của Auth Service (auth, persistence, ownership, rbac-admin-api)
 pnpm vitest services/auth/tests
 ```
+**Kết quả mong đợi:** 4/4 test files, 51/51 tests **PASS 100%**.
 
-### 5.2. Chạy Toàn Bộ 15 Test Files Trong Monorepo
+### 5.2. Chạy Toàn Bộ 27 Test Files Trong Monorepo
 ```powershell
 pnpm test
 ```
-**Kết quả mong đợi:** 15/15 test files, 136/136 tests **PASS 100%** (bao gồm: State Machine, Delivery Sanitizer, Chữ ký RS256, Khóa IP Brute-Force, Drizzle Persistence, RBAC, IDOR Defense,...).
+**Kết quả mong đợi:** 27/27 test files, hơn 260 tests **PASS 100%** (bao gồm: Generic Identity, RS256 JWKS, Rate Limiting 429, State Machine, Delivery Sanitizer, Concurrency Sequence, Anti-IDOR, Sweeper Daemon, Dynamic RBAC, Ownership Policy,...).
 
 ---
 
@@ -227,7 +248,7 @@ Trong VS Code, bạn mở 4 tab Terminal song song:
 ---
 
 ### Chế độ 2: Hợp Nhất Nhanh (All-in-One Backend trên Port 3000)
-Nếu bạn chỉ muốn mở 1 terminal backend duy nhất thay vì 2 server:
+Nếu bạn chỉ muốn mở 1 terminal backend duy nhất:
 ```powershell
 # Backend hợp nhất (chạy cả Auth và Quiz trên cổng 3000)
 pnpm dev
@@ -236,44 +257,36 @@ pnpm dev
 
 ---
 
-### Danh sách tài khoản mẫu kiểm thử (Đã seed trong DB `auth_db`):
-| Vai trò | Email đăng nhập | Mật khẩu | Phù hợp cho ứng dụng |
-| :--- | :--- | :--- | :--- |
-| **Học viên (STUDENT)** | `student@quiz.local` *(hoặc `student@quiz.com`)* | `student123` | `quiz-web` (Port 5173) |
-| **Giảng viên (INSTRUCTOR)** | `instructor@quiz.local` *(hoặc `instructor@quiz.com`)* | `teacher123` | `admin-web` (Port 5174) |
-| **Quản trị viên (ADMIN)** | `admin@quiz.local` *(hoặc `admin@quiz.com`)* | `admin123` | `admin-web` (Port 5174) |
-
----
-
-## 7. CHEAT-SHEET CÁC LỆNH PNPM DÀNH CHO WORKSPACE NÀY
+## 7. CHEAT-SHEET CÁC LỆNH PNPM DÀNH CHO AUTH SERVICE
 
 | Thao tác nghiệp vụ | Lệnh PNPM tương ứng |
 | :--- | :--- |
 | Cài đặt toàn bộ dependencies | `pnpm install` |
 | Chạy Migration bảng Auth DB | `pnpm db:migrate:auth` *(hoặc `pnpm --filter @platform/auth-service db:migrate`)* |
 | Nạp dữ liệu Seed mẫu Auth DB | `pnpm db:seed:auth` *(hoặc `pnpm --filter @platform/auth-service db:seed`)* |
-| Chạy toàn bộ 136 tests | `pnpm test` |
+| Chạy toàn bộ test suite monorepo | `pnpm test` |
 | Chạy test riêng Auth Service | `pnpm vitest services/auth/tests` |
-| Khởi động API Server | `pnpm dev` |
-| Khởi động Frontend Quiz Web | `pnpm --filter @platform/quiz-web dev` |
-| Khởi động Frontend Admin Web | `pnpm --filter @platform/admin-web dev` |
-| Thêm thư viện vào 1 package cụ thể | `pnpm --filter @platform/auth-service add <package-name>` |
-| Build toàn bộ các shared packages | `pnpm build:packages` |
+| Khởi động Auth API Server (Port 3001) | `pnpm run dev:auth` |
+| Khởi động Frontend Quiz Web (Port 5173) | `pnpm run dev:web` |
+| Khởi động Frontend Admin Web (Port 5174) | `pnpm run dev:admin` |
+| Kiểm tra lỗi TypeScript & Linting | `pnpm run lint` |
+| Biên dịch toàn bộ Packages & Apps | `pnpm run build` |
 
 ---
 
 ## 8. XỬ LÝ SỰ CỐ THƯỜNG GẶP TRÊN WINDOWS
  
 1. **Lỗi `PostgresError: unrecognized configuration parameter "schema" (code: 42704)`**:
-   - **Nguyên nhân**: Chuỗi `AUTH_DATABASE_URL` trong `.env` có gắn thêm query parameter `?schema=public` (hoặc `?schema=...`). Driver `postgres.js` chuyển tham số này vào StartupMessage của giao thức kết nối PostgreSQL. Tuy nhiên, PostgreSQL không hỗ trợ biến GUC `schema` (tham số đúng trong PostgreSQL là `search_path`).
+   - **Nguyên nhân**: Chuỗi `AUTH_DATABASE_URL` trong `.env` có gắn thêm query parameter `?schema=public`. Driver `postgres.js` chuyển tham số này vào StartupMessage của giao thức kết nối PostgreSQL. Tuy nhiên, PostgreSQL không hỗ trợ biến GUC `schema` (tham số đúng trong PostgreSQL là `search_path`).
    - **Cách xử lý**:
      - Mở file `.env` tại thư mục gốc, xóa bỏ phần `?schema=public` ở cuối URL, chỉ để lại: `AUTH_DATABASE_URL=postgres://postgres:mật_khẩu@localhost:5432/auth_db`.
-     - Code trong `services/auth/src/infrastructure/db/connection.ts` cũng đã được trang bị hàm `sanitizePostgresUrl()` tự động dọn dẹp chuỗi URL nếu có `?schema=...`.
+     - Code trong `services/auth/src/infrastructure/db/connection.ts` cũng đã được trang bị hàm `sanitizePostgresUrl()` tự động dọn dẹp chuỗi URL.
 2. **Lỗi `Connection refused (ECONNREFUSED 127.0.0.1:5432)`**:
    - Dịch vụ PostgreSQL trên Windows chưa bật. Nhấn `Windows + R`, gõ `services.msc`, tìm `postgresql-x64-...` và bấm **Start**.
 3. **Lỗi `password authentication failed for user "postgres"`**:
    - Kiểm tra lại mật khẩu trong file `.env`. Nếu có ký tự đặc biệt, nhớ chuyển thành dạng mã hóa URL Encode (như mục 3).
 4. **Lỗi `database "auth_db" does not exist`**:
    - Chưa tạo database `auth_db`. Chạy `psql -U postgres -c "CREATE DATABASE auth_db;"` rồi chạy lại `pnpm db:migrate:auth`.
-5. **Cơ chế Fail-Fast (Chuẩn hóa WP-4)**:
-   - Nếu database bị ngắt kết nối hoặc biến `AUTH_DATABASE_URL` bị trống, hệ thống sẽ báo lỗi Fail-Fast rõ ràng yêu cầu cung cấp PostgreSQL URL thay vì âm thầm rơi vào dữ liệu giả lập. Khi chạy test tự động (`pnpm test`), hệ thống sử dụng PGlite WebAssembly độc lập không phụ thuộc service ngoài.
+5. **Cơ chế Fail-Fast (Chuẩn hóa Kiến trúc)**:
+   - Nếu database bị ngắt kết nối hoặc biến `AUTH_DATABASE_URL` bị trống khi chạy production/dev, hệ thống sẽ báo lỗi Fail-Fast rõ ràng yêu cầu cung cấp PostgreSQL URL thay vì âm thầm rơi vào dữ liệu giả lập. Khi chạy test tự động (`pnpm test`), hệ thống sử dụng PGlite WebAssembly độc lập không phụ thuộc service ngoài.
+

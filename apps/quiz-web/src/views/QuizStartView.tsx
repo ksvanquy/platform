@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { UserProfile } from '@platform/auth-client';
 import { quizApi } from '../api/quiz-api.js';
+import { getActiveWorkspaceId, setActiveWorkspaceId } from '../api/client.js';
 
 interface QuizStartViewProps {
   quizId: string;
@@ -11,6 +12,12 @@ interface QuizStartViewProps {
   onLogout: () => void;
 }
 
+const AVAILABLE_WORKSPACES = [
+  { id: 'tenant_core', name: 'Đại Học Công Nghệ (Khoa CNTT)', tag: 'Mặc định' },
+  { id: 'tenant_foreign', name: 'Đại Học Quốc Tế (Khoa Ngoại Ngữ)', tag: 'Cross-Tenant' },
+  { id: 'tenant_polytechnic', name: 'Viện Bách Khoa Đào Tạo Mở', tag: 'Đào tạo' },
+];
+
 export const QuizStartView: React.FC<QuizStartViewProps> = ({
   quizId,
   user,
@@ -20,33 +27,36 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   onLogout,
 }) => {
   const [selectedQuizId, setSelectedQuizId] = useState(quizId);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>(() => getActiveWorkspaceId());
   const [availableQuizzes, setAvailableQuizzes] = useState<any[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState<boolean>(false);
+  const [showProfileDetails, setShowProfileDetails] = useState(false);
+
+  const fetchQuizzes = async (workspaceId: string) => {
+    setLoadingQuizzes(true);
+    try {
+      setActiveWorkspaceId(workspaceId);
+      const quizzes = await quizApi.listQuizzes();
+      setAvailableQuizzes(quizzes);
+      if (quizzes.length > 0) {
+        setSelectedQuizId(quizzes[0].id);
+      } else {
+        setSelectedQuizId('');
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setLoadingQuizzes(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
-    async function fetchQuizzes() {
-      setLoadingQuizzes(true);
-      try {
-        const quizzes = await quizApi.listQuizzes();
-        if (isMounted && quizzes.length > 0) {
-          setAvailableQuizzes(quizzes);
-          // If no custom selectedQuizId, preselect the first quiz
-          if (!selectedQuizId || selectedQuizId === 'quiz_demo') {
-            setSelectedQuizId(quizzes[0].id);
-          }
-        }
-      } catch (e) {
-        // Fallback silently if offline or initial load
-      } finally {
-        if (isMounted) setLoadingQuizzes(false);
-      }
-    }
-    fetchQuizzes();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    fetchQuizzes(currentWorkspaceId);
+  }, [currentWorkspaceId]);
+
+  const handleWorkspaceChange = (newWorkspaceId: string) => {
+    setCurrentWorkspaceId(newWorkspaceId);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,32 +67,99 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   return (
     <div className="max-w-xl mx-auto px-4 py-8">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
-        {/* User Profile Bar (Auth Status) */}
+        {/* User Profile Bar (Auth Status - Generic Identity) */}
         {user && (
-          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-500 text-white font-bold flex items-center justify-center text-sm shadow-md">
-                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-semibold text-slate-100">{user.name || user.email}</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">
-                    {user.roles?.join(', ') || 'STUDENT'}
-                  </span>
+          <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-500 text-white font-bold flex items-center justify-center text-sm shadow-md">
+                  {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <div className="text-xs text-slate-400">{user.email}</div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-semibold text-slate-100">{user.name || user.email}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                      {user.roles?.join(', ') || 'STUDENT'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-400">{user.email}</div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowProfileDetails(!showProfileDetails)}
+                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                >
+                  {showProfileDetails ? 'Ẩn hồ sơ' : 'Hồ sơ cá nhân'}
+                </button>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/30 transition-colors"
+                >
+                  Đăng xuất
+                </button>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/30 transition-colors"
-            >
-              Đăng xuất
-            </button>
+
+            {/* Pure Generic Identity Details */}
+            {showProfileDetails && (
+              <div className="pt-3 border-t border-slate-700/60 text-xs space-y-2 text-slate-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">User ID (Principal):</span>
+                  <span className="font-mono text-indigo-300 text-[11px]">{user.id}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Trạng thái định danh:</span>
+                  <span className="text-emerald-400 font-semibold">Tài khoản cá nhân thuần túy (Generic)</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400">
+                  💡 Tài khoản của bạn không bị gắn cứng vào bất kỳ trường/khoa nào. Bạn có thể tự do chuyển đổi tổ chức (Workspace) bên dưới để làm bài thi được giao.
+                </div>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Workspace / Organization Switcher (Domain-Driven Tenancy) */}
+        <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm">🏛️</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">
+                Tổ chức đang làm việc (Workspace)
+              </span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              X-Tenant-ID: {currentWorkspaceId}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {AVAILABLE_WORKSPACES.map((ws) => {
+              const isActive = currentWorkspaceId === ws.id;
+              return (
+                <button
+                  key={ws.id}
+                  type="button"
+                  onClick={() => handleWorkspaceChange(ws.id)}
+                  className={`p-2.5 rounded-xl text-left border text-xs transition-all ${
+                    isActive
+                      ? 'bg-indigo-600/30 border-indigo-400 text-indigo-200 font-bold shadow-sm'
+                      : 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <div className="truncate font-semibold text-[11px]">{ws.name}</div>
+                  <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex justify-between">
+                    <span>{ws.id}</span>
+                    <span>{ws.tag}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Title */}
         <div className="text-center space-y-2">
@@ -104,12 +181,18 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {availableQuizzes.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                <span>Đề thi khả dụng (RESTful Catalog)</span>
-                {loadingQuizzes && <span className="text-sky-400 font-normal lowercase animate-pulse">Đang cập nhật...</span>}
-              </label>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+              <span>Đề thi khả dụng trong tổ chức</span>
+              {loadingQuizzes && <span className="text-sky-400 font-normal lowercase animate-pulse">Đang cập nhật...</span>}
+            </label>
+
+            {availableQuizzes.length === 0 && !loadingQuizzes ? (
+              <div className="p-4 rounded-2xl bg-slate-800/30 border border-dashed border-slate-700 text-center text-xs text-slate-400 space-y-1">
+                <p>Không có đề thi nào trong tổ chức <strong>{currentWorkspaceId}</strong>.</p>
+                <p className="text-[11px] text-slate-500">Hãy thử chuyển sang tổ chức <em>tenant_core</em> hoặc nhập mã đề thi công khai.</p>
+              </div>
+            ) : (
               <div className="space-y-2">
                 {availableQuizzes.map((quiz) => {
                   const isChosen = selectedQuizId === quiz.id;
@@ -124,7 +207,18 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
                       }`}
                     >
                       <div className="space-y-0.5">
-                        <div className="text-sm font-bold text-slate-100">{quiz.title}</div>
+                        <div className="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                          <span>{quiz.title}</span>
+                          {quiz.isPublic ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              Công khai
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              Nội bộ ({quiz.tenantId || currentWorkspaceId})
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-400">
                           Mã: <span className="font-mono text-slate-300">{quiz.code}</span> (ID: {quiz.id})
                         </div>
@@ -136,8 +230,8 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
@@ -154,12 +248,12 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-800/30 border border-slate-800 space-y-2 text-xs text-slate-400">
-            <div className="font-semibold text-slate-300">Quy chế phòng thi (RESTful Delivery):</div>
+            <div className="font-semibold text-slate-300">Quy chế phòng thi (RESTful Delivery & Domain Tenancy):</div>
             <ul className="list-disc list-inside space-y-1">
-              <li>Thí sinh được bảo vệ quyền sở hữu qua Principal token từ JWT.</li>
+              <li>Thí sinh mang Principal cá nhân; Quiz Service tự thẩm định ranh giới tổ chức theo header <code className="text-sky-300 font-mono">X-Tenant-ID</code>.</li>
+              <li>Đề thi nội bộ chặn hoàn toàn các truy cập xuyên tổ chức trái phép.</li>
               <li>Tự động kích hoạt chống gian lận đa tab (Multi-tab defense).</li>
               <li>Lưu bài theo chuẩn idempotency và đối chiếu timestamp chống mạng trễ.</li>
-              <li>Tự động thu bài và chấm điểm chính thức khi hết thời gian thi.</li>
             </ul>
           </div>
 

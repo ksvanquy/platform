@@ -3,6 +3,7 @@ import type { ApiResponse } from '@platform/contracts';
 export interface ApiClientConfig {
   baseUrl: string;
   getToken?: () => string | null | undefined | Promise<string | null | undefined>;
+  getTenantId?: () => string | null | undefined | Promise<string | null | undefined>;
   timeoutMs?: number;
   headers?: Record<string, string>;
   fetchFn?: typeof fetch;
@@ -27,6 +28,8 @@ export class ApiClientError extends Error {
 export class ApiClient {
   private baseUrl: string;
   private getToken?: () => string | null | undefined | Promise<string | null | undefined>;
+  private getTenantId?: () => string | null | undefined | Promise<string | null | undefined>;
+  private currentTenantId: string | null = null;
   private timeoutMs: number;
   private defaultHeaders: Record<string, string>;
   private fetchFn: typeof fetch;
@@ -34,6 +37,7 @@ export class ApiClient {
   constructor(config: ApiClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.getToken = config.getToken;
+    this.getTenantId = config.getTenantId;
     this.timeoutMs = config.timeoutMs ?? 30000;
     this.defaultHeaders = config.headers ?? {};
     this.fetchFn = config.fetchFn ?? (typeof fetch !== 'undefined' ? fetch.bind(globalThis) : (undefined as any));
@@ -44,7 +48,21 @@ export class ApiClient {
   }
 
   /**
-   * Thực hiện HTTP request chung với xử lý tự động JWT token và lỗi
+   * Thiết lập thủ công Tenant ID cho client instance (X-Tenant-ID)
+   */
+  setTenantId(tenantId: string | null): void {
+    this.currentTenantId = tenantId;
+  }
+
+  /**
+   * Lấy giá trị Tenant ID hiện tại được cấu hình thủ công
+   */
+  getTenantIdValue(): string | null {
+    return this.currentTenantId;
+  }
+
+  /**
+   * Thực hiện HTTP request chung với xử lý tự động JWT token, Tenant header và lỗi
    */
   async request<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
     const { params, body, headers: customHeaders, ...fetchOptions } = options;
@@ -74,6 +92,17 @@ export class ApiClient {
       const token = await this.getToken();
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
+    if (!headers['X-Tenant-ID'] && !headers['x-tenant-id']) {
+      if (this.getTenantId) {
+        const tenantId = await this.getTenantId();
+        if (tenantId) {
+          headers['X-Tenant-ID'] = tenantId;
+        }
+      } else if (this.currentTenantId) {
+        headers['X-Tenant-ID'] = this.currentTenantId;
       }
     }
 

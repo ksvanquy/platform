@@ -85,6 +85,85 @@ describe('Bước 5 — packages/api-client', () => {
         'Access Denied: Session does not belong to user'
       );
     });
+
+    it('should inject X-Tenant-ID header when getTenantId is provided', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ success: true, data: [] }),
+      });
+
+      api = createApiClient({
+        baseUrl: 'http://quiz.api.local',
+        getToken: () => mockToken,
+        getTenantId: () => 'tenant_engineering_dept',
+        fetchFn: mockFetch,
+      });
+
+      await api.get('/quizzes');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/quizzes',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${mockToken}`,
+            'X-Tenant-ID': 'tenant_engineering_dept',
+          }),
+        })
+      );
+    });
+
+    it('should inject X-Tenant-ID header when setTenantId is configured', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ success: true, data: [] }),
+      });
+
+      api = createApiClient({
+        baseUrl: 'http://quiz.api.local',
+        fetchFn: mockFetch,
+      });
+
+      api.setTenantId('tenant_medical_school');
+      expect(api.getTenantIdValue()).toBe('tenant_medical_school');
+
+      await api.get('/quizzes');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/quizzes',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-Tenant-ID': 'tenant_medical_school',
+          }),
+        })
+      );
+    });
+
+    it('should handle async getTenantId resolution', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ success: true, data: [] }),
+      });
+
+      api = createApiClient({
+        baseUrl: 'http://quiz.api.local',
+        getTenantId: async () => Promise.resolve('tenant_async_workspace'),
+        fetchFn: mockFetch,
+      });
+
+      await api.get('/quizzes');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/quizzes',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-Tenant-ID': 'tenant_async_workspace',
+          }),
+        })
+      );
+    });
   });
 
   describe('Domain Resource Operations (quizzes & sessions)', () => {
