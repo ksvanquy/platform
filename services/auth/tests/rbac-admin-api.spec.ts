@@ -280,11 +280,12 @@ describe('Gói WP-7: Endpoints Quản trị RBAC & Token Service', () => {
       expect(revokeRes.body.success).toBe(true);
       expect(revokeRes.body.revoked).toBe(true);
 
-      // 3. Attempting to use the revoked token to refresh should fail (401)
+      // 3. Attempting to use the revoked token to refresh should fail (403 TOKEN_REUSE_DETECTED)
       const refreshRes = await request(app)
         .post('/v1/auth/refresh')
         .send({ refreshToken });
-      expect(refreshRes.status).toBe(401);
+      expect(refreshRes.status).toBe(403);
+      expect(refreshRes.body.errorCode).toBe('TOKEN_REUSE_DETECTED');
     });
 
     it('GET /.well-known/jwks.json and GET /v1/auth/jwks should provide public RSA keys', async () => {

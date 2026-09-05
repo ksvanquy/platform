@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolvePermissionsForRoles } from '../../domain/role/role.js';
-import { ITokenStorage } from '../../domain/token/token.storage.port.js';
+import { ITokenStorage, TokenRecord } from '../../domain/token/token.storage.port.js';
 import { createTokenStorage } from '../persistence/token-storage.factory.js';
 import { isAuthDbConfigured } from '../db/connection.js';
 
@@ -26,6 +26,7 @@ export interface AuthTokens {
   refreshToken: string;
   expiresIn: number; // in seconds
   tokenType: 'Bearer';
+  familyId?: string;
 }
 
 export interface TokenServiceOptions {
@@ -177,10 +178,14 @@ export class TokenService {
     return this.algorithm;
   }
 
-  generateTokens(payload: Omit<TokenPayload, 'iat' | 'exp' | 'iss' | 'aud'>): AuthTokens {
+  generateTokens(
+    payload: Omit<TokenPayload, 'iat' | 'exp' | 'iss' | 'aud'>,
+    options?: { familyId?: string }
+  ): AuthTokens {
     const now = Math.floor(Date.now() / 1000);
     const accessExpiresIn = 3600; // 1 hour
     const refreshExpiresIn = 7 * 24 * 3600; // 7 days
+    const familyId = options?.familyId || `fam_${crypto.randomBytes(16).toString('hex')}`;
 
     const header = {
       alg: this.algorithm,
@@ -225,7 +230,7 @@ export class TokenService {
     if (this.tokenStorage || isAuthDbConfigured()) {
       try {
         const storage = this.getTokenStorage();
-        const saveResult = storage.saveRefreshToken(refreshToken, payload.sub, refreshExpiresAt);
+        const saveResult = storage.saveRefreshToken(refreshToken, payload.sub, refreshExpiresAt, familyId);
         if (saveResult && typeof (saveResult as any).catch === 'function') {
           (saveResult as Promise<void>).catch((err) => {
             console.error('Failed to persist refresh token to storage:', err);
@@ -241,6 +246,7 @@ export class TokenService {
       refreshToken,
       expiresIn: accessExpiresIn,
       tokenType: 'Bearer',
+      familyId,
     };
   }
 
@@ -288,8 +294,25 @@ export class TokenService {
     }
   }
 
-  async validateRefreshToken(token: string): Promise<{ userId: string } | null> {
+  async validateRefreshToken(token: string): Promise<{ userId: string; familyId?: string } | null> {
     return await this.getTokenStorage().validateRefreshToken(token);
+  }
+
+  async inspectRefreshToken(token: string): Promise<TokenRecord | null> {
+    const storage = this.getTokenStorage();
+    if (storage.inspectRefreshToken) {
+      return await storage.inspectRefreshToken(token);
+    }
+    const validation = await storage.validateRefreshToken(token);
+    if (!validation) return null;
+    return {
+      userId: validation.userId,
+      familyId: validation.familyId,
+      expiresAt: new Date(Date.now() + 3600000),
+      revokedAt: null,
+      isRevoked: false,
+      isExpired: false,
+    };
   }
 
   async revokeRefreshToken(token: string): Promise<boolean> {
@@ -300,6 +323,13 @@ export class TokenService {
     const storage = this.getTokenStorage();
     if (storage.revokeAllUserTokens) {
       await storage.revokeAllUserTokens(userId);
+    }
+  }
+
+  async revokeTokenFamily(familyId: string): Promise<void> {
+    const storage = this.getTokenStorage();
+    if (storage.revokeTokenFamily) {
+      await storage.revokeTokenFamily(familyId);
     }
   }
 

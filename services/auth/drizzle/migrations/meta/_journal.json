@@ -15,6 +15,13 @@
       "when": 1788484900000,
       "tag": "0001_remove_tenant_id_add_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788485500000,
+      "tag": "0003_add_refresh_token_family_id",
+      "breakpoints": true
     }
   ]
 }

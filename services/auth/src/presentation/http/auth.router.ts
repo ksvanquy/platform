@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { LoginUseCase } from '../../application/login/login.use-case.js';
 import { RegisterUseCase } from '../../application/register/register.use-case.js';
 import { GetProfileUseCase } from '../../application/profile/get-profile.use-case.js';
-import { RefreshUseCase } from '../../application/refresh/refresh.use-case.js';
+import { RefreshUseCase, RefreshTokenReuseError } from '../../application/refresh/refresh.use-case.js';
 import { LogoutUseCase } from '../../application/logout/logout.use-case.js';
 import { IUserRepository } from '../../domain/user/user.repository.port.js';
 import { TokenService } from '../../infrastructure/token/token.service.js';
@@ -144,6 +144,15 @@ export function createAuthRouter(
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Refresh failed';
+      if (err instanceof RefreshTokenReuseError || message.includes('reuse detected')) {
+        clearRefreshTokenCookie(req, res);
+        res.status(403).json({
+          success: false,
+          error: message,
+          errorCode: 'TOKEN_REUSE_DETECTED',
+        });
+        return;
+      }
       if (message.includes('Account is deactivated')) {
         clearRefreshTokenCookie(req, res);
         res.status(403).json({

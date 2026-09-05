@@ -2,7 +2,7 @@ import { User } from '../../domain/user/user.entity.js';
 import { Role } from '../../domain/role/role.entity.js';
 import { Permission } from '../../domain/role/permission.entity.js';
 import { IUserRepository } from '../../domain/user/user.repository.port.js';
-import { ITokenStorage } from '../../domain/token/token.storage.port.js';
+import { ITokenStorage, TokenRecord } from '../../domain/token/token.storage.port.js';
 import { createDefaultPermissions, createDefaultRoles } from '../../domain/role/default-rbac.data.js';
 import { SEED_USERS } from '../db/seed.js';
 
@@ -85,30 +85,55 @@ export class InMemoryUserRepository implements IUserRepository {
 }
 
 export class InMemoryTokenStorage implements ITokenStorage {
-  private tokens = new Map<string, { userId: string; expiresAt: Date }>();
+  private tokens = new Map<string, { userId: string; expiresAt: Date; revokedAt: Date | null; familyId?: string }>();
 
-  saveRefreshToken(token: string, userId: string, expiresAt: Date): void {
-    this.tokens.set(token, { userId, expiresAt });
+  saveRefreshToken(token: string, userId: string, expiresAt: Date, familyId?: string): void {
+    this.tokens.set(token, { userId, expiresAt, revokedAt: null, familyId });
   }
 
-  validateRefreshToken(token: string): { userId: string } | null {
+  validateRefreshToken(token: string): { userId: string; familyId?: string } | null {
     const entry = this.tokens.get(token);
     if (!entry) return null;
-    if (new Date() > entry.expiresAt) {
-      this.tokens.delete(token);
-      return null;
-    }
-    return { userId: entry.userId };
+    if (entry.revokedAt !== null) return null;
+    if (new Date() > entry.expiresAt) return null;
+    return { userId: entry.userId, familyId: entry.familyId };
+  }
+
+  inspectRefreshToken(token: string): TokenRecord | null {
+    const entry = this.tokens.get(token);
+    if (!entry) return null;
+    const now = new Date();
+    return {
+      userId: entry.userId,
+      familyId: entry.familyId,
+      expiresAt: entry.expiresAt,
+      revokedAt: entry.revokedAt,
+      isRevoked: entry.revokedAt !== null,
+      isExpired: entry.expiresAt <= now,
+    };
   }
 
   revokeRefreshToken(token: string): boolean {
-    return this.tokens.delete(token);
+    const entry = this.tokens.get(token);
+    if (!entry) return false;
+    entry.revokedAt = new Date();
+    return true;
   }
 
   revokeAllUserTokens(userId: string): void {
-    for (const [token, entry] of this.tokens.entries()) {
-      if (entry.userId === userId) {
-        this.tokens.delete(token);
+    const now = new Date();
+    for (const entry of this.tokens.values()) {
+      if (entry.userId === userId && !entry.revokedAt) {
+        entry.revokedAt = now;
+      }
+    }
+  }
+
+  revokeTokenFamily(familyId: string): void {
+    const now = new Date();
+    for (const entry of this.tokens.values()) {
+      if (entry.familyId === familyId && !entry.revokedAt) {
+        entry.revokedAt = now;
       }
     }
   }

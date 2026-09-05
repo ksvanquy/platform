@@ -4,7 +4,7 @@ import { User } from '../../domain/user/user.entity.js';
 import { Role } from '../../domain/role/role.entity.js';
 import { Permission } from '../../domain/role/permission.entity.js';
 import { IUserRepository } from '../../domain/user/user.repository.port.js';
-import { ITokenStorage } from '../../domain/token/token.storage.port.js';
+import { ITokenStorage, TokenRecord } from '../../domain/token/token.storage.port.js';
 import {
   users,
   roles,
@@ -326,17 +326,21 @@ export class DrizzleTokenStorage implements ITokenStorage {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
-  async saveRefreshToken(token: string, userId: string, expiresAt: Date): Promise<void> {
+  async saveRefreshToken(token: string, userId: string, expiresAt: Date, familyId?: string): Promise<void> {
     const tokenHash = this.hashToken(token);
-    await this.db.insert(refreshTokens).values({
-      tokenHash,
-      userId,
-      expiresAt,
-      createdAt: new Date(),
-    });
+    await this.db
+      .insert(refreshTokens)
+      .values({
+        tokenHash,
+        userId,
+        familyId: familyId || null,
+        expiresAt,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing();
   }
 
-  async validateRefreshToken(token: string): Promise<{ userId: string } | null> {
+  async validateRefreshToken(token: string): Promise<{ userId: string; familyId?: string } | null> {
     const tokenHash = this.hashToken(token);
     const now = new Date();
 
@@ -353,7 +357,33 @@ export class DrizzleTokenStorage implements ITokenStorage {
       .limit(1);
 
     if (rows.length === 0) return null;
-    return { userId: rows[0].userId };
+    return {
+      userId: rows[0].userId,
+      familyId: rows[0].familyId || undefined,
+    };
+  }
+
+  async inspectRefreshToken(token: string): Promise<TokenRecord | null> {
+    const tokenHash = this.hashToken(token);
+    const now = new Date();
+
+    const rows = await this.db
+      .select()
+      .from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, tokenHash))
+      .limit(1);
+
+    if (rows.length === 0) return null;
+
+    const row = rows[0];
+    return {
+      userId: row.userId,
+      familyId: row.familyId || undefined,
+      expiresAt: row.expiresAt,
+      revokedAt: row.revokedAt,
+      isRevoked: row.revokedAt !== null,
+      isExpired: row.expiresAt <= now,
+    };
   }
 
   async revokeRefreshToken(token: string): Promise<boolean> {
@@ -371,5 +401,12 @@ export class DrizzleTokenStorage implements ITokenStorage {
       .update(refreshTokens)
       .set({ revokedAt: new Date() })
       .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
+  }
+
+  async revokeTokenFamily(familyId: string): Promise<void> {
+    await this.db
+      .update(refreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(refreshTokens.familyId, familyId), isNull(refreshTokens.revokedAt)));
   }
 }

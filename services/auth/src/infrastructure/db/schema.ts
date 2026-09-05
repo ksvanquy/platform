@@ -128,6 +128,7 @@ export type NewRolePermissionRow = typeof rolePermissions.$inferInsert;
 
 /**
  * 6. Bảng Refresh Tokens lưu trữ phiên làm việc lâu dài (được băm SHA-256)
+ * Hỗ trợ Token Family và Refresh Token Reuse Detection.
  */
 export const refreshTokens = pgTable(
   'refresh_tokens',
@@ -136,12 +137,14 @@ export const refreshTokens = pgTable(
     userId: varchar('user_id', { length: 64 })
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    familyId: varchar('family_id', { length: 64 }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('refresh_tokens_user_id_idx').on(t.userId),
+    index('refresh_tokens_family_id_idx').on(t.familyId),
     index('refresh_tokens_expires_at_idx').on(t.expiresAt),
   ]
 );
