@@ -92,8 +92,9 @@ AUTH_DATABASE_URL=postgres://postgres:mật_khẩu_của_bạn@localhost:5432/au
 JWT_SECRET=dev-quiz-platform-secret-key-32-chars-min
 ```
 
-> ⚠️ **Lưu ý mã hóa ký tự đặc biệt trên Windows:**
-> Nếu mật khẩu PostgreSQL của bạn có ký tự đặc biệt (ví dụ: `@`, `#`, `$`, `%`, `&`, `/`), hãy đổi sang dạng mã hóa **URL Encode** (ví dụ: `@` thành `%40`, `#` thành `%23`).  
+> ⚠️ **Lưu ý định dạng URL & mã hóa ký tự đặc biệt trên Windows:**
+> - **Tuyệt đối không gắn `?schema=public` vào đuôi URL**: Một số ORM như Prisma thường dùng `?schema=public`, nhưng PostgreSQL thuần không có biến cấu hình GUC tên là `schema` (PostgreSQL dùng `search_path`). Nếu gắn `?schema=public`, PostgreSQL sẽ trả về lỗi `PostgresError: unrecognized configuration parameter "schema" (code 42704)`. Dù Auth Service đã được bổ sung cơ chế tự động làm sạch `sanitizePostgresUrl()`, bạn vẫn nên khai báo URL chuẩn: `postgres://postgres:password@localhost:5432/auth_db`.
+> - **Mã hóa URL (URL Encoding)**: Nếu mật khẩu PostgreSQL của bạn có ký tự đặc biệt (ví dụ: `@`, `#`, `$`, `%`, `&`, `/`), hãy đổi sang dạng mã hóa **URL Encode** (ví dụ: `@` thành `%40`, `#` thành `%23`).  
 > *Ví dụ: Mật khẩu là `P@ss123` => `postgres://postgres:P%40ss123@localhost:5432/auth_db`*.
 
 ---
@@ -262,12 +263,17 @@ pnpm dev
 ---
 
 ## 8. XỬ LÝ SỰ CỐ THƯỜNG GẶP TRÊN WINDOWS
-
-1. **Lỗi `Connection refused (ECONNREFUSED 127.0.0.1:5432)`**:
+ 
+1. **Lỗi `PostgresError: unrecognized configuration parameter "schema" (code: 42704)`**:
+   - **Nguyên nhân**: Chuỗi `AUTH_DATABASE_URL` trong `.env` có gắn thêm query parameter `?schema=public` (hoặc `?schema=...`). Driver `postgres.js` chuyển tham số này vào StartupMessage của giao thức kết nối PostgreSQL. Tuy nhiên, PostgreSQL không hỗ trợ biến GUC `schema` (tham số đúng trong PostgreSQL là `search_path`).
+   - **Cách xử lý**:
+     - Mở file `.env` tại thư mục gốc, xóa bỏ phần `?schema=public` ở cuối URL, chỉ để lại: `AUTH_DATABASE_URL=postgres://postgres:mật_khẩu@localhost:5432/auth_db`.
+     - Code trong `services/auth/src/infrastructure/db/connection.ts` cũng đã được trang bị hàm `sanitizePostgresUrl()` tự động dọn dẹp chuỗi URL nếu có `?schema=...`.
+2. **Lỗi `Connection refused (ECONNREFUSED 127.0.0.1:5432)`**:
    - Dịch vụ PostgreSQL trên Windows chưa bật. Nhấn `Windows + R`, gõ `services.msc`, tìm `postgresql-x64-...` và bấm **Start**.
-2. **Lỗi `password authentication failed for user "postgres"`**:
+3. **Lỗi `password authentication failed for user "postgres"`**:
    - Kiểm tra lại mật khẩu trong file `.env`. Nếu có ký tự đặc biệt, nhớ chuyển thành dạng mã hóa URL Encode (như mục 3).
-3. **Lỗi `database "auth_db" does not exist`**:
+4. **Lỗi `database "auth_db" does not exist`**:
    - Chưa tạo database `auth_db`. Chạy `psql -U postgres -c "CREATE DATABASE auth_db;"` rồi chạy lại `pnpm db:migrate:auth`.
-4. **Cơ Chế Zero-Crash Fallback**:
-   - Nếu database bị ngắt kết nối hoặc biến `AUTH_DATABASE_URL` bị trống, hệ thống sẽ tự động chuyển sang chế độ **In-Memory Mock Storage**, giúp bạn phát triển tiếp và chạy test mà không bao giờ bị sập ứng dụng lúc khởi động.
+5. **Cơ chế Fail-Fast (Chuẩn hóa WP-4)**:
+   - Nếu database bị ngắt kết nối hoặc biến `AUTH_DATABASE_URL` bị trống, hệ thống sẽ báo lỗi Fail-Fast rõ ràng yêu cầu cung cấp PostgreSQL URL thay vì âm thầm rơi vào dữ liệu giả lập. Khi chạy test tự động (`pnpm test`), hệ thống sử dụng PGlite WebAssembly độc lập không phụ thuộc service ngoài.

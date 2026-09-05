@@ -3,6 +3,7 @@ import { User } from '../src/domain/user/user.entity.js';
 import { createUserRepository } from '../src/infrastructure/persistence/repository.factory.js';
 import { createTokenStorage } from '../src/infrastructure/persistence/token-storage.factory.js';
 import { DrizzleUserRepository, DrizzleTokenStorage } from '../src/infrastructure/persistence/drizzle-user.repository.js';
+import { sanitizePostgresUrl } from '../src/infrastructure/db/connection.js';
 import { setupTestPostgresDb, TestPostgresContext } from './helpers/test-db.helper.js';
 
 describe('Auth Service Phase 4: 100% PostgreSQL Persistence & Fail-Fast', () => {
@@ -42,6 +43,26 @@ describe('Auth Service Phase 4: 100% PostgreSQL Persistence & Fail-Fast', () => 
 
       const tokenStorage = createTokenStorage(testContext.db);
       expect(tokenStorage).toBeInstanceOf(DrizzleTokenStorage);
+    });
+
+    it('should sanitize ?schema= query parameter from PostgreSQL URLs to prevent code 42704 startup error', () => {
+      // Common Prisma/Supabase pattern that triggers PostgresError: unrecognized configuration parameter "schema"
+      const urlWithSchema = 'postgres://postgres:admin123@localhost:5432/auth_db?schema=public';
+      const sanitized = sanitizePostgresUrl(urlWithSchema);
+      expect(sanitized).not.toContain('schema=public');
+      expect(sanitized).toBe('postgres://postgres:admin123@localhost:5432/auth_db');
+
+      // Schema with other parameters
+      const urlWithOtherParams = 'postgresql://user:pass@localhost:5432/db?schema=public&sslmode=disable';
+      const sanitizedOther = sanitizePostgresUrl(urlWithOtherParams);
+      expect(sanitizedOther).not.toContain('schema=public');
+      expect(sanitizedOther).toContain('sslmode=disable');
+
+      // Custom non-public schema mapped to search_path
+      const urlCustomSchema = 'postgres://user:pass@localhost:5432/db?schema=tenant_1';
+      const sanitizedCustom = sanitizePostgresUrl(urlCustomSchema);
+      expect(sanitizedCustom).not.toContain('schema=tenant_1');
+      expect(sanitizedCustom).toContain('search_path=tenant_1');
     });
   });
 

@@ -58,6 +58,34 @@ export function loadEnvIfAvailable(force = false): void {
   }
 }
 
+export function sanitizePostgresUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    // Trong PostgreSQL protocol StartupMessage, 'schema' không phải là tham số cấu hình máy chủ GUC hợp lệ.
+    // Thư viện postgres.js tự động gửi mọi searchParams không nhận diện trong StartupMessage.
+    // Nếu URL chứa '?schema=public' (thường gặp khi copy từ Prisma hoặc Supabase),
+    // PostgreSQL sẽ lập tức ngắt kết nối với lỗi FATAL: PostgresError: unrecognized configuration parameter "schema" (code 42704).
+    if (parsed.searchParams.has('schema')) {
+      const schemaVal = parsed.searchParams.get('schema');
+      parsed.searchParams.delete('schema');
+      // Nếu người dùng chỉ định schema tùy biến khác public, chuyển sang search_path hợp lệ của PostgreSQL
+      if (schemaVal && schemaVal !== 'public' && !parsed.searchParams.has('search_path')) {
+        parsed.searchParams.set('search_path', schemaVal);
+      }
+    }
+    return parsed.toString();
+  } catch {
+    // Fallback nếu password có chứa ký tự đặc biệt chưa URL encode khiến URL() parse lỗi
+    return rawUrl
+      .replace(/([?&])schema=public(&|$)/g, (_m, p1, p2) => (p2 === '&' ? p1 : ''))
+      .replace(/([?&])schema=([^&#]+)(&|$)/g, (_m, p1, schemaVal, p2) => {
+        const next = p2 === '&' ? '&' : '';
+        return `${p1}search_path=${schemaVal}${next}`;
+      })
+      .replace(/\?$/, '');
+  }
+}
+
 export function getAuthDatabaseUrl(): string | undefined {
   loadEnvIfAvailable();
   const url = (process.env.AUTH_DATABASE_URL || process.env.DATABASE_URL)?.trim();
@@ -65,7 +93,7 @@ export function getAuthDatabaseUrl(): string | undefined {
   if (!url.startsWith('postgres://') && !url.startsWith('postgresql://')) {
     return undefined;
   }
-  return url;
+  return sanitizePostgresUrl(url);
 }
 
 export function isAuthDbConfigured(): boolean {
