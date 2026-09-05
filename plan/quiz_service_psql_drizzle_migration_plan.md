@@ -989,79 +989,69 @@ Toàn bộ quá trình chuyển đổi được chia thành 8 gói công việc 
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        LỘ TRÌNH CHUYỂN ĐỔI QUIZ SERVICE SANG POSTGRESQL                │
 ├────────┬───────────────────────────────────────────────────────────────────────────────┤
-│  WP-1  │ Cập nhật Cấu hình Môi trường (.env.example, package.json scripts)             │
-│  WP-2  │ Thiết kế Drizzle Schema (quizzes, quiz_versions, attempts với JSONB)           │
-│  WP-3  │ Thiết lập Kết nối quiz_db độc lập (connection.ts, Fail-Fast)                  │
-│  WP-4  │ Tạo Migration Script & Chạy Drizzle-Kit Generate cho quiz_db                  │
-│  WP-5  │ Xây dựng DrizzleAuthoringRepository & DrizzleDeliveryRepository (100% PSQL)   │
-│  WP-6  │ Tạo Seed Script & Cập nhật Server Entry Point (services/quiz/src/server.ts)    │
-│  WP-7  │ Xóa Bỏ Hoàn Toàn In-Memory Repositories (Xóa vĩnh viễn 2 file in-memory)     │
+│ [DONE] │ WP-1: Cập nhật Cấu hình Môi trường (.env.example, package.json scripts)       │
+│ [DONE] │ WP-2: Thiết kế Drizzle Schema (quizzes, quiz_versions, attempts với JSONB)     │
+│ [DONE] │ WP-3: Thiết lập Kết nối quiz_db độc lập (connection.ts, Fail-Fast)             │
+│ [DONE] │ WP-4: Tạo Migration Script & Chạy Drizzle-Kit Generate cho quiz_db            │
+│ [DONE] │ WP-5: Xây dựng DrizzleAuthoringRepository & DrizzleDeliveryRepository (100% PSQL)   │
+│ [DONE] │ WP-6: Tạo Seed Script & Cập nhật Server Entry Point (services/quiz/src/server.ts)    │
+│  WP-7  │ Xóa Bỏ Hoàn Toàn In-Memory Repositories & Di Trú Test Suite                   │
 │  WP-8  │ Viết Test Tích Hợp PostgreSQL cho Quiz Service & Chạy Toàn Bộ Test Suite       │
 └────────┴───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Chi tiết Từng Gói Công Việc:
 
-### **Gói WP-1: Khai báo Biến Môi Trường & Cấu Hình Scripts**
-- Thêm biến `QUIZ_DATABASE_URL` vào file `/.env.example`:
+### **[HOÀN THÀNH] Gói WP-1: Khai báo Biến Môi Trường & Cấu Hình Scripts**
+- Đã thêm biến `QUIZ_DATABASE_URL` vào file `/.env.example`:
   ```env
-  AUTH_DATABASE_URL=postgres://postgres:postgres@localhost:5432/auth_db
-  QUIZ_DATABASE_URL=postgres://postgres:postgres@localhost:5432/quiz_db
+  AUTH_DATABASE_URL=
+  QUIZ_DATABASE_URL=
   JWT_PRIVATE_KEY=
   JWT_PUBLIC_KEY=
   JWT_SECRET=
   ```
-- Cập nhật `services/quiz/package.json`:
+- Đã cập nhật `services/quiz/package.json`:
   - Bổ sung dependencies: `drizzle-orm`, `postgres`.
   - Bổ sung devDependencies: `drizzle-kit`, `@electric-sql/pglite`.
   - Thêm scripts:
     - `"db:generate": "drizzle-kit generate"`
     - `"db:migrate": "tsx src/infrastructure/db/migrate.ts"`
     - `"db:seed": "tsx src/infrastructure/db/seed.ts"`
+- Đã bổ sung scripts tương ứng vào root `package.json`:
+  - `"db:generate:quiz"`
+  - `"db:migrate:quiz"`
+  - `"db:seed:quiz"`
 
-### **Gói WP-2: Thiết kế Drizzle Schema (`services/quiz/src/infrastructure/db/schema.ts`)**
-- Tạo mới file `services/quiz/src/infrastructure/db/schema.ts`.
-- Định nghĩa đầy đủ 3 bảng quan hệ 3NF kết hợp JSONB: `quizzes`, `quiz_versions`, `attempts`.
-- Cấu hình chỉ mục tối ưu `idx_attempts_sweeper` trên `(status, deadline)` phục vụ `AttemptExpirySweeperService`.
+### **[HOÀN THÀNH] Gói WP-2: Thiết kế Drizzle Schema (`services/quiz/src/infrastructure/db/schema.ts`)**
+- Đã tạo mới file `services/quiz/src/infrastructure/db/schema.ts`.
+- Đã định nghĩa đầy đủ 3 bảng quan hệ 3NF kết hợp JSONB: `quizzes`, `quiz_versions`, `attempts`.
+- Đã cấu hình chỉ mục tối ưu `idx_attempts_sweeper` trên `(status, deadline)` phục vụ `AttemptExpirySweeperService`.
+- Đã khai báo đầy đủ quan hệ `relations` (`quizzesRelations`, `quizVersionsRelations`, `attemptsRelations`) và TypeScript types (`QuizRow`, `QuizVersionRow`, `AttemptRow`, ...).
 
-### **Gói WP-3: Thiết lập Kết nối `quiz_db` Độc Lập (`connection.ts`)**
-- Tạo mới file `services/quiz/src/infrastructure/db/connection.ts`.
-- Xử lý nạp biến môi trường tự động, khử lỗi tham số `schema=public`.
-- Cài đặt cơ chế kiểm soát lỗi **Fail-Fast**: nếu thiếu `QUIZ_DATABASE_URL`, ném lỗi dừng máy chủ ngay lập tức.
+### **[HOÀN THÀNH] Gói WP-3: Thiết lập Kết nối `quiz_db` Độc Lập (`connection.ts`)**
+- Đã tạo mới file `services/quiz/src/infrastructure/db/connection.ts`.
+- Đã xử lý nạp biến môi trường tự động `loadEnvIfAvailable`, khử lỗi tham số `schema=public` qua `sanitizePostgresUrl`.
+- Đã cài đặt kết nối Singleton `getQuizDb()` với pool `postgres(connectionString, { max: 15, idle_timeout: 30, connect_timeout: 10 })` và hàm dọn dẹp `closeQuizDb()`.
+- Đã cài đặt cơ chế kiểm soát lỗi **Fail-Fast**: nếu thiếu `QUIZ_DATABASE_URL`, ném lỗi dừng máy chủ ngay lập tức, không chấp nhận fallback hay chạy in-memory.
 
-### **Gói WP-4: Tạo Migration Drizzle-Kit cho `quiz_db`**
-- Tạo file `services/quiz/drizzle.config.ts`.
-- Chạy lệnh `npx drizzle-kit generate` để sinh file migration ban đầu trong `services/quiz/drizzle/migrations/0000_*.sql`.
-- Tạo file `services/quiz/src/infrastructure/db/migrate.ts` để tự động hóa việc đồng bộ cấu trúc bảng khi khởi động hệ thống.
+### **[HOÀN THÀNH] Gói WP-4: Tạo Migration Drizzle-Kit cho `quiz_db`**
+- Đã tạo file `services/quiz/drizzle.config.ts` hỗ trợ linh hoạt cả monorepo root context lẫn service workspace context.
+- Đã chạy lệnh `npx drizzle-kit generate` sinh thành công tệp migration `services/quiz/drizzle/migrations/0000_slow_pet_avengers.sql` chứa đầy đủ 3 bảng (`quizzes`, `quiz_versions`, `attempts`), quan hệ khóa ngoại và các chỉ mục (`idx_attempts_sweeper`, ...).
+- Đã tạo file `services/quiz/src/infrastructure/db/migrate.ts` hỗ trợ thực thi migration tự động qua hàm `runQuizMigrations()` và CLI direct run.
 
-### **Gói WP-5: Hiện thực Tầng Persistence 100% PostgreSQL**
-- Tạo file `services/quiz/src/infrastructure/repositories/drizzle-authoring.repository.ts` thay thế hoàn toàn cho các chức năng quản lý đề thi in-memory.
-- Tạo file `services/quiz/src/infrastructure/repositories/drizzle-delivery.repository.ts` thay thế hoàn toàn cho các chức năng lưu lượt thi, trả lời và chấm điểm in-memory.
-- Tạo factory `services/quiz/src/infrastructure/repositories/assessment-repository.factory.ts`.
+### **[HOÀN THÀNH] Gói WP-5: Hiện thực Tầng Persistence 100% PostgreSQL**
+- Đã tạo file `services/quiz/src/infrastructure/repositories/drizzle-authoring.repository.ts` hiện thực đầy đủ `AuthoringRepositoryPort` tương tác 100% với PostgreSQL (`saveQuiz`, `findQuizById`, `findQuizByCode`, `listPublishedQuizzes`, `saveVersion`, `findVersionById`, `findLatestVersionByQuizId`, `listVersionsByQuizId`).
+- Đã tạo file `services/quiz/src/infrastructure/repositories/drizzle-delivery.repository.ts` hiện thực đầy đủ `DeliveryRepositoryPort` tương tác 100% với PostgreSQL (`saveAttempt`, `findAttemptById`, `listAttemptsByUser`, `findExpiredInProgressAttempts` tối ưu với chỉ mục `idx_attempts_sweeper`).
+- Đã tạo factory `services/quiz/src/infrastructure/repositories/assessment-repository.factory.ts` (`createAuthoringRepository`, `createDeliveryRepository`) với cơ chế Fail-Fast nghiêm ngặt, cấm hoàn toàn in-memory fallback.
 
-### **Gói WP-6: Seed Dữ Liệu Mẫu & Cập nhật Server Entry Point**
-- Tạo file `services/quiz/src/infrastructure/db/seed.ts` để nạp đề thi mẫu vào PostgreSQL `quiz_db`.
-- Cập nhật `services/quiz/src/presentation/server.ts`:
-  - Khai báo các biến singleton và phương thức DI `setAssessmentRepositories`:
-    ```typescript
-    let authoringRepo = createAuthoringRepository();
-    let deliveryRepo = createDeliveryRepository();
-    let authoringUseCases = new AuthoringUseCases(authoringRepo);
-    let deliveryUseCases = new DeliveryUseCases(authoringRepo, deliveryRepo);
-    let sweeperService = new AttemptExpirySweeperService(authoringRepo, deliveryRepo);
-
-    export function setAssessmentRepositories(
-      authoring: AuthoringRepositoryPort,
-      delivery: DeliveryRepositoryPort
-    ): void {
-      authoringRepo = authoring;
-      deliveryRepo = delivery;
-      authoringUseCases = new AuthoringUseCases(authoring);
-      deliveryUseCases = new DeliveryUseCases(authoring, delivery);
-      sweeperService = new AttemptExpirySweeperService(authoring, delivery);
-    }
-    ```
-  - Khởi tạo `sweeperService.start(30000)` an toàn trong môi trường Production/Dev (ngừng khi test).
+### **[HOÀN THÀNH] Gói WP-6: Seed Dữ Liệu Mẫu & Cập nhật Server Entry Point**
+- Đã tạo file `services/quiz/src/infrastructure/db/seed.ts` để nạp đề thi mẫu và phiên bản v1 trực tiếp vào PostgreSQL `quiz_db` (hỗ trợ cả CLI runner qua `npm run db:seed:quiz` và gọi hàm module `seedQuizDatabase`).
+- Đã cập nhật `services/quiz/src/presentation/server.ts`:
+  - Khai báo các biến singleton repository và phương thức Dependency Injection `setAssessmentRepositories(authoring, delivery)`.
+  - Triển khai Dynamic Delegation Proxies cho `AuthoringRepositoryPort` và `DeliveryRepositoryPort`, cho phép chuyển đổi linh hoạt giữa các repository instances (đặc biệt khi chạy kiểm thử tích hợp).
+  - Khởi tạo `sweeperService.start(30000)` an toàn trong môi trường Production/Dev khi có kết nối cơ sở dữ liệu (`NODE_ENV !== 'test' && isQuizDbConfigured()`).
+  - Xuất khẩu đầy đủ các use case, sweeperService, và helper `setAssessmentRepositories` cho các module và test suites.
 
 ### **Gói WP-7: Xóa Bỏ Hoàn Toàn In-Memory Persistence & Di Trú Test Suite**
 - Xóa vĩnh viễn:

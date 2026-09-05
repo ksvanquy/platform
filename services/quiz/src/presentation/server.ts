@@ -3,7 +3,14 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import express, { Express, Request, Response } from 'express';
 import { createUserRepository, TokenService, createAuthRouter } from '@platform/auth-service';
-import { InMemoryAssessmentRepository } from '../infrastructure/repositories/in-memory-assessment.repository.js';
+import {
+  AuthoringRepositoryPort,
+  DeliveryRepositoryPort,
+} from '../domain/ports/assessment.repository.ports.js';
+import {
+  createAuthoringRepository,
+  createDeliveryRepository,
+} from '../infrastructure/repositories/assessment-repository.factory.js';
 import { AuthoringUseCases } from '../application/use-cases/authoring/authoring.use-cases.js';
 import { DeliveryUseCases } from '../application/use-cases/delivery/delivery.use-cases.js';
 import { authContextMiddleware } from './middlewares/auth.middleware.js';
@@ -11,6 +18,7 @@ import { createV1QuizzesRouter } from './routes/v1-quizzes.routes.js';
 import { createV1AttemptsRouter } from './routes/v1-attempts.routes.js';
 import { AttemptExpirySweeperService } from '../application/services/attempt-expiry-sweeper.service.js';
 import { createV1InternalRouter } from './routes/v1-internal.routes.js';
+import { isQuizDbConfigured } from '../infrastructure/db/connection.js';
 
 const app: Express = express();
 app.use(express.json());
@@ -90,14 +98,80 @@ app.use('/v1/auth', (req: Request, res: Response, next: any) => {
 // Authentication Context Middleware for Quiz and Assessment Domains
 app.use(authContextMiddleware);
 
-// Repository & Application Services
-const assessmentRepo = new InMemoryAssessmentRepository();
-const authoringUseCases = new AuthoringUseCases(assessmentRepo);
-const deliveryUseCases = new DeliveryUseCases(assessmentRepo, assessmentRepo);
+// Repository & Application Services (Dynamic Delegation & PostgreSQL Persistence)
+let authoringRepo: AuthoringRepositoryPort | null = null;
+let deliveryRepo: DeliveryRepositoryPort | null = null;
+let authoringUseCases!: AuthoringUseCases;
+let deliveryUseCases!: DeliveryUseCases;
+let sweeperService!: AttemptExpirySweeperService;
 
-// Background Attempt Expiry Sweeper Service (Active Hardening & Cloud Scheduler Target)
-const sweeperService = new AttemptExpirySweeperService(assessmentRepo, assessmentRepo);
-sweeperService.start(30000);
+function initAssessmentServices(): void {
+  try {
+    if (!authoringRepo) {
+      authoringRepo = createAuthoringRepository();
+    }
+    if (!deliveryRepo) {
+      deliveryRepo = createDeliveryRepository();
+    }
+  } catch (err) {
+    // If database is not configured at startup (e.g. initial test harness loading),
+    // let it fail fast on access or await test injection via setAssessmentRepositories
+    console.warn('⚠️ Assessment repository initialization deferred until database is configured or injected.');
+  }
+
+  // Create proxy ports that dynamically delegate to active singleton repos
+  const authoringProxy: AuthoringRepositoryPort = {
+    saveQuiz: (quiz) => getActiveAuthoringRepo().saveQuiz(quiz),
+    findQuizById: (id) => getActiveAuthoringRepo().findQuizById(id),
+    findQuizByCode: (code) => getActiveAuthoringRepo().findQuizByCode(code),
+    listPublishedQuizzes: () => getActiveAuthoringRepo().listPublishedQuizzes(),
+    saveVersion: (version) => getActiveAuthoringRepo().saveVersion(version),
+    findVersionById: (id) => getActiveAuthoringRepo().findVersionById(id),
+    findLatestVersionByQuizId: (quizId) => getActiveAuthoringRepo().findLatestVersionByQuizId(quizId),
+    listVersionsByQuizId: (quizId) => getActiveAuthoringRepo().listVersionsByQuizId(quizId),
+  };
+
+  const deliveryProxy: DeliveryRepositoryPort = {
+    saveAttempt: (attempt) => getActiveDeliveryRepo().saveAttempt(attempt),
+    findAttemptById: (id) => getActiveDeliveryRepo().findAttemptById(id),
+    listAttemptsByUser: (userId, quizId) => getActiveDeliveryRepo().listAttemptsByUser(userId, quizId),
+    findExpiredInProgressAttempts: (now, gracePeriodMs) =>
+      getActiveDeliveryRepo().findExpiredInProgressAttempts(now, gracePeriodMs),
+  };
+
+  authoringUseCases = new AuthoringUseCases(authoringProxy);
+  deliveryUseCases = new DeliveryUseCases(authoringProxy, deliveryProxy);
+  sweeperService = new AttemptExpirySweeperService(authoringProxy, deliveryProxy);
+}
+
+function getActiveAuthoringRepo(): AuthoringRepositoryPort {
+  if (!authoringRepo) {
+    authoringRepo = createAuthoringRepository();
+  }
+  return authoringRepo;
+}
+
+function getActiveDeliveryRepo(): DeliveryRepositoryPort {
+  if (!deliveryRepo) {
+    deliveryRepo = createDeliveryRepository();
+  }
+  return deliveryRepo;
+}
+
+export function setAssessmentRepositories(
+  authoring: AuthoringRepositoryPort,
+  delivery: DeliveryRepositoryPort
+): void {
+  authoringRepo = authoring;
+  deliveryRepo = delivery;
+}
+
+initAssessmentServices();
+
+// Start background sweeper only in active runtime (skip during isolated test suite)
+if (process.env.NODE_ENV !== 'test' && isQuizDbConfigured()) {
+  sweeperService.start(30000);
+}
 
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', engine: 'Assessment Engine API v2', timestamp: new Date() });
@@ -208,7 +282,10 @@ export {
   authoringUseCases,
   deliveryUseCases,
   sweeperService,
-  assessmentRepo,
+  authoringRepo,
+  deliveryRepo,
+  getActiveAuthoringRepo,
+  getActiveDeliveryRepo,
   authUserRepository,
   authTokenService,
 };

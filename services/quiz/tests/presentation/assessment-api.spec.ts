@@ -1,18 +1,24 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { app, assessmentRepo, setAuthRepository } from '../../src/presentation/server.js';
+import { app, setAuthRepository, setAssessmentRepositories } from '../../src/presentation/server.js';
 import { setupTestPostgresDb, TestPostgresContext } from '../../../auth/tests/helpers/test-db.helper.js';
+import { setupTestQuizDb, TestQuizDbContext } from '../helpers/test-db.helper.js';
 
 describe('Assessment Engine API Integration & Facade (Pha 3)', () => {
-  let testContext: TestPostgresContext;
+  let authContext: TestPostgresContext;
+  let quizContext: TestQuizDbContext;
 
   beforeAll(async () => {
-    testContext = await setupTestPostgresDb();
-    setAuthRepository(testContext.userRepo);
+    authContext = await setupTestPostgresDb();
+    setAuthRepository(authContext.userRepo);
+
+    quizContext = await setupTestQuizDb();
+    setAssessmentRepositories(quizContext.authoringRepo, quizContext.deliveryRepo);
   });
 
   afterAll(async () => {
-    await testContext?.cleanup();
+    await quizContext?.cleanup();
+    await authContext?.cleanup();
   });
   describe('Authoring REST API (/v1/quizzes)', () => {
     it('should list published quizzes publicly without auth requirement', async () => {

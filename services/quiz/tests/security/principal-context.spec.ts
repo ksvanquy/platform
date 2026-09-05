@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { Principal } from '@platform/contracts';
 import { TokenService } from '@platform/auth-service';
 import { QuizContext } from '../../src/domain/context/quiz-context.js';
-import { InMemoryQuizRepository } from '../../src/infrastructure/repositories/in-memory-quiz.repository.js';
 import {
   StartAttemptUseCase,
   SaveAnswerUseCase,
   SubmitQuizUseCase,
 } from '../../src/application/use-cases/quiz.use-cases.js';
 import { authContextMiddleware } from '../../src/presentation/middlewares/auth.middleware.js';
+import { setupTestQuizDb, TestQuizDbContext } from '../helpers/test-db.helper.js';
 
 describe('Bước 3 — Quiz Service nhận Principal từ Authentication Context', () => {
-  let quizRepo: InMemoryQuizRepository;
+  let testCtx: TestQuizDbContext;
   let startAttempt: StartAttemptUseCase;
   let saveAnswerUseCase: SaveAnswerUseCase;
   let submitQuizUseCase: SubmitQuizUseCase;
@@ -28,11 +28,15 @@ describe('Bước 3 — Quiz Service nhận Principal từ Authentication Contex
     tenantId: 'tenant_default',
   };
 
-  beforeEach(() => {
-    quizRepo = new InMemoryQuizRepository();
-    startAttempt = new StartAttemptUseCase(quizRepo);
-    saveAnswerUseCase = new SaveAnswerUseCase(quizRepo);
-    submitQuizUseCase = new SubmitQuizUseCase(quizRepo);
+  beforeEach(async () => {
+    testCtx = await setupTestQuizDb();
+    startAttempt = new StartAttemptUseCase(testCtx.legacyRepo);
+    saveAnswerUseCase = new SaveAnswerUseCase(testCtx.legacyRepo);
+    submitQuizUseCase = new SubmitQuizUseCase(testCtx.legacyRepo);
+  });
+
+  afterEach(async () => {
+    await testCtx?.cleanup();
   });
 
   describe('1. QuizContext Typing & Principal Acceptance', () => {

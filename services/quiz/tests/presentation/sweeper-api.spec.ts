@@ -1,13 +1,20 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
-import { app, assessmentRepo } from '../../src/presentation/server.js';
+import { app, setAssessmentRepositories, sweeperService } from '../../src/presentation/server.js';
 import { Attempt } from '../../src/domain/delivery/attempt.aggregate.js';
+import { setupTestQuizDb, TestQuizDbContext } from '../helpers/test-db.helper.js';
 
 describe('BƯỚC 3: Internal Sweeper HTTP API (/v1/internal/attempts)', () => {
   const SWEEPER_SECRET = process.env.INTERNAL_SWEEPER_SECRET || 'internal-quiz-sweeper-secret';
+  let testCtx: TestQuizDbContext;
 
   beforeEach(async () => {
-    // Dọn dẹp hoặc gieo dữ liệu nếu cần
+    testCtx = await setupTestQuizDb();
+    setAssessmentRepositories(testCtx.authoringRepo, testCtx.deliveryRepo);
+  });
+
+  afterEach(async () => {
+    await testCtx?.cleanup();
   });
 
   it('should reject unauthorized access without secret or admin credentials with 403 Forbidden', async () => {
@@ -21,7 +28,7 @@ describe('BƯỚC 3: Internal Sweeper HTTP API (/v1/internal/attempts)', () => {
   });
 
   it('should execute sweep when valid x-internal-secret header is provided', async () => {
-    // Tạo 1 attempt quá hạn trong assessmentRepo
+    // Tạo 1 attempt quá hạn trong testCtx.deliveryRepo
     const startedAt = new Date(Date.now() - 3600 * 1000); // 1 giờ trước
     const deadline = new Date(Date.now() - 3000 * 1000); // Đã hết hạn 50 phút trước
 
@@ -34,7 +41,7 @@ describe('BƯỚC 3: Internal Sweeper HTTP API (/v1/internal/attempts)', () => {
       startedAt,
       deadline,
     });
-    await assessmentRepo.saveAttempt(attempt);
+    await testCtx.deliveryRepo.saveAttempt(attempt);
 
     const res = await request(app)
       .post('/v1/internal/attempts/sweep')
@@ -47,7 +54,7 @@ describe('BƯỚC 3: Internal Sweeper HTTP API (/v1/internal/attempts)', () => {
     expect(res.body.data.sweptCount).toBeGreaterThanOrEqual(1);
 
     // Kiểm tra attempt đã chuyển sang TIMED_OUT_GRADED
-    const updated = await assessmentRepo.findAttemptById('att_api_expired_01');
+    const updated = await testCtx.deliveryRepo.findAttemptById('att_api_expired_01');
     expect(updated?.status).toBe('TIMED_OUT_GRADED');
   });
 
@@ -61,6 +68,8 @@ describe('BƯỚC 3: Internal Sweeper HTTP API (/v1/internal/attempts)', () => {
   });
 
   it('should return background daemon status via GET /v1/internal/attempts/sweeper-status', async () => {
+    // Đảm bảo sweeperService chạy khi kiểm tra status
+    sweeperService.start(30000);
     const res = await request(app)
       .get('/v1/internal/attempts/sweeper-status')
       .set('x-internal-secret', SWEEPER_SECRET);
@@ -69,5 +78,6 @@ describe('BƯỚC 3: Internal Sweeper HTTP API (/v1/internal/attempts)', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.isRunning).toBe(true);
     expect(res.body.data.intervalMs).toBe(30000);
+    sweeperService.stop();
   });
 });

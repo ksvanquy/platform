@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { Attempt } from '../../src/domain/delivery/attempt.aggregate.js';
@@ -7,9 +7,9 @@ import {
   OutdatedAnswerSequenceError,
   OutdatedAnswerTimestampError,
 } from '../../src/domain/errors/domain-errors.js';
-import { InMemoryAssessmentRepository } from '../../src/infrastructure/repositories/in-memory-assessment.repository.js';
 import { DeliveryUseCases } from '../../src/application/use-cases/delivery/delivery.use-cases.js';
 import { createV1AttemptsRouter } from '../../src/presentation/routes/v1-attempts.routes.js';
+import { setupTestQuizDb, TestQuizDbContext } from '../helpers/test-db.helper.js';
 
 describe('BƯỚC 4: Logical Sequence Concurrency Control & Network Delay Simulation', () => {
   const sampleManifest: AttemptManifest = {
@@ -207,12 +207,12 @@ describe('BƯỚC 4: Logical Sequence Concurrency Control & Network Delay Simula
   });
 
   describe('3. Delivery Use Cases Concurrent Execution', () => {
-    let repo: InMemoryAssessmentRepository;
+    let testCtx: TestQuizDbContext;
     let delivery: DeliveryUseCases;
 
     beforeEach(async () => {
-      repo = new InMemoryAssessmentRepository();
-      delivery = new DeliveryUseCases(repo, repo);
+      testCtx = await setupTestQuizDb();
+      delivery = new DeliveryUseCases(testCtx.authoringRepo, testCtx.deliveryRepo);
 
       const attempt = new Attempt({
         id: 'att_usecase_seq',
@@ -221,7 +221,11 @@ describe('BƯỚC 4: Logical Sequence Concurrency Control & Network Delay Simula
         quizVersionId: 'ver_demo_v1',
       });
       attempt.start(new Date('2026-09-04T10:00:00.000Z'), sampleManifest);
-      await repo.saveAttempt(attempt);
+      await testCtx.deliveryRepo.saveAttempt(attempt);
+    });
+
+    afterEach(async () => {
+      await testCtx?.cleanup();
     });
 
     it('should resolve concurrent asynchronous saves with higher sequence winning', async () => {
@@ -260,7 +264,7 @@ describe('BƯỚC 4: Logical Sequence Concurrency Control & Network Delay Simula
       }
 
       // Kiểm tra trạng thái đã lưu trong repository
-      const savedAttempt = await repo.findAttemptById('att_usecase_seq');
+      const savedAttempt = await testCtx.deliveryRepo.findAttemptById('att_usecase_seq');
       expect(savedAttempt?.answers['q1'].answer).toBe('opt_B_final');
       expect(savedAttempt?.answers['q1'].sequenceNumber).toBe(2);
     });
@@ -268,12 +272,12 @@ describe('BƯỚC 4: Logical Sequence Concurrency Control & Network Delay Simula
 
   describe('4. HTTP RESTful API Integration (/v1/attempts/:id/answers/:questionId)', () => {
     let app: express.Application;
-    let repo: InMemoryAssessmentRepository;
+    let testCtx: TestQuizDbContext;
     let delivery: DeliveryUseCases;
 
     beforeEach(async () => {
-      repo = new InMemoryAssessmentRepository();
-      delivery = new DeliveryUseCases(repo, repo);
+      testCtx = await setupTestQuizDb();
+      delivery = new DeliveryUseCases(testCtx.authoringRepo, testCtx.deliveryRepo);
 
       const attempt = new Attempt({
         id: 'att_http_seq',
@@ -282,7 +286,7 @@ describe('BƯỚC 4: Logical Sequence Concurrency Control & Network Delay Simula
         quizVersionId: 'ver_demo_v1',
       });
       attempt.start(new Date('2026-09-04T10:00:00.000Z'), sampleManifest);
-      await repo.saveAttempt(attempt);
+      await testCtx.deliveryRepo.saveAttempt(attempt);
 
       app = express();
       app.use(express.json());
@@ -292,6 +296,10 @@ describe('BƯỚC 4: Logical Sequence Concurrency Control & Network Delay Simula
         next();
       });
       app.use('/v1/attempts', createV1AttemptsRouter(delivery));
+    });
+
+    afterEach(async () => {
+      await testCtx?.cleanup();
     });
 
     it('should return 200 OK for sequence 1 and sequence 2', async () => {

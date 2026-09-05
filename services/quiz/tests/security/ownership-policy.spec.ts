@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express, { Express } from 'express';
 import request from 'supertest';
 import type { Principal } from '@platform/contracts';
-import { InMemoryAssessmentRepository } from '../../src/infrastructure/repositories/in-memory-assessment.repository.js';
 import { AuthoringUseCases } from '../../src/application/use-cases/authoring/authoring.use-cases.js';
 import { DeliveryUseCases } from '../../src/application/use-cases/delivery/delivery.use-cases.js';
 import { createV1QuizzesRouter } from '../../src/presentation/routes/v1-quizzes.routes.js';
 import { createV1AttemptsRouter } from '../../src/presentation/routes/v1-attempts.routes.js';
 import { authContextMiddleware } from '../../src/presentation/middlewares/auth.middleware.js';
 import { OwnershipDomainError } from '../../src/domain/errors/domain-errors.js';
+import { setupTestQuizDb, TestQuizDbContext } from '../helpers/test-db.helper.js';
 
 describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightweight)', () => {
-  let assessmentRepo: InMemoryAssessmentRepository;
+  let testCtx: TestQuizDbContext;
   let authoringUseCases: AuthoringUseCases;
   let deliveryUseCases: DeliveryUseCases;
   let app: Express;
@@ -58,16 +58,20 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
     tenantId: 'tenant_core',
   };
 
-  beforeEach(() => {
-    assessmentRepo = new InMemoryAssessmentRepository();
-    authoringUseCases = new AuthoringUseCases(assessmentRepo);
-    deliveryUseCases = new DeliveryUseCases(assessmentRepo, assessmentRepo);
+  beforeEach(async () => {
+    testCtx = await setupTestQuizDb();
+    authoringUseCases = new AuthoringUseCases(testCtx.authoringRepo);
+    deliveryUseCases = new DeliveryUseCases(testCtx.authoringRepo, testCtx.deliveryRepo);
 
     app = express();
     app.use(express.json());
     app.use(authContextMiddleware);
     app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases));
     app.use('/v1/attempts', createV1AttemptsRouter(deliveryUseCases));
+  });
+
+  afterEach(async () => {
+    await testCtx?.cleanup();
   });
 
   describe('1. Authoring Use Cases - Quiz Ownership Policy', () => {
