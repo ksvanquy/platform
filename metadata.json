@@ -1,6 +1,6 @@
 {
   "name": "Quiz Core",
-  "description": "Generic Quiz Engine Core built with Hexagonal and DDD Architecture",
+  "description": "Hệ Thống Thi Trắc Nghiệm - Khảo thí trực tuyến và phân loại đề thi theo Cây Tri Thức",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

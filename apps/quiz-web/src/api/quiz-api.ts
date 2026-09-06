@@ -22,6 +22,18 @@ export const quizApi = {
   },
 
   /**
+   * Lấy chi tiết đề thi và phiên bản xuất bản hiện tại
+   */
+  async getQuizDetails(quizId: string) {
+    try {
+      const response = await apiClient.quizzes.get(quizId);
+      return response.data;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Lấy cây phân loại tri thức / chủ đề cho thí sinh lọc đề thi
    */
   async getTaxonomyTree(codeOrId: string = 'TOPIC') {

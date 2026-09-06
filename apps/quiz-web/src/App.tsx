@@ -111,16 +111,14 @@ export const App: React.FC = () => {
 
   // 4. Màn hình khởi động / chọn bài thi sau khi đã đăng nhập
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-      <QuizStartView
-        quizId={defaultQuizId}
-        user={user}
-        isLoading={isLoading}
-        errorMessage={errorMessage}
-        onStart={handleStart}
-        onLogout={handleLogout}
-      />
-    </div>
+    <QuizStartView
+      quizId={defaultQuizId}
+      user={user}
+      isLoading={isLoading}
+      errorMessage={errorMessage}
+      onStart={handleStart}
+      onLogout={handleLogout}
+    />
   );
 };
 

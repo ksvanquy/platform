@@ -1,6 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { UserProfile } from '@platform/auth-client';
+import type { TaxonomyTreeNodeDTO } from '@platform/contracts';
 import { quizApi } from '../api/quiz-api.js';
+import { TopBar } from '../components/dashboard/TopBar.js';
+import { StudentProfileModal } from '../components/dashboard/StudentProfileModal.js';
+import { TaxonomyTreeSidebar } from '../components/dashboard/TaxonomyTreeSidebar.js';
+import { QuizContentArea } from '../components/dashboard/QuizContentArea.js';
+import { BookOpenIcon, XIcon } from '../components/common/Icons.js';
 
 interface QuizStartViewProps {
   quizId: string;
@@ -19,26 +25,35 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   onStart,
   onLogout,
 }) => {
-  const [selectedQuizId, setSelectedQuizId] = useState(quizId);
-  const [availableQuizzes, setAvailableQuizzes] = useState<any[]>([]);
-  const [loadingQuizzes, setLoadingQuizzes] = useState<boolean>(false);
-  const [showProfileDetails, setShowProfileDetails] = useState(false);
+  const [selectedQuizId, setSelectedQuizId] = useState<string>(quizId || '');
+  const [allQuizzes, setAllQuizzes] = useState<any[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState<boolean>(true);
+  const [loadingTree, setLoadingTree] = useState<boolean>(true);
+  const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
-  // Taxonomy categories & filter
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
-  const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
+  // Taxonomy tree & node lookup maps
+  const [taxonomyTree, setTaxonomyTree] = useState<TaxonomyTreeNodeDTO[]>([]);
   const [selectedCategoryNodeId, setSelectedCategoryNodeId] = useState<string>('');
-  const descendantMapRef = React.useRef<Record<string, Set<string>>>({});
+  const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
+  const [nodeBreadcrumbMap, setNodeBreadcrumbMap] = useState<Record<string, string[]>>({});
+  const descendantMapRef = useRef<Record<string, Set<string>>>({});
 
+  // Selected quiz details (duration, passingScore, etc.)
+  const [quizDetails, setQuizDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState<boolean>(false);
+
+  // 1. Fetch Taxonomy Tree (TOPIC)
   const fetchCategories = async () => {
+    setLoadingTree(true);
     try {
       const treeRes = await quizApi.getTaxonomyTree('TOPIC');
       if (treeRes && treeRes.tree) {
-        const catList: { id: string; name: string }[] = [];
         const catMap: Record<string, string> = {};
+        const crumbsMap: Record<string, string[]> = {};
         const descendants: Record<string, Set<string>> = {};
 
-        const collectDescendants = (node: any): string[] => {
+        const collectDescendants = (node: TaxonomyTreeNodeDTO): string[] => {
           const ids = [node.id];
           if (node.children && Array.isArray(node.children)) {
             for (const child of node.children) {
@@ -54,279 +69,249 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
         }
         descendantMapRef.current = descendants;
 
-        const traverse = (items: any[], prefix = '') => {
+        const traverse = (items: TaxonomyTreeNodeDTO[], parentCrumbs: string[] = []) => {
           for (const item of items) {
-            const currentPath = prefix ? `${prefix} > ${item.name}` : item.name;
-            catList.push({ id: item.id, name: currentPath });
+            const currentCrumbs = [...parentCrumbs, item.name];
             catMap[item.id] = item.name;
+            crumbsMap[item.id] = currentCrumbs;
             if (item.children && item.children.length > 0) {
-              traverse(item.children, currentPath);
+              traverse(item.children, currentCrumbs);
             }
           }
         };
 
         traverse(treeRes.tree);
-        setCategories(catList);
+        setTaxonomyTree(treeRes.tree);
         setCategoryMap(catMap);
+        setNodeBreadcrumbMap(crumbsMap);
       }
-    } catch {
-      // Ignore if taxonomy unavailable
+    } catch (err) {
+      console.warn('Could not fetch taxonomy tree:', err);
+    } finally {
+      setLoadingTree(false);
     }
   };
 
-  const fetchQuizzes = useCallback(async (nodeId?: string) => {
+  // 2. Fetch all published quizzes
+  const fetchQuizzes = useCallback(async () => {
     setLoadingQuizzes(true);
     try {
-      const quizzes = await quizApi.listQuizzes(nodeId ? { nodeId } : undefined);
-      // Double safety filter against taxonomy tree hierarchy:
-      const allowedDescendants = nodeId ? descendantMapRef.current[nodeId] : null;
-      const filtered = nodeId
-        ? quizzes.filter((q: any) => {
-            if (!q.primaryNodeId) return false;
-            if (allowedDescendants) {
-              return allowedDescendants.has(q.primaryNodeId);
-            }
-            return q.primaryNodeId === nodeId;
-          })
-        : quizzes;
-
-      setAvailableQuizzes(filtered);
-      if (filtered.length > 0) {
-        setSelectedQuizId(filtered[0].id);
-      } else {
-        setSelectedQuizId('');
+      const quizzes = await quizApi.listQuizzes();
+      setAllQuizzes(quizzes);
+      if (quizzes.length > 0 && !selectedQuizId) {
+        setSelectedQuizId(quizzes[0].id);
       }
-    } catch {
-      setAvailableQuizzes([]);
-      setSelectedQuizId('');
+    } catch (err) {
+      console.warn('Could not fetch quizzes:', err);
+      setAllQuizzes([]);
     } finally {
       setLoadingQuizzes(false);
     }
-  }, []);
+  }, [selectedQuizId]);
+
+  // 3. Fetch details for selected quiz
+  useEffect(() => {
+    let isCancelled = false;
+    if (!selectedQuizId) {
+      setQuizDetails(null);
+      return;
+    }
+
+    const loadDetails = async () => {
+      setLoadingDetails(true);
+      try {
+        const details = await quizApi.getQuizDetails(selectedQuizId);
+        if (!isCancelled) {
+          setQuizDetails(details);
+        }
+      } catch {
+        if (!isCancelled) {
+          setQuizDetails(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoadingDetails(false);
+        }
+      }
+    };
+
+    loadDetails();
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedQuizId]);
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+    fetchQuizzes();
+  }, [fetchQuizzes]);
 
+  // Compute quiz count for each taxonomy node (including descendants)
+  const quizCountsByNode = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const descendants = descendantMapRef.current;
+
+    const countForNode = (nodeId: string): number => {
+      const allowed = descendants[nodeId];
+      return allQuizzes.filter((q) => {
+        if (!q.primaryNodeId) return false;
+        if (allowed) return allowed.has(q.primaryNodeId);
+        return q.primaryNodeId === nodeId;
+      }).length;
+    };
+
+    const traverse = (items: TaxonomyTreeNodeDTO[]) => {
+      for (const item of items) {
+        counts[item.id] = countForNode(item.id);
+        if (item.children) {
+          traverse(item.children);
+        }
+      }
+    };
+
+    traverse(taxonomyTree);
+    return counts;
+  }, [taxonomyTree, allQuizzes]);
+
+  // Filter quizzes based on selected category node
+  const displayedQuizzes = useMemo(() => {
+    if (!selectedCategoryNodeId) {
+      return allQuizzes;
+    }
+    const allowedDescendants = descendantMapRef.current[selectedCategoryNodeId];
+    return allQuizzes.filter((q) => {
+      if (!q.primaryNodeId) return false;
+      if (allowedDescendants) {
+        return allowedDescendants.has(q.primaryNodeId);
+      }
+      return q.primaryNodeId === selectedCategoryNodeId;
+    });
+  }, [allQuizzes, selectedCategoryNodeId]);
+
+  // Keep selected quiz valid within filtered list
   useEffect(() => {
-    fetchQuizzes(selectedCategoryNodeId || undefined);
-  }, [selectedCategoryNodeId, fetchQuizzes]);
+    if (displayedQuizzes.length > 0) {
+      const exists = displayedQuizzes.some((q) => q.id === selectedQuizId);
+      if (!exists) {
+        setSelectedQuizId(displayedQuizzes[0].id);
+      }
+    }
+  }, [displayedQuizzes, selectedQuizId]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedQuizId.trim()) return;
-    onStart(selectedQuizId.trim());
+  const handleSelectNode = (nodeId: string) => {
+    setSelectedCategoryNodeId(nodeId);
+    setIsMobileSidebarOpen(false); // Close mobile drawer if open
   };
 
+  const selectedNodeName = selectedCategoryNodeId
+    ? categoryMap[selectedCategoryNodeId] || 'Chủ đề đã chọn'
+    : 'Tất cả bài thi';
+
+  const selectedNodeBreadcrumbs = selectedCategoryNodeId
+    ? nodeBreadcrumbMap[selectedCategoryNodeId] || [selectedNodeName]
+    : [];
+
   return (
-    <div className="max-w-xl mx-auto px-4 py-8">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
-        {/* User Profile Bar (Auth Status - Generic Identity) */}
-        {user && (
-          <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-500 text-white font-bold flex items-center justify-center text-sm shadow-md">
-                  {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-semibold text-slate-100">{user.name || user.email}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">
-                      {user.roles?.join(', ') || 'STUDENT'}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-400">{user.email}</div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowProfileDetails(!showProfileDetails)}
-                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
-                >
-                  {showProfileDetails ? 'Ẩn hồ sơ' : 'Hồ sơ cá nhân'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/30 transition-colors"
-                >
-                  Đăng xuất
-                </button>
-              </div>
-            </div>
+    <div className="flex flex-col h-screen w-full bg-slate-950 text-slate-100 overflow-hidden select-none">
+      {/* 1. TOP BAR (HEADER):
+          Bên trái: Logo + Tên hệ thống ("Hệ Thống Thi Trắc Nghiệm")
+          Bên phải: Avatar nhỏ + Tên học viên + Badge STUDENT + Dropdown menu (Hồ sơ, Đăng xuất)
+      */}
+      <TopBar
+        user={user}
+        onOpenProfile={() => setIsProfileOpen(true)}
+        onLogout={onLogout}
+      />
 
-            {/* Pure Generic Identity Details */}
-            {showProfileDetails && (
-              <div className="pt-3 border-t border-slate-700/60 text-xs space-y-2 text-slate-300">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">User ID (Principal):</span>
-                  <span className="font-mono text-indigo-300 text-[11px]">{user.id}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Trạng thái định danh:</span>
-                  <span className="text-emerald-400 font-semibold">Tài khoản hợp lệ</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400">
-                  💡 Bạn có thể chọn bất kỳ đề thi nào trong danh sách khả dụng bên dưới để bắt đầu làm bài.
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      {/* Mobile Sidebar Toggle Button for small screens */}
+      <div className="lg:hidden flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 text-xs shrink-0">
+        <button
+          type="button"
+          onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800 text-sky-400 font-semibold border border-slate-700"
+        >
+          <BookOpenIcon size={14} />
+          <span>{isMobileSidebarOpen ? 'Đóng cây thư mục' : 'Chọn môn / cây tri thức'}</span>
+        </button>
+        <span className="text-slate-400 font-medium truncate max-w-[180px]">
+          {selectedNodeName}
+        </span>
+      </div>
 
-        {/* Title */}
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-sky-400 flex items-center justify-center mx-auto text-xl font-bold">
-            ⚡
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-100">
-            Hệ Thống Thi Trắc Nghiệm
-          </h1>
-          <p className="text-slate-400 text-sm">
-            Hệ thống chấm điểm tự động & phân loại đề thi theo Cây Tri Thức (Taxonomy)
-          </p>
+      {/* 2. BỐ CỤC BÊN DƯỚI (SPLIT VIEW):
+          Sidebar bên trái (25% - 30%): Cây thư mục Tri thức (Taxonomy Tree) để chọn môn/chủ đề
+          Khu vực nội dung bên phải (70% - 75%): Danh sách bài thi tương ứng + Thông tin ca thi
+      */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Desktop Sidebar (25% - 30%) */}
+        <div className="hidden lg:flex h-full w-[28%] xl:w-[25%] max-w-[360px] min-w-[270px] shrink-0 border-r border-slate-800/80">
+          <TaxonomyTreeSidebar
+            tree={taxonomyTree}
+            selectedNodeId={selectedCategoryNodeId}
+            onSelectNode={handleSelectNode}
+            quizCountsByNode={quizCountsByNode}
+            totalQuizzesCount={allQuizzes.length}
+            isLoading={loadingTree}
+          />
         </div>
 
-        {errorMessage && (
-          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
-            {errorMessage}
+        {/* Mobile Sidebar Drawer */}
+        {isMobileSidebarOpen && (
+          <div className="lg:hidden fixed inset-0 z-40 flex">
+            <div
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
+              onClick={() => setIsMobileSidebarOpen(false)}
+            />
+            <div className="relative w-4/5 max-w-xs bg-slate-900 h-full shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-200">
+              <div className="flex items-center justify-between p-3 border-b border-slate-800">
+                <span className="font-bold text-xs text-slate-200">Cây Thư Mục Tri Thức</span>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-200"
+                >
+                  <XIcon size={16} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <TaxonomyTreeSidebar
+                  tree={taxonomyTree}
+                  selectedNodeId={selectedCategoryNodeId}
+                  onSelectNode={handleSelectNode}
+                  quizCountsByNode={quizCountsByNode}
+                  totalQuizzesCount={allQuizzes.length}
+                  isLoading={loadingTree}
+                />
+              </div>
+            </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Category / Topic Filter Chips */}
-          {categories.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-                Chủ Đề & Cây Tri Thức (Taxonomy Filter)
-              </label>
-              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategoryNodeId('')}
-                  className={`px-3 py-1 rounded-xl text-xs font-medium transition-all ${
-                    selectedCategoryNodeId === ''
-                      ? 'bg-sky-500 text-slate-950 font-bold shadow-md shadow-sky-500/20'
-                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 border border-slate-700/60'
-                  }`}
-                >
-                  Tất cả chủ đề
-                </button>
-                {categories.map((cat) => {
-                  const isSelected = selectedCategoryNodeId === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setSelectedCategoryNodeId(cat.id)}
-                      className={`px-3 py-1 rounded-xl text-xs font-medium transition-all ${
-                        isSelected
-                          ? 'bg-sky-500 text-slate-950 font-bold shadow-md shadow-sky-500/20'
-                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 border border-slate-700/60'
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-              <span>Đề thi khả dụng ({availableQuizzes.length})</span>
-              {loadingQuizzes && <span className="text-sky-400 font-normal lowercase animate-pulse">Đang lọc...</span>}
-            </label>
-
-            {availableQuizzes.length === 0 && !loadingQuizzes ? (
-              <div className="p-4 rounded-2xl bg-slate-800/30 border border-dashed border-slate-700 text-center text-xs text-slate-400 space-y-1">
-                <p>Không có đề thi nào trong chủ đề này.</p>
-                <p className="text-[11px] text-slate-500">Thử chọn &quot;Tất cả chủ đề&quot; hoặc quay lại sau.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {availableQuizzes.map((quiz) => {
-                  const isChosen = selectedQuizId === quiz.id;
-                  const topicLabel = quiz.primaryNodeId ? categoryMap[quiz.primaryNodeId] : null;
-
-                  return (
-                    <div
-                      key={quiz.id}
-                      onClick={() => setSelectedQuizId(quiz.id)}
-                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                        isChosen
-                          ? 'bg-sky-500/10 border-sky-500/80 text-sky-200'
-                          : 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <div className="space-y-1">
-                        <div className="text-sm font-bold text-slate-100 flex items-center space-x-2">
-                          <span>{quiz.title}</span>
-                          {quiz.isPublic ? (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                              Công khai
-                            </span>
-                          ) : (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                              Chính thức
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2 text-xs text-slate-400">
-                          <span>Mã: <span className="font-mono text-slate-300">{quiz.code}</span></span>
-                          {topicLabel && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                              🏷️ {topicLabel}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-800 text-sky-400 border border-slate-700">
-                        {isChosen ? '✓ Đang chọn' : 'Chọn'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Mã đề thi (Quiz ID / Code)
-            </label>
-            <input
-              type="text"
-              value={selectedQuizId}
-              onChange={(e) => setSelectedQuizId(e.target.value)}
-              placeholder="ví dụ: quiz_demo hoặc mã đề thi"
-              required
-              className="w-full px-4 py-3 bg-slate-800/60 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
-            />
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-800/30 border border-slate-800 space-y-2 text-xs text-slate-400">
-            <div className="font-semibold text-slate-300">Quy chế phòng thi (RESTful Delivery & Integrity):</div>
-            <ul className="list-disc list-inside space-y-1">
-              <li>Thí sinh sử dụng định danh cá nhân đã xác thực để tham gia ca thi.</li>
-              <li>Hệ thống bảo vệ quyền sở hữu ca thi, chống can thiệp chéo giữa các thí sinh.</li>
-              <li>Tự động kích hoạt chống gian lận đa tab (Multi-tab defense).</li>
-              <li>Lưu bài theo chuẩn idempotency và đối chiếu timestamp chống mạng trễ.</li>
-            </ul>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading || !selectedQuizId.trim()}
-            className="w-full py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? 'Đang khởi tạo ca thi...' : '▶ Bắt đầu làm bài'}
-          </button>
-        </form>
+        {/* Right Content Area (70% - 75%): Danh sách bài thi tương ứng + Thông tin ca thi */}
+        <QuizContentArea
+          quizzes={displayedQuizzes}
+          selectedQuizId={selectedQuizId}
+          onSelectQuiz={setSelectedQuizId}
+          selectedNodeName={selectedNodeName}
+          selectedNodeBreadcrumbs={selectedNodeBreadcrumbs}
+          categoryMap={categoryMap}
+          user={user}
+          isLoading={isLoading}
+          errorMessage={errorMessage}
+          onStartQuiz={onStart}
+          quizDetails={quizDetails}
+          loadingDetails={loadingDetails}
+          isLoadingQuizzes={loadingQuizzes}
+        />
       </div>
+
+      {/* Profile Modal (Opened from TopBar dropdown menu -> Hồ sơ) */}
+      <StudentProfileModal
+        user={user}
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        onLogout={onLogout}
+      />
     </div>
   );
 };
