@@ -121,6 +121,7 @@ export function getQuizDb() {
     max: 15,
     idle_timeout: 30,
     connect_timeout: 10,
+    onnotice: () => {},
   });
 
   dbInstance = drizzle(sqlClient, { schema });

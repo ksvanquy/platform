@@ -1,4 +1,6 @@
 import http from 'node:http';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express, { Express } from 'express';
 import { createTaxonomyRouter } from './routes/index.js';
 import { isTaxonomyDbConfigured, loadEnvIfAvailable } from '../infrastructure/db/connection.js';
@@ -120,10 +122,8 @@ export function startTaxonomyServer(
 // Allow direct execution (standalone server)
 const isDirectRun = Boolean(
   process.argv[1] &&
-  (
-    process.argv[1].replace(/\\/g, '/').endsWith('server.ts') ||
-    process.argv[1].replace(/\\/g, '/').endsWith('server.js')
-  ) &&
+  path.normalize(fileURLToPath(import.meta.url)).toLowerCase() ===
+    path.normalize(path.resolve(process.argv[1])).toLowerCase() &&
   process.env.NODE_ENV !== 'test' &&
   !process.env.VITEST
 );
@@ -131,10 +131,23 @@ const isDirectRun = Boolean(
 if (isDirectRun) {
   const port = Number(process.env.TAXONOMY_PORT) || 3002;
   const app = createTaxonomyServer();
-  app.listen(port, '0.0.0.0', () => {
+  app.listen(port, '0.0.0.0', async () => {
     console.log(`🚀 [taxonomy-service] Standalone Server running on http://0.0.0.0:${port}`);
     console.log(`   Healthcheck: http://localhost:${port}/health`);
     console.log(`   Taxonomies API: http://localhost:${port}/v1/taxonomies`);
+
+    if (isTaxonomyDbConfigured()) {
+      try {
+        const { runTaxonomyMigrations } = await import('../infrastructure/db/migrate.js');
+        const { seedTaxonomyDatabase } = await import('../infrastructure/db/seed.js');
+        console.log('🔄 [taxonomy-service] Running schema migrations...');
+        await runTaxonomyMigrations();
+        await seedTaxonomyDatabase();
+        console.log('✅ [taxonomy-service] PostgreSQL database initialized & seeded.');
+      } catch (err: any) {
+        console.warn('⚠️ [taxonomy-service] Auto-migration warning:', err?.message || err);
+      }
+    }
   });
 }
 

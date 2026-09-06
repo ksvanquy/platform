@@ -174,7 +174,7 @@ export class ApiClient {
    */
   readonly quizzes = {
     list: async (params?: { nodeId?: string }): Promise<ApiResponse<any[]>> => {
-      return this.get<ApiResponse<any[]>>('/v1/quizzes', { params });
+      return this.get<ApiResponse<any[]>>('/v1/quizzes', params);
     },
 
     get: async (quizId: string): Promise<ApiResponse<any>> => {

@@ -102,7 +102,29 @@ export const SEED_TAXONOMY_NODES: NewTaxonomyNodeRow[] = [
     status: 'PUBLISHED',
   },
 
-  // 3. Danh sách Độ khó (Flat)
+  // 3. Cây Chủ đề: Ngoại ngữ
+  {
+    id: 'node_topic_lang',
+    taxonomyId: 'tax_topic',
+    parentId: null,
+    name: 'Ngoại ngữ',
+    slug: 'ngoai-ngu',
+    description: 'Ngôn ngữ quốc tế & chứng chỉ học thuật',
+    sortOrder: 3,
+    status: 'PUBLISHED',
+  },
+  {
+    id: 'node_topic_lang_en',
+    taxonomyId: 'tax_topic',
+    parentId: 'node_topic_lang',
+    name: 'Tiếng Anh',
+    slug: 'tieng-anh',
+    description: 'Ngữ pháp, từ vựng và chứng chỉ tiếng Anh (IELTS, TOEIC, B2)',
+    sortOrder: 1,
+    status: 'PUBLISHED',
+  },
+
+  // 4. Danh sách Độ khó (Flat)
   {
     id: 'node_diff_easy',
     taxonomyId: 'tax_difficulty',

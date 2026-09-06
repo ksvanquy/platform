@@ -116,6 +116,7 @@ export function getAuthDb() {
     max: 10,
     idle_timeout: 30,
     connect_timeout: 10,
+    onnotice: () => {},
   });
 
   dbInstance = drizzle(sqlClient, { schema });

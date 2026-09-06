@@ -115,6 +115,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     title: 'Đề Thi Tiếng Anh B2',
     description: 'Đánh giá năng lực ngoại ngữ học thuật',
     ownerId: 'usr_inst_c',
+    primaryNodeId: 'node_topic_lang_en',
     status: 'PUBLISHED',
     currentPublishedVersionId: foreignVersionId,
   });
@@ -214,7 +215,166 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   await repo.saveQuiz(publicQuiz);
   await repo.saveVersion(publicVersion);
 
-  console.log('✅ [quiz_db] Seeding completed: 4 quizzes initialized in PostgreSQL (Single-Tenant).');
+  // 5. Đề thi Toán học - Đại số 10
+  const mathAlgebraQuizId = 'quiz_math_algebra_10';
+  const mathAlgebraVersionId = 'ver_math_alg_v1';
+
+  const mathAlgebraVersion = new QuizVersion({
+    id: mathAlgebraVersionId,
+    quizId: mathAlgebraQuizId,
+    versionNumber: 1,
+    durationMinutes: 45,
+    passingScore: 5,
+    maxAttempts: 3,
+    questions: [
+      {
+        id: 'q_math_alg_1',
+        type: 'single-choice',
+        prompt: 'Tập nghiệm của bất phương trình x^2 - 4x + 3 < 0 là khoảng nào?',
+        points: 2.5,
+        options: [
+          { id: 'opt_m1', text: '(1; 3)', isCorrect: true },
+          { id: 'opt_m2', text: '(-infinity; 1)', isCorrect: false },
+          { id: 'opt_m3', text: '(3; +infinity)', isCorrect: false },
+          { id: 'opt_m4', text: '[1; 3]', isCorrect: false },
+        ],
+      },
+      {
+        id: 'q_math_alg_2',
+        type: 'true-false',
+        prompt: 'Mệnh đề "Mọi số nguyên tố đều là số lẻ" là một mệnh đề đúng.',
+        points: 2.5,
+        correctAnswer: false,
+      },
+      {
+        id: 'q_math_alg_3',
+        type: 'single-choice',
+        prompt: 'Đỉnh của parabol y = x^2 - 2x + 3 có tọa độ là:',
+        points: 5,
+        options: [
+          { id: 'opt_v1', text: 'I(1; 2)', isCorrect: true },
+          { id: 'opt_v2', text: 'I(-1; 6)', isCorrect: false },
+          { id: 'opt_v3', text: 'I(2; 3)', isCorrect: false },
+        ],
+      },
+    ],
+    scoringPolicy: { strategyType: 'exact-match' },
+    randomizationPolicy: { shuffleQuestions: true, shuffleOptions: true },
+  });
+
+  const mathAlgebraQuiz = new Quiz({
+    id: mathAlgebraQuizId,
+    code: 'MATH_10',
+    title: 'Đề Thi Đại Số 10 - Mệnh Đề & Hàm Số',
+    description: 'Kiểm tra kiến thức đại số chương trình lớp 10',
+    ownerId: 'admin_master',
+    primaryNodeId: 'node_topic_math_algebra_10',
+    status: 'PUBLISHED',
+    currentPublishedVersionId: mathAlgebraVersionId,
+  });
+
+  await repo.saveQuiz(mathAlgebraQuiz);
+  await repo.saveVersion(mathAlgebraVersion);
+
+  // 6. Đề thi Toán học - Hình học
+  const mathGeoQuizId = 'quiz_math_geometry';
+  const mathGeoVersionId = 'ver_math_geo_v1';
+
+  const mathGeoVersion = new QuizVersion({
+    id: mathGeoVersionId,
+    quizId: mathGeoQuizId,
+    versionNumber: 1,
+    durationMinutes: 30,
+    passingScore: 5,
+    maxAttempts: 3,
+    questions: [
+      {
+        id: 'q_math_geo_1',
+        type: 'single-choice',
+        prompt: 'Cho hai vectơ cùng hướng và khác vectơ-không. Góc giữa hai vectơ đó bằng bao nhiêu?',
+        points: 5,
+        options: [
+          { id: 'opt_g1', text: '0 độ', isCorrect: true },
+          { id: 'opt_g2', text: '90 độ', isCorrect: false },
+          { id: 'opt_g3', text: '180 độ', isCorrect: false },
+        ],
+      },
+      {
+        id: 'q_math_geo_2',
+        type: 'true-false',
+        prompt: 'Hai vectơ cùng phương thì luôn cùng hướng.',
+        points: 5,
+        correctAnswer: false,
+      },
+    ],
+    scoringPolicy: { strategyType: 'exact-match' },
+    randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
+  });
+
+  const mathGeoQuiz = new Quiz({
+    id: mathGeoQuizId,
+    code: 'MATH_GEO',
+    title: 'Đề Thi Hình Học - Vectơ & Tọa Độ',
+    description: 'Đánh giá kiến thức hình học phẳng và giải tích tọa độ',
+    ownerId: 'admin_master',
+    primaryNodeId: 'node_topic_math_geometry',
+    status: 'PUBLISHED',
+    currentPublishedVersionId: mathGeoVersionId,
+  });
+
+  await repo.saveQuiz(mathGeoQuiz);
+  await repo.saveVersion(mathGeoVersion);
+
+  // 7. Đề thi Tin học - Cơ sở dữ liệu & SQL
+  const dbQuizId = 'quiz_database_sql';
+  const dbVersionId = 'ver_db_v1';
+
+  const dbVersion = new QuizVersion({
+    id: dbVersionId,
+    quizId: dbQuizId,
+    versionNumber: 1,
+    durationMinutes: 20,
+    passingScore: 5,
+    maxAttempts: 3,
+    questions: [
+      {
+        id: 'q_db_1',
+        type: 'single-choice',
+        prompt: 'Mệnh đề nào trong SQL dùng để lọc các nhóm sau khi GROUP BY?',
+        points: 5,
+        options: [
+          { id: 'opt_h1', text: 'HAVING', isCorrect: true },
+          { id: 'opt_h2', text: 'WHERE', isCorrect: false },
+          { id: 'opt_h3', text: 'FILTER', isCorrect: false },
+        ],
+      },
+      {
+        id: 'q_db_2',
+        type: 'true-false',
+        prompt: 'Khóa chính (PRIMARY KEY) chấp nhận giá trị NULL.',
+        points: 5,
+        correctAnswer: false,
+      },
+    ],
+    scoringPolicy: { strategyType: 'exact-match' },
+    randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
+  });
+
+  const dbQuiz = new Quiz({
+    id: dbQuizId,
+    code: 'SQL_DB',
+    title: 'Đề Thi Cơ Sở Dữ Liệu & Thiết Kế SQL',
+    description: 'Kiểm tra kiến thức chuẩn hóa dữ liệu quan hệ và truy vấn SQL',
+    ownerId: 'admin_master',
+    primaryNodeId: 'node_topic_it_db',
+    status: 'PUBLISHED',
+    currentPublishedVersionId: dbVersionId,
+  });
+
+  await repo.saveQuiz(dbQuiz);
+  await repo.saveVersion(dbVersion);
+
+  console.log('✅ [quiz_db] Seeding completed: 7 quizzes initialized across Math, IT & English topics.');
 }
 
 // Allow direct execution via CLI

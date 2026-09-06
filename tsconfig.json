@@ -10,7 +10,21 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@platform/contracts": ["./packages/contracts/src/index.ts"],
+      "@platform/contracts/*": ["./packages/contracts/src/*"],
+      "@platform/auth-service": ["./services/auth/src/index.ts"],
+      "@platform/auth-service/*": ["./services/auth/src/*"],
+      "@platform/taxonomy-service": ["./services/taxonomy/src/index.ts"],
+      "@platform/taxonomy-service/*": ["./services/taxonomy/src/*"],
+      "@platform/quiz-service": ["./services/quiz/src/index.ts"],
+      "@platform/quiz-service/*": ["./services/quiz/src/*"],
+      "@platform/api-client": ["./packages/api-client/src/index.ts"],
+      "@platform/api-client/*": ["./packages/api-client/src/*"],
+      "@platform/auth-client": ["./packages/auth-client/src/index.ts"],
+      "@platform/auth-client/*": ["./packages/auth-client/src/*"]
+    }
   },
   "include": ["services/quiz/src/**/*"],
   "exclude": ["services/quiz/src/**/*.spec.ts", "services/quiz/tests", "dist", "apps", "packages"]

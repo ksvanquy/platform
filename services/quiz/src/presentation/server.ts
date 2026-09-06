@@ -2,7 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import express, { Express, Request, Response } from 'express';
-import { createUserRepository, TokenService, createAuthRouter } from '@platform/auth-service';
+import {
+  createUserRepository,
+  TokenService,
+  createAuthRouter,
+  isAuthDbConfigured,
+  runAuthMigrations,
+  seedAuthDb,
+} from '@platform/auth-service';
 import {
   AuthoringRepositoryPort,
   DeliveryRepositoryPort,
@@ -19,9 +26,15 @@ import { createV1AttemptsRouter } from './routes/v1-attempts.routes.js';
 import { AttemptExpirySweeperService } from '../application/services/attempt-expiry-sweeper.service.js';
 import { createV1InternalRouter } from './routes/v1-internal.routes.js';
 import { isQuizDbConfigured } from '../infrastructure/db/connection.js';
+import { runQuizMigrations } from '../infrastructure/db/migrate.js';
+import { seedQuizDatabase } from '../infrastructure/db/seed.js';
 import {
   createTaxonomyRouter,
   TaxonomyRepositoryPort,
+  DrizzleTaxonomyRepository,
+  isTaxonomyDbConfigured,
+  runTaxonomyMigrations,
+  seedTaxonomyDatabase,
 } from '@platform/taxonomy-service';
 
 const app: Express = express();
@@ -239,6 +252,17 @@ const apiDiscovery = {
 let taxonomyRepoInstance: TaxonomyRepositoryPort | null = null;
 let taxonomyRouterInstance: express.Router | null = null;
 
+function getTaxonomyRepository(): TaxonomyRepositoryPort | null {
+  if (!taxonomyRepoInstance) {
+    try {
+      taxonomyRepoInstance = new DrizzleTaxonomyRepository();
+    } catch (err: any) {
+      console.warn('⚠️ Could not initialize DrizzleTaxonomyRepository:', err?.message || err);
+    }
+  }
+  return taxonomyRepoInstance;
+}
+
 function setTaxonomyRepository(repo: TaxonomyRepositoryPort): void {
   taxonomyRepoInstance = repo;
   taxonomyRouterInstance = createTaxonomyRouter(repo);
@@ -246,7 +270,8 @@ function setTaxonomyRepository(repo: TaxonomyRepositoryPort): void {
 
 function getTaxonomyRouter(): express.Router {
   if (!taxonomyRouterInstance) {
-    taxonomyRouterInstance = createTaxonomyRouter(taxonomyRepoInstance || undefined);
+    const repo = getTaxonomyRepository();
+    taxonomyRouterInstance = createTaxonomyRouter(repo || undefined);
   }
   return taxonomyRouterInstance!;
 }
@@ -264,7 +289,7 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 // RESTful v1 Domain Routes
-app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases, () => taxonomyRepoInstance));
+app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases, () => getTaxonomyRepository()));
 app.use('/v1/attempts', createV1AttemptsRouter(deliveryUseCases));
 app.use('/v1/internal', createV1InternalRouter(sweeperService));
 
@@ -341,6 +366,56 @@ const PORT = 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Assessment Engine API Server running on http://0.0.0.0:${PORT}`);
 });
+
+// Auto-bootstrap PostgreSQL databases (migrations & initial seed) when configured
+async function bootstrapDatabases(): Promise<void> {
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+    return;
+  }
+
+  // 1. Quiz DB auto-migration and seeding
+  if (isQuizDbConfigured()) {
+    try {
+      console.log('🔄 [quiz_db] Running schema migrations...');
+      await runQuizMigrations();
+      const repo = getActiveAuthoringRepo();
+      const existing = await repo.findQuizById('quiz_demo');
+      if (!existing) {
+        console.log('🌱 [quiz_db] Seeding default quizzes and versions into PostgreSQL...');
+        await seedQuizDatabase();
+      }
+      console.log('✅ [quiz_db] PostgreSQL database initialized successfully.');
+    } catch (err: any) {
+      console.warn('⚠️ [quiz_db] Database bootstrap warning:', err?.message || err);
+    }
+  }
+
+  // 2. Auth DB auto-migration and seeding
+  if (isAuthDbConfigured()) {
+    try {
+      console.log('🔄 [auth_db] Running schema migrations...');
+      await runAuthMigrations();
+      await seedAuthDb();
+      console.log('✅ [auth_db] PostgreSQL database initialized successfully.');
+    } catch (err: any) {
+      console.warn('⚠️ [auth_db] Database bootstrap warning:', err?.message || err);
+    }
+  }
+
+  // 3. Taxonomy DB auto-migration and seeding
+  if (isTaxonomyDbConfigured()) {
+    try {
+      console.log('🔄 [taxonomy_db] Running schema migrations...');
+      await runTaxonomyMigrations();
+      await seedTaxonomyDatabase();
+      console.log('✅ [taxonomy_db] PostgreSQL database initialized successfully.');
+    } catch (err: any) {
+      console.warn('⚠️ [taxonomy_db] Database bootstrap warning:', err?.message || err);
+    }
+  }
+}
+
+bootstrapDatabases();
 
 export {
   app,

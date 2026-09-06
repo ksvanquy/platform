@@ -28,6 +28,7 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
   const [selectedCategoryNodeId, setSelectedCategoryNodeId] = useState<string>('');
+  const descendantMapRef = React.useRef<Record<string, Set<string>>>({});
 
   const fetchCategories = async () => {
     try {
@@ -35,14 +36,31 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
       if (treeRes && treeRes.tree) {
         const catList: { id: string; name: string }[] = [];
         const catMap: Record<string, string> = {};
+        const descendants: Record<string, Set<string>> = {};
+
+        const collectDescendants = (node: any): string[] => {
+          const ids = [node.id];
+          if (node.children && Array.isArray(node.children)) {
+            for (const child of node.children) {
+              ids.push(...collectDescendants(child));
+            }
+          }
+          descendants[node.id] = new Set(ids);
+          return ids;
+        };
+
+        for (const root of treeRes.tree) {
+          collectDescendants(root);
+        }
+        descendantMapRef.current = descendants;
 
         const traverse = (items: any[], prefix = '') => {
           for (const item of items) {
-            const label = prefix ? `${prefix} > ${item.name}` : item.name;
-            catList.push({ id: item.id, name: label });
+            const currentPath = prefix ? `${prefix} > ${item.name}` : item.name;
+            catList.push({ id: item.id, name: currentPath });
             catMap[item.id] = item.name;
             if (item.children && item.children.length > 0) {
-              traverse(item.children, item.name);
+              traverse(item.children, currentPath);
             }
           }
         };
@@ -60,14 +78,27 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
     setLoadingQuizzes(true);
     try {
       const quizzes = await quizApi.listQuizzes(nodeId ? { nodeId } : undefined);
-      setAvailableQuizzes(quizzes);
-      if (quizzes.length > 0) {
-        setSelectedQuizId(quizzes[0].id);
+      // Double safety filter against taxonomy tree hierarchy:
+      const allowedDescendants = nodeId ? descendantMapRef.current[nodeId] : null;
+      const filtered = nodeId
+        ? quizzes.filter((q: any) => {
+            if (!q.primaryNodeId) return false;
+            if (allowedDescendants) {
+              return allowedDescendants.has(q.primaryNodeId);
+            }
+            return q.primaryNodeId === nodeId;
+          })
+        : quizzes;
+
+      setAvailableQuizzes(filtered);
+      if (filtered.length > 0) {
+        setSelectedQuizId(filtered[0].id);
       } else {
         setSelectedQuizId('');
       }
     } catch {
-      // Fallback
+      setAvailableQuizzes([]);
+      setSelectedQuizId('');
     } finally {
       setLoadingQuizzes(false);
     }

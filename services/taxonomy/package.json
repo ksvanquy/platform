@@ -21,15 +21,15 @@
     "db:seed": "tsx src/infrastructure/db/seed.ts"
   },
   "dependencies": {
-    "@platform/auth-service": "*",
-    "@platform/contracts": "*",
+    "@platform/auth-service": "workspace:*",
+    "@platform/contracts": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
-    "@platform/api-client": "*",
+    "@platform/api-client": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.1",
     "drizzle-kit": "^0.31.10",

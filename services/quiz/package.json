@@ -14,9 +14,9 @@
     "db:seed": "tsx src/infrastructure/db/seed.ts"
   },
   "dependencies": {
-    "@platform/auth-service": "*",
-    "@platform/contracts": "*",
-    "@platform/taxonomy-service": "*",
+    "@platform/auth-service": "workspace:*",
+    "@platform/contracts": "workspace:*",
+    "@platform/taxonomy-service": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "postgres": "^3.4.9"

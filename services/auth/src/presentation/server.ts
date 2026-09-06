@@ -5,6 +5,7 @@ import { IUserRepository } from '../domain/user/user.repository.port.js';
 import { createUserRepository } from '../infrastructure/persistence/repository.factory.js';
 import { TokenService } from '../infrastructure/token/token.service.js';
 import { createAuthRouter } from './http/auth.router.js';
+import { isAuthDbConfigured } from '../infrastructure/db/connection.js';
 
 export interface AuthAppInstance {
   app: Express;
@@ -69,7 +70,7 @@ const isDirectRun = Boolean(
 
 if (isDirectRun) {
   const { app } = createAuthApp();
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🔐 Auth Service is running on http://localhost:${PORT}`);
     console.log(`🔑 Endpoints:`);
     console.log(`  - POST /v1/auth/login`);
@@ -77,5 +78,18 @@ if (isDirectRun) {
     console.log(`  - POST /v1/auth/logout`);
     console.log(`  - GET  /v1/auth/me`);
     console.log(`  - GET  /.well-known/jwks.json`);
+
+    if (isAuthDbConfigured()) {
+      try {
+        const { runAuthMigrations } = await import('../infrastructure/db/migrate.js');
+        const { seedAuthDb } = await import('../infrastructure/db/seed.js');
+        console.log('🔄 [auth-service] Running schema migrations...');
+        await runAuthMigrations();
+        await seedAuthDb();
+        console.log('✅ [auth-service] PostgreSQL database initialized & seeded.');
+      } catch (err: any) {
+        console.warn('⚠️ [auth-service] Auto-migration warning:', err?.message || err);
+      }
+    }
   });
 }
