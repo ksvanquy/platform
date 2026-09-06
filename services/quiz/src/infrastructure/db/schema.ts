@@ -33,6 +33,7 @@ export const quizzes = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
     ownerId: varchar('owner_id', { length: 64 }).notNull(),
+    primaryNodeId: varchar('primary_node_id', { length: 64 }),
     isPublic: boolean('is_public').notNull().default(false),
     currentPublishedVersionId: varchar('current_published_version_id', { length: 64 }),
     status: varchar('status', { length: 32 }).notNull().default('DRAFT'),
@@ -42,6 +43,7 @@ export const quizzes = pgTable(
   (table) => [
     index('idx_quizzes_code').on(table.code),
     index('idx_quizzes_owner').on(table.ownerId),
+    index('idx_quizzes_primary_node').on(table.primaryNodeId),
     index('idx_quizzes_status').on(table.status),
   ]
 );

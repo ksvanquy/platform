@@ -159,6 +159,14 @@ export class ManageNodeUseCase {
     }
 
     if (newParentId !== null) {
+      // Check if taxonomy is hierarchical
+      const taxonomy = await this.taxonomyRepo.findTaxonomyByIdOrCode(node.taxonomyId);
+      if (taxonomy && !taxonomy.isHierarchical) {
+        throw new InvalidHierarchyError(
+          `Taxonomy '${taxonomy.name}' is flat (non-hierarchical). Nodes cannot have a parent.`
+        );
+      }
+
       // 1. Kiểm tra node cha có tồn tại không
       const parentNode = await this.taxonomyRepo.findNodeById(newParentId);
       if (!parentNode) {

@@ -16,6 +16,7 @@
   "dependencies": {
     "@platform/auth-service": "*",
     "@platform/contracts": "*",
+    "@platform/taxonomy-service": "*",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "postgres": "^3.4.9"

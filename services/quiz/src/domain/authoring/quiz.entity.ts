@@ -10,6 +10,7 @@ export interface QuizProps {
   title: string;
   description?: string;
   ownerId: string;
+  primaryNodeId?: string | null;
   isPublic?: boolean;
   currentPublishedVersionId?: string;
   status?: QuizStatus;
@@ -27,6 +28,7 @@ export class Quiz {
   private _title: string;
   private _description?: string;
   readonly ownerId: string;
+  private _primaryNodeId?: string | null;
   private _isPublic: boolean;
   private _currentPublishedVersionId?: string;
   private _status: QuizStatus;
@@ -49,6 +51,7 @@ export class Quiz {
     this._title = props.title;
     this._description = props.description;
     this.ownerId = props.ownerId;
+    this._primaryNodeId = props.primaryNodeId;
     this._isPublic = props.isPublic ?? false;
     this._currentPublishedVersionId = props.currentPublishedVersionId;
     this._status = props.status ?? 'DRAFT';
@@ -58,6 +61,10 @@ export class Quiz {
 
   get title(): string {
     return this._title;
+  }
+
+  get primaryNodeId(): string | null | undefined {
+    return this._primaryNodeId;
   }
 
   get isPublic(): boolean {
@@ -83,14 +90,26 @@ export class Quiz {
   /**
    * Cập nhật thông tin tiêu đề/mô tả ở trạng thái DRAFT hoặc REVIEW
    */
-  updateDetails(title: string, description?: string, isPublic?: boolean): void {
+  updateDetails(
+    title?: string,
+    description?: string,
+    isPublic?: boolean,
+    primaryNodeId?: string | null
+  ): void {
     if (this._status === 'ARCHIVED') {
       throw new Error('Cannot update details of an ARCHIVED quiz');
     }
-    this._title = title;
-    this._description = description;
+    if (title !== undefined) {
+      this._title = title;
+    }
+    if (description !== undefined) {
+      this._description = description;
+    }
     if (isPublic !== undefined) {
       this._isPublic = isPublic;
+    }
+    if (primaryNodeId !== undefined) {
+      this._primaryNodeId = primaryNodeId;
     }
     this._updatedAt = new Date();
   }
@@ -153,6 +172,7 @@ export class Quiz {
       title: this._title,
       description: this._description,
       ownerId: this.ownerId,
+      primaryNodeId: this._primaryNodeId,
       isPublic: this._isPublic,
       currentPublishedVersionId: this._currentPublishedVersionId,
       status: this._status,

@@ -6,7 +6,7 @@ export interface AuthoringRepositoryPort {
   saveQuiz(quiz: Quiz): Promise<void>;
   findQuizById(id: string): Promise<Quiz | null>;
   findQuizByCode(code: string): Promise<Quiz | null>;
-  listPublishedQuizzes(): Promise<Quiz[]>;
+  listPublishedQuizzes(filter?: { primaryNodeId?: string; primaryNodeIds?: string[] }): Promise<Quiz[]>;
 
   saveVersion(version: QuizVersion): Promise<void>;
   findVersionById(id: string): Promise<QuizVersion | null>;

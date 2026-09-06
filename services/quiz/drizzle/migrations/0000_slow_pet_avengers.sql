@@ -33,6 +33,7 @@ CREATE TABLE "quizzes" (
 	"title" varchar(255) NOT NULL,
 	"description" text,
 	"owner_id" varchar(64) NOT NULL,
+	"primary_node_id" varchar(64),
 	"is_public" boolean DEFAULT false NOT NULL,
 	"current_published_version_id" varchar(64),
 	"status" varchar(32) DEFAULT 'DRAFT' NOT NULL,
@@ -51,4 +52,5 @@ CREATE UNIQUE INDEX "uq_quiz_version" ON "quiz_versions" USING btree ("quiz_id",
 CREATE INDEX "idx_quiz_versions_quiz_id" ON "quiz_versions" USING btree ("quiz_id");--> statement-breakpoint
 CREATE INDEX "idx_quizzes_code" ON "quizzes" USING btree ("code");--> statement-breakpoint
 CREATE INDEX "idx_quizzes_owner" ON "quizzes" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "idx_quizzes_primary_node" ON "quizzes" USING btree ("primary_node_id");--> statement-breakpoint
 CREATE INDEX "idx_quizzes_status" ON "quizzes" USING btree ("status");

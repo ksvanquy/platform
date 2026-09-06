@@ -3,13 +3,32 @@ import { AuthoringUseCases } from '../../application/use-cases/authoring/authori
 import { DomainError } from '../../domain/errors/domain-errors.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 
-export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
+export function createV1QuizzesRouter(authoring: AuthoringUseCases, getTaxonomyRepo?: () => any): Router {
   const router = Router();
 
-  // GET /v1/quizzes - Danh mục đề thi đã xuất bản
-  router.get('/', async (_req: Request, res: Response) => {
+  // GET /v1/quizzes - Danh mục đề thi đã xuất bản (hỗ trợ lọc theo nodeId & cây phân cấp)
+  router.get('/', async (req: Request, res: Response) => {
     try {
-      const quizzes = await authoring.getPublishedQuizzes();
+      const nodeId = req.query.nodeId ? String(req.query.nodeId).trim() : undefined;
+      let primaryNodeIds: string[] | undefined;
+      if (nodeId) {
+        const taxonomyRepo = getTaxonomyRepo ? getTaxonomyRepo() : null;
+        if (taxonomyRepo && typeof taxonomyRepo.findDescendantIds === 'function') {
+          try {
+            const descendants = await taxonomyRepo.findDescendantIds(nodeId);
+            primaryNodeIds = descendants && descendants.length > 0 ? descendants : [nodeId];
+          } catch {
+            primaryNodeIds = [nodeId];
+          }
+        } else {
+          primaryNodeIds = [nodeId];
+        }
+      }
+
+      const quizzes = await authoring.getPublishedQuizzes(
+        primaryNodeIds ? { primaryNodeIds } : undefined
+      );
+
       res.status(200).json({
         success: true,
         data: quizzes.map((q) => ({
@@ -19,6 +38,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           description: q.description,
           status: q.status,
           isPublic: q.isPublic,
+          primaryNodeId: q.primaryNodeId,
           currentPublishedVersionId: q.currentPublishedVersionId,
         })),
       });
@@ -31,7 +51,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   router.post('/', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
       const principal = req.principal;
-      const { code, title, description, isPublic } = req.body;
+      const { code, title, description, isPublic, primaryNodeId } = req.body;
 
       const quiz = await authoring.createQuiz(
         {
@@ -39,6 +59,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           title,
           description,
           ownerId: principal?.id || 'anonymous_author',
+          primaryNodeId: primaryNodeId || null,
           isPublic: isPublic !== undefined ? Boolean(isPublic) : undefined,
         },
         principal
@@ -65,12 +86,13 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   // PUT /v1/quizzes/:id - Cập nhật thông tin đề thi (Chỉ chủ sở hữu hoặc ADMIN)
   router.put('/:id', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
-      const { title, description, isPublic } = req.body;
+      const { title, description, isPublic, primaryNodeId } = req.body;
       const quiz = await authoring.updateQuiz(
         {
           quizId: String(req.params.id),
           title,
           description,
+          primaryNodeId: primaryNodeId !== undefined ? primaryNodeId : undefined,
           isPublic: isPublic !== undefined ? Boolean(isPublic) : undefined,
         },
         req.principal

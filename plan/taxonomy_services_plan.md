@@ -299,5 +299,5 @@ TAXONOMY_PORT=3002
 3. **Giai đoạn 3**: Định nghĩa DTOs trong `@platform/contracts` và mở rộng `taxonomies` trong `@platform/api-client`.
 4. **Giai đoạn 4**: Cài đặt Domain Entities, Repository Drizzle với Recursive CTE, Use Cases và Routes Express.
 5. **Giai đoạn 5**: Thiết lập máy chủ độc lập Standalone Taxonomy Server (Port 3002 qua `TAXONOMY_PORT`), cấu hình Reverse Proxy tại các Web Apps (`apps/admin-web`, `apps/quiz-web`), kiểm thử tích hợp và đảm bảo tính tự chủ hoàn toàn của microservice.
-6. **Giai đoạn 6**: Bổ sung `primary_node_id` vào `quizzes`, cập nhật giao diện `apps/admin-web` và `apps/quiz-web`.
+6. **Giai đoạn 6** (ĐÃ HOÀN THÀNH): Bổ sung `primary_node_id` vào `quizzes`, cập nhật giao diện `apps/admin-web` và `apps/quiz-web`.
 

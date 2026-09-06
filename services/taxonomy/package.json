@@ -2,7 +2,14 @@
   "name": "@platform/taxonomy-service",
   "version": "1.0.0",
   "description": "Autonomous Knowledge Catalog and Taxonomy Service",
-  "main": "dist/index.js",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/presentation/server.ts",
@@ -22,6 +29,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@platform/api-client": "*",
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.1",
     "drizzle-kit": "^0.31.10",

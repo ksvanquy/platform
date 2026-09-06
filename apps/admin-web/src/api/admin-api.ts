@@ -19,8 +19,38 @@ export const adminApi = {
   /**
    * Lấy danh sách đề thi hiện có trong hệ thống
    */
-  async listQuizzes() {
-    const response = await apiClient.quizzes.list();
+  async listQuizzes(params?: { nodeId?: string }) {
+    const response = await apiClient.quizzes.list(params);
+    return response.data;
+  },
+
+  /**
+   * Tạo đề thi mới
+   */
+  async createQuiz(payload: {
+    code: string;
+    title: string;
+    description?: string;
+    isPublic?: boolean;
+    primaryNodeId?: string | null;
+  }) {
+    const response = await apiClient.quizzes.create(payload);
+    return response.data;
+  },
+
+  /**
+   * Cập nhật thông tin đề thi và gán chủ đề / node tri thức
+   */
+  async updateQuiz(
+    quizId: string,
+    payload: {
+      title: string;
+      description?: string;
+      isPublic?: boolean;
+      primaryNodeId?: string | null;
+    }
+  ) {
+    const response = await apiClient.quizzes.update(quizId, payload);
     return response.data;
   },
 
@@ -56,4 +86,9 @@ export const adminApi = {
     });
     return await response.json();
   },
+
+  /**
+   * Quản lý Danh mục và Cây tri thức (Taxonomy & Knowledge Catalog)
+   */
+  taxonomies: apiClient.taxonomies,
 };

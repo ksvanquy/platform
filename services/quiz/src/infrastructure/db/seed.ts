@@ -66,6 +66,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     title: 'Bài Thi Thử Kiến Trúc Core',
     description: 'Kiểm tra tổng hợp các loại câu hỏi',
     ownerId: 'admin_master',
+    primaryNodeId: 'node_topic_it_web',
     status: 'PUBLISHED',
     currentPublishedVersionId: versionId,
   });
@@ -162,6 +163,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     title: 'Đề Thi Cấu Trúc Dữ Liệu & Giải Thuật',
     description: 'Kiểm tra giải thuật cơ sở',
     ownerId: 'admin_master',
+    primaryNodeId: 'node_topic_it',
     status: 'PUBLISHED',
     currentPublishedVersionId: polyVersionId,
   });
@@ -203,6 +205,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     title: 'Bài Khảo Sát Kiến Thức Mở',
     description: 'Đề thi tự do cho phép mọi thí sinh tham gia',
     ownerId: 'admin_master',
+    primaryNodeId: 'node_topic_it_web',
     isPublic: true,
     status: 'PUBLISHED',
     currentPublishedVersionId: publicVersionId,

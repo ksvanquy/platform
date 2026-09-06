@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { UserProfile } from '@platform/auth-client';
 import { quizApi } from '../api/quiz-api.js';
 
@@ -24,10 +24,42 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   const [loadingQuizzes, setLoadingQuizzes] = useState<boolean>(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
 
-  const fetchQuizzes = async () => {
+  // Taxonomy categories & filter
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
+  const [selectedCategoryNodeId, setSelectedCategoryNodeId] = useState<string>('');
+
+  const fetchCategories = async () => {
+    try {
+      const treeRes = await quizApi.getTaxonomyTree('TOPIC');
+      if (treeRes && treeRes.tree) {
+        const catList: { id: string; name: string }[] = [];
+        const catMap: Record<string, string> = {};
+
+        const traverse = (items: any[], prefix = '') => {
+          for (const item of items) {
+            const label = prefix ? `${prefix} > ${item.name}` : item.name;
+            catList.push({ id: item.id, name: label });
+            catMap[item.id] = item.name;
+            if (item.children && item.children.length > 0) {
+              traverse(item.children, item.name);
+            }
+          }
+        };
+
+        traverse(treeRes.tree);
+        setCategories(catList);
+        setCategoryMap(catMap);
+      }
+    } catch {
+      // Ignore if taxonomy unavailable
+    }
+  };
+
+  const fetchQuizzes = useCallback(async (nodeId?: string) => {
     setLoadingQuizzes(true);
     try {
-      const quizzes = await quizApi.listQuizzes();
+      const quizzes = await quizApi.listQuizzes(nodeId ? { nodeId } : undefined);
       setAvailableQuizzes(quizzes);
       if (quizzes.length > 0) {
         setSelectedQuizId(quizzes[0].id);
@@ -39,11 +71,15 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
     } finally {
       setLoadingQuizzes(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchQuizzes();
+    fetchCategories();
   }, []);
+
+  useEffect(() => {
+    fetchQuizzes(selectedCategoryNodeId || undefined);
+  }, [selectedCategoryNodeId, fetchQuizzes]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +154,7 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
             Hệ Thống Thi Trắc Nghiệm
           </h1>
           <p className="text-slate-400 text-sm">
-            Hệ thống chấm điểm tự động & đồng bộ thời gian thực theo chuẩn RESTful Delivery
+            Hệ thống chấm điểm tự động & phân loại đề thi theo Cây Tri Thức (Taxonomy)
           </p>
         </div>
 
@@ -129,21 +165,62 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Category / Topic Filter Chips */}
+          {categories.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
+                Chủ Đề & Cây Tri Thức (Taxonomy Filter)
+              </label>
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategoryNodeId('')}
+                  className={`px-3 py-1 rounded-xl text-xs font-medium transition-all ${
+                    selectedCategoryNodeId === ''
+                      ? 'bg-sky-500 text-slate-950 font-bold shadow-md shadow-sky-500/20'
+                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 border border-slate-700/60'
+                  }`}
+                >
+                  Tất cả chủ đề
+                </button>
+                {categories.map((cat) => {
+                  const isSelected = selectedCategoryNodeId === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategoryNodeId(cat.id)}
+                      className={`px-3 py-1 rounded-xl text-xs font-medium transition-all ${
+                        isSelected
+                          ? 'bg-sky-500 text-slate-950 font-bold shadow-md shadow-sky-500/20'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 border border-slate-700/60'
+                      }`}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-              <span>Đề thi khả dụng</span>
-              {loadingQuizzes && <span className="text-sky-400 font-normal lowercase animate-pulse">Đang cập nhật...</span>}
+              <span>Đề thi khả dụng ({availableQuizzes.length})</span>
+              {loadingQuizzes && <span className="text-sky-400 font-normal lowercase animate-pulse">Đang lọc...</span>}
             </label>
 
             {availableQuizzes.length === 0 && !loadingQuizzes ? (
               <div className="p-4 rounded-2xl bg-slate-800/30 border border-dashed border-slate-700 text-center text-xs text-slate-400 space-y-1">
-                <p>Hiện chưa có đề thi nào được xuất bản.</p>
-                <p className="text-[11px] text-slate-500">Vui lòng quay lại sau hoặc liên hệ giảng viên.</p>
+                <p>Không có đề thi nào trong chủ đề này.</p>
+                <p className="text-[11px] text-slate-500">Thử chọn &quot;Tất cả chủ đề&quot; hoặc quay lại sau.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {availableQuizzes.map((quiz) => {
                   const isChosen = selectedQuizId === quiz.id;
+                  const topicLabel = quiz.primaryNodeId ? categoryMap[quiz.primaryNodeId] : null;
+
                   return (
                     <div
                       key={quiz.id}
@@ -154,7 +231,7 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
                           : 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800 text-slate-300'
                       }`}
                     >
-                      <div className="space-y-0.5">
+                      <div className="space-y-1">
                         <div className="text-sm font-bold text-slate-100 flex items-center space-x-2">
                           <span>{quiz.title}</span>
                           {quiz.isPublic ? (
@@ -167,8 +244,13 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-slate-400">
-                          Mã: <span className="font-mono text-slate-300">{quiz.code}</span> (ID: {quiz.id})
+                        <div className="flex items-center space-x-2 text-xs text-slate-400">
+                          <span>Mã: <span className="font-mono text-slate-300">{quiz.code}</span></span>
+                          {topicLabel && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              🏷️ {topicLabel}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-800 text-sky-400 border border-slate-700">

@@ -16,9 +16,17 @@ export const quizApi = {
   /**
    * Lấy danh sách các đề thi đã xuất bản từ RESTful API (/v1/quizzes)
    */
-  async listQuizzes(): Promise<any[]> {
-    const response = await apiClient.quizzes.list();
+  async listQuizzes(params?: { nodeId?: string }): Promise<any[]> {
+    const response = await apiClient.quizzes.list(params);
     return response.data || [];
+  },
+
+  /**
+   * Lấy cây phân loại tri thức / chủ đề cho thí sinh lọc đề thi
+   */
+  async getTaxonomyTree(codeOrId: string = 'TOPIC') {
+    const response = await apiClient.taxonomies.getTree(codeOrId);
+    return response.data;
   },
 
   /**

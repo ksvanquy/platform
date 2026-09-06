@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, inArray } from 'drizzle-orm';
 import { getQuizDb } from '../db/connection.js';
 import { quizzes, quizVersions } from '../db/schema.js';
 import { Quiz, QuizStatus } from '../../domain/authoring/quiz.entity.js';
@@ -24,6 +24,7 @@ export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
         title: raw.title,
         description: raw.description,
         ownerId: raw.ownerId,
+        primaryNodeId: raw.primaryNodeId || null,
         isPublic: raw.isPublic,
         currentPublishedVersionId: raw.currentPublishedVersionId,
         status: raw.status,
@@ -37,6 +38,7 @@ export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
           title: raw.title,
           description: raw.description,
           ownerId: raw.ownerId,
+          primaryNodeId: raw.primaryNodeId || null,
           isPublic: raw.isPublic,
           currentPublishedVersionId: raw.currentPublishedVersionId,
           status: raw.status,
@@ -57,8 +59,18 @@ export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
     return this.mapRowToQuiz(rows[0]);
   }
 
-  async listPublishedQuizzes(): Promise<Quiz[]> {
-    const rows = await this.db.select().from(quizzes).where(eq(quizzes.status, 'PUBLISHED'));
+  async listPublishedQuizzes(filter?: { primaryNodeId?: string; primaryNodeIds?: string[] }): Promise<Quiz[]> {
+    const conditions = [eq(quizzes.status, 'PUBLISHED')];
+    if (filter?.primaryNodeIds && filter.primaryNodeIds.length > 0) {
+      conditions.push(inArray(quizzes.primaryNodeId, filter.primaryNodeIds));
+    } else if (filter?.primaryNodeId) {
+      conditions.push(eq(quizzes.primaryNodeId, filter.primaryNodeId));
+    }
+
+    const rows = await this.db
+      .select()
+      .from(quizzes)
+      .where(and(...conditions));
     return rows.map((r: any) => this.mapRowToQuiz(r));
   }
 
@@ -128,6 +140,7 @@ export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
       title: row.title,
       description: row.description || undefined,
       ownerId: row.ownerId,
+      primaryNodeId: row.primaryNodeId || undefined,
       isPublic: Boolean(row.isPublic),
       currentPublishedVersionId: row.currentPublishedVersionId || undefined,
       status: row.status as QuizStatus,

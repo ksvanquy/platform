@@ -19,6 +19,10 @@ import { createV1AttemptsRouter } from './routes/v1-attempts.routes.js';
 import { AttemptExpirySweeperService } from '../application/services/attempt-expiry-sweeper.service.js';
 import { createV1InternalRouter } from './routes/v1-internal.routes.js';
 import { isQuizDbConfigured } from '../infrastructure/db/connection.js';
+import {
+  createTaxonomyRouter,
+  TaxonomyRepositoryPort,
+} from '@platform/taxonomy-service';
 
 const app: Express = express();
 app.use(express.json());
@@ -218,8 +222,34 @@ const apiDiscovery = {
     { method: 'POST', path: '/v1/attempts/:id/submit', description: 'Delivery: Finalize & Grade attempt' },
     { method: 'POST', path: '/v1/internal/attempts/sweep', description: 'Internal: Sweep expired attempts & auto-grade' },
     { method: 'GET', path: '/v1/internal/attempts/sweeper-status', description: 'Internal: Check background sweeper daemon status' },
+    { method: 'GET', path: '/v1/taxonomies', description: 'Taxonomy: List all taxonomies' },
+    { method: 'POST', path: '/v1/taxonomies', description: 'Taxonomy: Create taxonomy (ADMIN)' },
+    { method: 'GET', path: '/v1/taxonomies/:code/tree', description: 'Taxonomy: Get nested taxonomy tree' },
+    { method: 'POST', path: '/v1/taxonomies/:code/nodes', description: 'Taxonomy: Create taxonomy node (ADMIN)' },
+    { method: 'GET', path: '/v1/nodes/:id', description: 'Taxonomy: Get node details' },
+    { method: 'PUT', path: '/v1/nodes/:id', description: 'Taxonomy: Update node (ADMIN)' },
+    { method: 'POST', path: '/v1/nodes/:id/move', description: 'Taxonomy: Move node branch (ADMIN)' },
+    { method: 'DELETE', path: '/v1/nodes/:id', description: 'Taxonomy: Soft delete node (ADMIN)' },
+    { method: 'GET', path: '/v1/nodes/:id/descendant-ids', description: 'Taxonomy: Get recursive descendant IDs' },
+    { method: 'GET', path: '/v1/nodes/:id/breadcrumbs', description: 'Taxonomy: Get breadcrumbs from root' },
   ],
 };
+
+// Taxonomy Module & Dynamic Router Delegation (Unified Port 3000 Gateway)
+let taxonomyRepoInstance: TaxonomyRepositoryPort | null = null;
+let taxonomyRouterInstance: express.Router | null = null;
+
+function setTaxonomyRepository(repo: TaxonomyRepositoryPort): void {
+  taxonomyRepoInstance = repo;
+  taxonomyRouterInstance = createTaxonomyRouter(repo);
+}
+
+function getTaxonomyRouter(): express.Router {
+  if (!taxonomyRouterInstance) {
+    taxonomyRouterInstance = createTaxonomyRouter(taxonomyRepoInstance || undefined);
+  }
+  return taxonomyRouterInstance!;
+}
 
 app.get('/api', (_req: Request, res: Response) => {
   res.status(200).json(apiDiscovery);
@@ -234,9 +264,30 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 // RESTful v1 Domain Routes
-app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases));
+app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases, () => taxonomyRepoInstance));
 app.use('/v1/attempts', createV1AttemptsRouter(deliveryUseCases));
 app.use('/v1/internal', createV1InternalRouter(sweeperService));
+
+// Mount Taxonomy Domain Routes (Unified Gateway on Port 3000)
+app.use('/v1', (req: Request, res: Response, next: any) => {
+  if (
+    req.path.startsWith('/taxonomies') ||
+    req.path === '/taxonomies' ||
+    req.path.startsWith('/nodes') ||
+    req.path === '/nodes'
+  ) {
+    try {
+      const router = getTaxonomyRouter();
+      return router(req, res, next);
+    } catch (err: any) {
+      return res.status(503).json({
+        success: false,
+        message: err?.message || 'Taxonomy service database not configured',
+      });
+    }
+  }
+  next();
+});
 
 // Static frontend serving (Candidate Quiz Web & Admin Web)
 const quizWebDist = path.resolve(process.cwd(), 'apps/quiz-web/dist');
@@ -302,4 +353,5 @@ export {
   getActiveDeliveryRepo,
   authUserRepository,
   authTokenService,
+  setTaxonomyRepository,
 };

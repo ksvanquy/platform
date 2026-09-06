@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { authClient, adminApi } from '../api/index.js';
 import type { UserProfile } from '@platform/auth-client';
+import { TaxonomyManagementSection } from './TaxonomyManagementSection.js';
+import { QuizManagementSection } from './QuizManagementSection.js';
 
 interface AdminDashboardViewProps {
   user: UserProfile;
@@ -13,6 +15,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onLogout,
   onRefreshUser,
 }) => {
+  const [activeTab, setActiveTab] = useState<'quizzes' | 'taxonomies' | 'system'>('quizzes');
   const [apiTestStatus, setApiTestStatus] = useState<string | null>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [showToken, setShowToken] = useState(false);
@@ -87,7 +90,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 space-y-8">
+    <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12 space-y-6">
       {/* Top Navbar */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl">
         <div className="flex items-center space-x-4">
@@ -134,8 +137,52 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         </div>
       </header>
 
-      {/* Main Status & Auth Verification Card */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
+      {/* Main Navigation Tabs */}
+      <div className="flex items-center space-x-2 p-1.5 rounded-2xl bg-slate-900 border border-slate-800 shadow-md">
+        <button
+          type="button"
+          onClick={() => setActiveTab('quizzes')}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'quizzes'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          📚 Quản Lý Đề Thi & Gán Node
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('taxonomies')}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'taxonomies'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          🌳 Cây Tri Thức & Phân Loại
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('system')}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'system'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          ⚙️ Hệ Thống & Tài Khoản
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'quizzes' && <QuizManagementSection />}
+
+      {activeTab === 'taxonomies' && <TaxonomyManagementSection />}
+
+      {activeTab === 'system' && (
+        <div className="space-y-6">
+          {/* Main Status & Auth Verification Card */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
@@ -357,6 +404,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
         </div>
       )}
 

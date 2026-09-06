@@ -173,16 +173,34 @@ export class ApiClient {
    * Quizzes API Domain Resource (RESTful v1 Authoring / Catalog)
    */
   readonly quizzes = {
-    list: async (): Promise<ApiResponse<any[]>> => {
-      return this.get<ApiResponse<any[]>>('/v1/quizzes');
+    list: async (params?: { nodeId?: string }): Promise<ApiResponse<any[]>> => {
+      return this.get<ApiResponse<any[]>>('/v1/quizzes', { params });
     },
 
     get: async (quizId: string): Promise<ApiResponse<any>> => {
       return this.get<ApiResponse<any>>(`/v1/quizzes/${quizId}`);
     },
 
-    create: async (payload: { code: string; title: string; description?: string }): Promise<ApiResponse<any>> => {
+    create: async (payload: {
+      code: string;
+      title: string;
+      description?: string;
+      isPublic?: boolean;
+      primaryNodeId?: string | null;
+    }): Promise<ApiResponse<any>> => {
       return this.post<ApiResponse<any>>('/v1/quizzes', payload);
+    },
+
+    update: async (
+      quizId: string,
+      payload: {
+        title: string;
+        description?: string;
+        isPublic?: boolean;
+        primaryNodeId?: string | null;
+      }
+    ): Promise<ApiResponse<any>> => {
+      return this.put<ApiResponse<any>>(`/v1/quizzes/${quizId}`, payload);
     },
 
     addVersion: async (quizId: string, payload: any): Promise<ApiResponse<any>> => {
