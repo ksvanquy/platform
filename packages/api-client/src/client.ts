@@ -1,4 +1,15 @@
-import type { ApiResponse } from '@platform/contracts';
+import type {
+  ApiResponse,
+  TaxonomyDTO,
+  TaxonomyNodeDTO,
+  TaxonomyTreeDTO,
+  BreadcrumbItemDTO,
+  CreateTaxonomyInput,
+  UpdateTaxonomyInput,
+  CreateNodeInput,
+  UpdateNodeInput,
+  MoveNodeInput,
+} from '@platform/contracts';
 
 export interface ApiClientConfig {
   baseUrl: string;
@@ -214,6 +225,61 @@ export class ApiClient {
 
     submit: async (attemptId: string): Promise<ApiResponse<any>> => {
       return this.post<ApiResponse<any>>(`/v1/attempts/${attemptId}/submit`, {});
+    },
+  };
+
+  /**
+   * Taxonomies API Domain Resource (Knowledge Catalog & Hierarchical Tree)
+   */
+  readonly taxonomies = {
+    list: async (): Promise<ApiResponse<TaxonomyDTO[]>> => {
+      return this.get<ApiResponse<TaxonomyDTO[]>>('/v1/taxonomies');
+    },
+
+    get: async (codeOrId: string): Promise<ApiResponse<TaxonomyDTO>> => {
+      return this.get<ApiResponse<TaxonomyDTO>>(`/v1/taxonomies/${encodeURIComponent(codeOrId)}`);
+    },
+
+    create: async (payload: CreateTaxonomyInput): Promise<ApiResponse<TaxonomyDTO>> => {
+      return this.post<ApiResponse<TaxonomyDTO>>('/v1/taxonomies', payload);
+    },
+
+    update: async (codeOrId: string, payload: UpdateTaxonomyInput): Promise<ApiResponse<TaxonomyDTO>> => {
+      return this.put<ApiResponse<TaxonomyDTO>>(`/v1/taxonomies/${encodeURIComponent(codeOrId)}`, payload);
+    },
+
+    getTree: async (codeOrId: string): Promise<ApiResponse<TaxonomyTreeDTO>> => {
+      return this.get<ApiResponse<TaxonomyTreeDTO>>(`/v1/taxonomies/${encodeURIComponent(codeOrId)}/tree`);
+    },
+
+    createNode: async (codeOrId: string, payload: CreateNodeInput): Promise<ApiResponse<TaxonomyNodeDTO>> => {
+      return this.post<ApiResponse<TaxonomyNodeDTO>>(`/v1/taxonomies/${encodeURIComponent(codeOrId)}/nodes`, payload);
+    },
+
+    getNode: async (nodeId: string): Promise<ApiResponse<TaxonomyNodeDTO>> => {
+      return this.get<ApiResponse<TaxonomyNodeDTO>>(`/v1/nodes/${encodeURIComponent(nodeId)}`);
+    },
+
+    updateNode: async (nodeId: string, payload: UpdateNodeInput): Promise<ApiResponse<TaxonomyNodeDTO>> => {
+      return this.put<ApiResponse<TaxonomyNodeDTO>>(`/v1/nodes/${encodeURIComponent(nodeId)}`, payload);
+    },
+
+    moveNode: async (nodeId: string, payload: MoveNodeInput): Promise<ApiResponse<TaxonomyNodeDTO>> => {
+      return this.post<ApiResponse<TaxonomyNodeDTO>>(`/v1/nodes/${encodeURIComponent(nodeId)}/move`, payload);
+    },
+
+    deleteNode: async (nodeId: string): Promise<ApiResponse<void>> => {
+      return this.delete<ApiResponse<void>>(`/v1/nodes/${encodeURIComponent(nodeId)}`);
+    },
+
+    getDescendantIds: async (nodeId: string): Promise<ApiResponse<{ rootId: string; descendantIds: string[] }>> => {
+      return this.get<ApiResponse<{ rootId: string; descendantIds: string[] }>>(
+        `/v1/nodes/${encodeURIComponent(nodeId)}/descendant-ids`
+      );
+    },
+
+    getBreadcrumbs: async (nodeId: string): Promise<ApiResponse<BreadcrumbItemDTO[]>> => {
+      return this.get<ApiResponse<BreadcrumbItemDTO[]>>(`/v1/nodes/${encodeURIComponent(nodeId)}/breadcrumbs`);
     },
   };
 }

@@ -1,0 +1,32 @@
+{
+  "name": "@platform/taxonomy-service",
+  "version": "1.0.0",
+  "description": "Autonomous Knowledge Catalog and Taxonomy Service",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/presentation/server.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/infrastructure/db/migrate.ts",
+    "db:seed": "tsx src/infrastructure/db/seed.ts"
+  },
+  "dependencies": {
+    "@platform/auth-service": "*",
+    "@platform/contracts": "*",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.2.1",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.1",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

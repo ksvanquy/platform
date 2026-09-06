@@ -2,6 +2,7 @@ export * from './auth/principal.js';
 export * from './auth/ownership.js';
 export * from './quiz/quiz.js';
 export * from './quiz/attempt.js';
+export * from './taxonomy/taxonomy.js';
 
 export type QuestionType =
   | 'SINGLE'
