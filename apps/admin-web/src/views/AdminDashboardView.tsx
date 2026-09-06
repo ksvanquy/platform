@@ -362,7 +362,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
       {/* Footer Info */}
       <div className="text-center text-xs text-slate-500">
-        Admin Portal • Clean-Cut Tenancy Architecture (Header-based Tenancy & Generic Auth)
+        Admin Portal • Single-Tenant Clean Architecture
       </div>
     </div>
   );

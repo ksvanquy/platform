@@ -1,45 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import {
   evaluateOwnership,
-  evaluateTenantIsolation,
   evaluateResourceOwnership,
   ResourceOwnershipContext,
   Principal,
-  TenantContext,
 } from '@platform/contracts';
 
-describe('Contracts & Ownership Evaluation (Clean Zero-Tenant Principal + Decoupled Tenancy)', () => {
+describe('Contracts & Ownership Evaluation (Single-Tenant ABAC Ownership + RBAC Clearance)', () => {
   const mockQuizContext: ResourceOwnershipContext = {
     resourceType: 'quiz',
     resourceId: 'quiz_123',
     ownerId: 'usr_instructor_01',
-    tenantId: 'tenant_default',
   };
 
-  describe('1. evaluateTenantIsolation (Ngữ Cảnh Tổ Chức Độc Lập)', () => {
-    it('should allow access when tenantContext matches resource.tenantId', () => {
-      const tenantContext: TenantContext = { tenantId: 'tenant_default' };
-      const isAllowed = evaluateTenantIsolation(tenantContext, { tenantId: 'tenant_default' });
-      expect(isAllowed).toBe(true);
-    });
-
-    it('should allow bidirectional compatibility between tenant_core and tenant_default', () => {
-      expect(evaluateTenantIsolation({ tenantId: 'tenant_core' }, { tenantId: 'tenant_default' })).toBe(true);
-      expect(evaluateTenantIsolation({ tenantId: 'tenant_default' }, { tenantId: 'tenant_core' })).toBe(true);
-    });
-
-    it('should deny access when tenantContext does not match resource.tenantId (Cross-Tenant)', () => {
-      const tenantContext: TenantContext = { tenantId: 'tenant_other' };
-      const isAllowed = evaluateTenantIsolation(tenantContext, { tenantId: 'tenant_default' });
-      expect(isAllowed).toBe(false);
-
-      // Verify strict isolation between tenant_foreign and tenant_core
-      expect(evaluateTenantIsolation({ tenantId: 'tenant_foreign' }, { tenantId: 'tenant_core' })).toBe(false);
-      expect(evaluateTenantIsolation({ tenantId: 'tenant_core' }, { tenantId: 'tenant_foreign' })).toBe(false);
-    });
-  });
-
-  describe('2. evaluateResourceOwnership (ABAC Ownership + RBAC Clearance)', () => {
+  describe('1. evaluateResourceOwnership (ABAC Ownership + RBAC Clearance)', () => {
     it('should deny access if principal lacks required RBAC permission', () => {
       const principal: Principal = {
         id: 'usr_instructor_01',
@@ -121,35 +95,36 @@ describe('Contracts & Ownership Evaluation (Clean Zero-Tenant Principal + Decoup
     });
   });
 
-  describe('3. evaluateOwnership (Composite Helper)', () => {
-    it('should evaluate with tenantContext and enforce tenant isolation', () => {
-      const principal: Principal = {
+  describe('2. evaluateOwnership (Standard Helper)', () => {
+    it('should evaluate resource ownership cleanly without tenant checks', () => {
+      const ownerPrincipal: Principal = {
         id: 'usr_instructor_01',
         roles: ['INSTRUCTOR'],
         permissions: ['quiz:update'],
       };
 
-      // Wrong tenant
-      const badTenantResult = evaluateOwnership(
-        principal,
+      const ownerResult = evaluateOwnership(
+        ownerPrincipal,
         mockQuizContext,
-        'quiz:update',
-        undefined,
-        { tenantId: 'tenant_other' }
+        'quiz:update'
       );
-      expect(badTenantResult.allowed).toBe(false);
-      expect(badTenantResult.reason).toContain('Cross-tenant access prohibited');
+      expect(ownerResult.allowed).toBe(true);
+      expect(ownerResult.isOwner).toBe(true);
 
-      // Correct tenant
-      const goodTenantResult = evaluateOwnership(
-        principal,
+      const nonOwnerPrincipal: Principal = {
+        id: 'usr_instructor_other',
+        roles: ['INSTRUCTOR'],
+        permissions: ['quiz:update'],
+      };
+
+      const nonOwnerResult = evaluateOwnership(
+        nonOwnerPrincipal,
         mockQuizContext,
-        'quiz:update',
-        undefined,
-        { tenantId: 'tenant_default' }
+        'quiz:update'
       );
-      expect(goodTenantResult.allowed).toBe(true);
-      expect(goodTenantResult.isOwner).toBe(true);
+      expect(nonOwnerResult.allowed).toBe(false);
+      expect(nonOwnerResult.isOwner).toBe(false);
     });
   });
 });
+

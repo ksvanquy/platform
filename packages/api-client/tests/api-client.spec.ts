@@ -86,7 +86,7 @@ describe('Bước 5 — packages/api-client', () => {
       );
     });
 
-    it('should operate cleanly without injecting X-Tenant-ID header in single-tenant mode', async () => {
+    it('should inject Authorization Bearer header when token is provided', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         headers: new Headers({ 'content-type': 'application/json' }),
@@ -109,27 +109,6 @@ describe('Bước 5 — packages/api-client', () => {
           }),
         })
       );
-      const callHeaders = mockFetch.mock.calls[0][1].headers;
-      expect(callHeaders['X-Tenant-ID']).toBeUndefined();
-    });
-
-    it('should maintain backward compatible setTenantId API as no-op in single-tenant mode', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => ({ success: true, data: [] }),
-      });
-
-      api = createApiClient({
-        baseUrl: 'http://quiz.api.local',
-        fetchFn: mockFetch,
-      });
-
-      api.setTenantId('tenant_medical_school');
-      expect(api.getTenantIdValue()).toBe('tenant_medical_school');
-
-      await api.get('/quizzes');
-
       const callHeaders = mockFetch.mock.calls[0][1].headers;
       expect(callHeaders['X-Tenant-ID']).toBeUndefined();
     });

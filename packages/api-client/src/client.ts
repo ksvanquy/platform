@@ -3,7 +3,6 @@ import type { ApiResponse } from '@platform/contracts';
 export interface ApiClientConfig {
   baseUrl: string;
   getToken?: () => string | null | undefined | Promise<string | null | undefined>;
-  getTenantId?: () => string | null | undefined | Promise<string | null | undefined>;
   timeoutMs?: number;
   headers?: Record<string, string>;
   fetchFn?: typeof fetch;
@@ -28,7 +27,6 @@ export class ApiClientError extends Error {
 export class ApiClient {
   private baseUrl: string;
   private getToken?: () => string | null | undefined | Promise<string | null | undefined>;
-  private currentTenantId: string | null = null;
   private timeoutMs: number;
   private defaultHeaders: Record<string, string>;
   private fetchFn: typeof fetch;
@@ -46,21 +44,7 @@ export class ApiClient {
   }
 
   /**
-   * Thiết lập thủ công Tenant ID cho client instance (X-Tenant-ID)
-   */
-  setTenantId(tenantId: string | null): void {
-    this.currentTenantId = tenantId;
-  }
-
-  /**
-   * Lấy giá trị Tenant ID hiện tại được cấu hình thủ công
-   */
-  getTenantIdValue(): string | null {
-    return this.currentTenantId;
-  }
-
-  /**
-   * Thực hiện HTTP request chung với xử lý tự động JWT token, Tenant header và lỗi
+   * Thực hiện HTTP request chung với xử lý tự động JWT token và xử lý lỗi
    */
   async request<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
     const { params, body, headers: customHeaders, ...fetchOptions } = options;
@@ -92,8 +76,6 @@ export class ApiClient {
         headers['Authorization'] = `Bearer ${token}`;
       }
     }
-
-    // Note: Single-tenant mode: X-Tenant-ID header injection removed.
 
     let reqBody: any = undefined;
     if (body !== undefined && body !== null) {

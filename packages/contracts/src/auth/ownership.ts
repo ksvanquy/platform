@@ -1,7 +1,5 @@
 import type {
   Principal,
-  TenantContext,
-  TenantScopedResource,
   OwnedResource,
 } from './principal.js';
 
@@ -9,7 +7,6 @@ export interface ResourceOwnershipContext extends OwnedResource {
   resourceType?: 'quiz' | 'attempt' | 'user' | string;
   resourceId?: string;
   ownerId?: string;
-  tenantId?: string;
 }
 
 export interface OwnershipEvaluationResult {
@@ -20,17 +17,7 @@ export interface OwnershipEvaluationResult {
 }
 
 /**
- * @deprecated In single-tenant architecture, tenant isolation is bypassed and always allowed.
- */
-export function evaluateTenantIsolation(
-  _tenantContext?: TenantContext,
-  _resource?: TenantScopedResource
-): boolean {
-  return true;
-}
-
-/**
- * 2. Đảm bảo người dùng sở hữu tài nguyên hoặc có vai trò quản trị (RBAC Action Clearance + ABAC Ownership Check).
+ * Thẩm định quyền sở hữu tài nguyên hoặc vai trò quản trị (RBAC Action Clearance + ABAC Ownership Check).
  */
 export function evaluateResourceOwnership(
   principal: Principal,
@@ -99,29 +86,14 @@ export function evaluateResourceOwnership(
 }
 
 /**
- * Hàm đánh giá kết hợp (Composite) hỗ trợ tương thích với các use case hiện có.
- * Có thể truyền tenantContext trực tiếp để kiểm tra Tenant Isolation.
+ * Hàm thẩm định quyền sở hữu tiêu chuẩn cho các use cases trong hệ thống Single-Tenant.
  */
 export function evaluateOwnership(
   principal: Principal,
   resource: ResourceOwnershipContext,
   requiredPermission: string,
-  manageAllPermission?: string,
-  tenantContext?: TenantContext
+  manageAllPermission?: string
 ): OwnershipEvaluationResult {
-  // Nếu có tenantContext và resource có tenantId thì kiểm tra Tenant Isolation
-  if (tenantContext && resource.tenantId) {
-    const isTenantValid = evaluateTenantIsolation(tenantContext, { tenantId: resource.tenantId });
-    if (!isTenantValid) {
-      return {
-        allowed: false,
-        reason: 'Cross-tenant access prohibited',
-        isOwner: false,
-        isAdminBypass: false,
-      };
-    }
-  }
-
   return evaluateResourceOwnership(
     principal,
     resource,

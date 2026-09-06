@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express, { Express } from 'express';
 import request from 'supertest';
-import type { Principal, TenantContext } from '@platform/contracts';
+import type { Principal } from '@platform/contracts';
 import { AuthoringUseCases } from '../../src/application/use-cases/authoring/authoring.use-cases.js';
 import { DeliveryUseCases } from '../../src/application/use-cases/delivery/delivery.use-cases.js';
 import { createV1QuizzesRouter } from '../../src/presentation/routes/v1-quizzes.routes.js';
@@ -10,14 +10,11 @@ import { authContextMiddleware } from '../../src/presentation/middlewares/auth.m
 import { OwnershipDomainError } from '../../src/domain/errors/domain-errors.js';
 import { setupTestQuizDb, TestQuizDbContext } from '../helpers/test-db.helper.js';
 
-describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightweight)', () => {
+describe('Ownership Policy tại Quiz Service (Single-Tenant ABAC Lightweight)', () => {
   let testCtx: TestQuizDbContext;
   let authoringUseCases: AuthoringUseCases;
   let deliveryUseCases: DeliveryUseCases;
   let app: Express;
-
-  const tenantCore: TenantContext = { tenantId: 'tenant_core' };
-  const tenantForeign: TenantContext = { tenantId: 'tenant_foreign' };
 
   const instructorA: Principal = {
     id: 'usr_inst_a',
@@ -29,12 +26,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
     id: 'usr_inst_b',
     roles: ['INSTRUCTOR'],
     permissions: ['quiz:create', 'quiz:read', 'quiz:update', 'quiz:publish', 'quiz:delete', 'attempt:review'],
-  };
-
-  const instructorForeignTenant: Principal = {
-    id: 'usr_inst_c',
-    roles: ['INSTRUCTOR'],
-    permissions: ['quiz:create', 'quiz:read', 'quiz:update', 'quiz:publish', 'quiz:delete'],
   };
 
   const adminPrincipal: Principal = {
@@ -80,8 +71,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           description: 'Khóa cơ bản',
           ownerId: instructorA.id,
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
 
       expect(quiz.id).toBeDefined();
@@ -95,8 +85,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           title: 'Toán Học 102',
           ownerId: instructorA.id,
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
 
       // Add version
@@ -120,8 +109,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           scoringPolicy: { strategyType: 'exact-match' },
           randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
       expect(version.versionNumber).toBe(1);
 
@@ -131,8 +119,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           quizId: quiz.id,
           title: 'Toán Học 102 - Nâng Cao',
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
       expect(updated.title).toBe('Toán Học 102 - Nâng Cao');
 
@@ -142,8 +129,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           quizId: quiz.id,
           versionId: version.id,
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
       expect(published.quiz.status).toBe('PUBLISHED');
       expect(published.quiz.currentPublishedVersionId).toBe(version.id);
@@ -156,8 +142,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           title: 'Vật Lý Đại Cương',
           ownerId: instructorA.id,
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
 
       // Instructor B tries to add version
@@ -171,8 +156,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
             scoringPolicy: { strategyType: 'exact-match' },
             randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
           },
-          instructorB,
-          tenantCore
+          instructorB
         )
       ).rejects.toThrow(OwnershipDomainError);
 
@@ -183,14 +167,13 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
             quizId: quiz.id,
             title: 'Hacked Title',
           },
-          instructorB,
-          tenantCore
+          instructorB
         )
       ).rejects.toThrow(OwnershipDomainError);
 
       // Instructor B tries to delete
       await expect(
-        authoringUseCases.deleteQuiz(quiz.id, instructorB, tenantCore)
+        authoringUseCases.deleteQuiz(quiz.id, instructorB)
       ).rejects.toThrow(OwnershipDomainError);
     });
 
@@ -201,8 +184,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           title: 'Hóa Học 301',
           ownerId: instructorA.id,
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
 
       // Admin adds version
@@ -223,8 +205,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           scoringPolicy: { strategyType: 'exact-match' },
           randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
         },
-        adminPrincipal,
-        tenantCore
+        adminPrincipal
       );
       expect(version).toBeDefined();
 
@@ -234,8 +215,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           quizId: quiz.id,
           versionId: version.id,
         },
-        adminPrincipal,
-        tenantCore
+        adminPrincipal
       );
       expect(result.quiz.status).toBe('PUBLISHED');
     });
@@ -252,8 +232,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           title: 'Delivery Test Quiz',
           ownerId: instructorA.id,
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
       const version = await authoringUseCases.addVersion(
         {
@@ -275,16 +254,14 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           scoringPolicy: { strategyType: 'exact-match' },
           randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
       await authoringUseCases.publishQuiz(
         {
           quizId: quiz.id,
           versionId: version.id,
         },
-        instructorA,
-        tenantCore
+        instructorA
       );
       publishedQuizId = quiz.id;
     });
@@ -296,8 +273,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
             userId: studentB.id,
             quizId: publishedQuizId,
           },
-          studentA,
-          tenantCore
+          studentA
         )
       ).rejects.toThrow(OwnershipDomainError);
     });
@@ -308,8 +284,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           userId: studentA.id,
           quizId: publishedQuizId,
         },
-        studentA,
-        tenantCore
+        studentA
       );
       expect(attempt.userId).toBe(studentA.id);
 
@@ -319,8 +294,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           attemptId: attempt.id,
           userId: studentA.id,
         },
-        studentA,
-        tenantCore
+        studentA
       );
       expect(startResult.attempt.status).toBe('IN_PROGRESS');
 
@@ -333,8 +307,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
             questionId: 'q_del_1',
             answer: 'opt_paris',
           },
-          studentA,
-          tenantCore
+          studentA
         )
       ).resolves.not.toThrow();
 
@@ -344,8 +317,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         studentA.id,
         new Date(),
         15000,
-        studentA,
-        tenantCore
+        studentA
       );
       expect(details.attempt.id).toBe(attempt.id);
 
@@ -355,8 +327,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           attemptId: attempt.id,
           userId: studentA.id,
         },
-        studentA,
-        tenantCore
+        studentA
       );
       expect(['GRADED', 'SUBMITTED_GRADED']).toContain(submitResult.attempt.status);
       expect(submitResult.scoreResult.score).toBe(10);
@@ -368,8 +339,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           userId: studentA.id,
           quizId: publishedQuizId,
         },
-        studentA,
-        tenantCore
+        studentA
       );
 
       // Student B attempts to start Student A attempt
@@ -379,8 +349,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
             attemptId: attempt.id,
             userId: studentB.id,
           },
-          studentB,
-          tenantCore
+          studentB
         )
       ).rejects.toThrow(OwnershipDomainError);
 
@@ -390,8 +359,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           attemptId: attempt.id,
           userId: studentA.id,
         },
-        studentA,
-        tenantCore
+        studentA
       );
 
       // Student B attempts to record answer
@@ -403,8 +371,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
             questionId: 'q_del_1',
             answer: 'opt_rome',
           },
-          studentB,
-          tenantCore
+          studentB
         )
       ).rejects.toThrow(OwnershipDomainError);
 
@@ -415,8 +382,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
             attemptId: attempt.id,
             userId: studentB.id,
           },
-          studentB,
-          tenantCore
+          studentB
         )
       ).rejects.toThrow(OwnershipDomainError);
 
@@ -427,8 +393,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           studentB.id,
           new Date(),
           15000,
-          studentB,
-          tenantCore
+          studentB
         )
       ).rejects.toThrow(OwnershipDomainError);
     });
@@ -439,8 +404,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
           userId: studentA.id,
           quizId: publishedQuizId,
         },
-        studentA,
-        tenantCore
+        studentA
       );
 
       // Instructor A (owns the quiz) reviews attempt
@@ -449,8 +413,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         instructorA.id,
         new Date(),
         15000,
-        instructorA,
-        tenantCore
+        instructorA
       );
       expect(reviewAsInstructor.attempt.id).toBe(attempt.id);
 
@@ -460,8 +423,7 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         adminPrincipal.id,
         new Date(),
         15000,
-        adminPrincipal,
-        tenantCore
+        adminPrincipal
       );
       expect(reviewAsAdmin.attempt.id).toBe(attempt.id);
     });
@@ -477,7 +439,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post('/v1/quizzes')
         .set('x-user-id', instructorA.id)
         .set('x-user-role', 'INSTRUCTOR')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send({
           code: 'HTTP_TEST_01',
           title: 'HTTP Security Quiz',
@@ -490,7 +451,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post(`/v1/quizzes/${quizId}/versions`)
         .set('x-user-id', instructorA.id)
         .set('x-user-role', 'INSTRUCTOR')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send({
           durationMinutes: 10,
           passingScore: 1,
@@ -513,7 +473,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post(`/v1/quizzes/${quizId}/publish`)
         .set('x-user-id', instructorA.id)
         .set('x-user-role', 'INSTRUCTOR')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send({ versionId });
       expect(publishRes.status).toBe(200);
       publishedQuizId = quizId;
@@ -523,7 +482,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post('/v1/attempts')
         .set('x-user-id', studentA.id)
         .set('x-user-role', 'STUDENT')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send({ quizId: publishedQuizId });
       expect(attemptRes.status).toBe(201);
       studentAAttemptId = attemptRes.body.data.id;
@@ -535,7 +493,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post(`/v1/quizzes/${publishedQuizId}/versions`)
         .set('x-user-id', instructorB.id)
         .set('x-user-role', 'INSTRUCTOR')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send({
           durationMinutes: 20,
           passingScore: 2,
@@ -552,7 +509,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .put(`/v1/quizzes/${publishedQuizId}`)
         .set('x-user-id', instructorB.id)
         .set('x-user-role', 'INSTRUCTOR')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send({
           title: 'Illegally Changed Title',
         });
@@ -566,7 +522,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post(`/v1/attempts/${studentAAttemptId}/start`)
         .set('x-user-id', studentB.id)
         .set('x-user-role', 'STUDENT')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send();
 
       expect(res.status).toBe(403);
@@ -579,7 +534,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post(`/v1/attempts/${studentAAttemptId}/start`)
         .set('x-user-id', studentA.id)
         .set('x-user-role', 'STUDENT')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send();
 
       // Student B records answer
@@ -587,7 +541,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post(`/v1/attempts/${studentAAttemptId}/answers`)
         .set('x-user-id', studentB.id)
         .set('x-user-role', 'STUDENT')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send({
           questionId: 'q1',
           answer: true,
@@ -602,7 +555,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         .post(`/v1/attempts/${studentAAttemptId}/submit`)
         .set('x-user-id', studentB.id)
         .set('x-user-role', 'STUDENT')
-        .set('x-tenant-id', tenantCore.tenantId)
         .send();
 
       expect(res.status).toBe(403);

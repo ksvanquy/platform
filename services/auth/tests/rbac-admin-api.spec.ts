@@ -218,7 +218,6 @@ describe('Gói WP-7: Endpoints Quản trị RBAC & Token Service', () => {
       const tokens = tokenService.generateTokens({
         sub: student!.id,
         roles: ['INSTRUCTOR'],
-        tenantId: 'tenant_default',
       });
 
       const res = await request(app)

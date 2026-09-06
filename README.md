@@ -21,7 +21,7 @@ Toàn bộ logic nghiệp vụ đánh giá, quản lý vòng đời bài thi và
 │   │   │   │   ├── scoring/          # Chiến lược chấm điểm (Exact, Partial, Negative)
 │   │   │   │   └── ports/            # Repository Interfaces & Secondary Ports
 │   │   │   ├── application/          # Use Cases (AuthoringUseCases, DeliveryUseCases)
-│   │   │   ├── infrastructure/       # Drizzle PostgreSQL Persistence & Multi-tenant Repositories
+│   │   │   ├── infrastructure/       # Drizzle PostgreSQL Persistence & Single-Tenant Repositories
 │   │   │   └── presentation/         # RESTful Inbound Routes (/v1/quizzes, /v1/attempts)
 │   │   └── tests/                    # 144 Automated Tests (Domain, Security, Delivery, PostgreSQL)
 │   └── auth/                         # 🔐 Generic Identity Provider (IdP) Service (Port 3001)
@@ -74,12 +74,11 @@ Toàn bộ logic nghiệp vụ đánh giá, quản lý vòng đời bài thi và
   - 5 bảng quan hệ: `users`, `roles`, `permissions`, `user_roles`, `role_permissions`.
   - Quản trị viên phân quyền linh hoạt qua API CRUD Role, gán Permission và phân bổ quyền cho User.
 
-### 3. Phân Lập Đa Khách Thuê Tự Chủ (Autonomous Tenancy Boundary at Quiz Service)
-- **Header-Based Context**: Quiz Service tự chủ hoàn toàn logic phân tách tổ chức thông qua HTTP Header `X-Tenant-ID`.
-- **Kiểm Soát Sở Hữu Gọn Nhẹ (Lightweight ABAC Ownership Policy)**:
-  - Đề thi và Lượt làm bài thuộc quyền quản lý của Tenant tương ứng (`quizzes.tenant_id`, `attempts.tenant_id`).
-  - Giảng viên chỉ sửa/xuất bản đề thi do mình tạo ra (`authorId === principal.id`), trừ Quản trị viên có quyền `quiz:manage_all`.
-  - Thí sinh chỉ được thao tác trên lượt làm bài chính chủ (`attempt.candidateId === principal.id`).
+### 3. Kiến Trúc Single-Tenant Tinh Gọn (Single-Tenant Clean Architecture)
+- **Tập Trung & Thống Nhất**: Loại bỏ hoàn toàn sự phức tạp của multi-tenancy (`X-Tenant-ID`, phân tách workspace). Học viên và Giảng viên tương tác trực tiếp trên một không gian chung.
+- **Kiểm Soát Sở Hữu Tinh Gọn (Lightweight ABAC Ownership Policy)**:
+  - Giảng viên quản lý đề thi do mình tạo ra (`ownerId === principal.id`), Quản trị viên (ADMIN) có quyền điều phối toàn diện (`quiz:manage_all`).
+  - Thí sinh làm bài và chỉ có quyền thao tác trên ca thi chính chủ (`attempt.userId === principal.id`).
 
 ### 4. Question Engine Registry & Scoring Strategies
 - **Question Engine Registry (Open-Closed Principle)**: Hỗ trợ `Single-choice`, `Multiple-choice`, và `True/False` mở rộng độc lập.
@@ -97,20 +96,20 @@ Toàn bộ logic nghiệp vụ đánh giá, quản lý vòng đời bài thi và
 ### 📋 Quiz Authoring & Catalog APIs (`/v1/quizzes`)
 | Phương thức | Đường dẫn | Header yêu cầu | Mô tả |
 |---|---|---|---|
-| `GET` | `/v1/quizzes` | `X-Tenant-ID` | Lấy danh sách đề thi đã xuất bản trong tenant |
-| `POST` | `/v1/quizzes` | `X-Tenant-ID`, `Authorization` | Tạo mới đề thi ở trạng thái bản nháp (`DRAFT`) |
-| `GET` | `/v1/quizzes/:id` | `X-Tenant-ID` | Xem chi tiết thông tin và các phiên bản của đề thi |
-| `POST` | `/v1/quizzes/:id/versions` | `X-Tenant-ID`, `Authorization` | Tạo phiên bản mới (`QuizVersion`) cho đề thi |
-| `POST` | `/v1/quizzes/:id/publish` | `X-Tenant-ID`, `Authorization` | Xuất bản đề thi theo phiên bản chỉ định |
+| `GET` | `/v1/quizzes` | - | Lấy danh sách đề thi đã xuất bản trong hệ thống |
+| `POST` | `/v1/quizzes` | `Authorization` | Tạo mới đề thi ở trạng thái bản nháp (`DRAFT`) |
+| `GET` | `/v1/quizzes/:id` | - | Xem chi tiết thông tin và các phiên bản của đề thi |
+| `POST` | `/v1/quizzes/:id/versions` | `Authorization` | Tạo phiên bản mới (`QuizVersion`) cho đề thi |
+| `POST` | `/v1/quizzes/:id/publish` | `Authorization` | Xuất bản đề thi theo phiên bản chỉ định |
 
 ### 🎯 Quiz Delivery APIs (`/v1/attempts`)
 | Phương thức | Đường dẫn | Header yêu cầu | Mô tả |
 |---|---|---|---|
-| `POST` | `/v1/attempts` | `X-Tenant-ID`, `Authorization` | Tạo mới hoặc khôi phục ca thi của thí sinh |
-| `POST` | `/v1/attempts/:id/start` | `X-Tenant-ID`, `Authorization` | Bắt đầu tính giờ & nhận đề thi đã khử khuẩn (`Sanitized Manifest`) |
-| `GET` | `/v1/attempts/:id` | `X-Tenant-ID`, `Authorization` | Xem tiến độ ca thi hiện tại |
-| `PUT` | `/v1/attempts/:id/answers/:questionId` | `X-Tenant-ID`, `Authorization` | Lưu câu trả lời từng câu (kèm `clientTimestamp`) |
-| `POST` | `/v1/attempts/:id/submit` | `X-Tenant-ID`, `Authorization` | Khóa bài thi, tính điểm chính thức và trả về kết quả |
+| `POST` | `/v1/attempts` | `Authorization` | Tạo mới hoặc khôi phục ca thi của thí sinh |
+| `POST` | `/v1/attempts/:id/start` | `Authorization` | Bắt đầu tính giờ & nhận đề thi đã khử khuẩn (`Sanitized Manifest`) |
+| `GET` | `/v1/attempts/:id` | `Authorization` | Xem tiến độ ca thi hiện tại |
+| `PUT` | `/v1/attempts/:id/answers/:questionId` | `Authorization` | Lưu câu trả lời từng câu (kèm `clientTimestamp`) |
+| `POST` | `/v1/attempts/:id/submit` | `Authorization` | Khóa bài thi, tính điểm chính thức và trả về kết quả |
 
 ### 🔐 Authentication & Identity APIs (`/v1/auth`)
 | Phương thức | Đường dẫn | Mô tả |

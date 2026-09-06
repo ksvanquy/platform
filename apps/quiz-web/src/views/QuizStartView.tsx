@@ -196,10 +196,10 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-800/30 border border-slate-800 space-y-2 text-xs text-slate-400">
-            <div className="font-semibold text-slate-300">Quy chế phòng thi (RESTful Delivery & Domain Tenancy):</div>
+            <div className="font-semibold text-slate-300">Quy chế phòng thi (RESTful Delivery & Integrity):</div>
             <ul className="list-disc list-inside space-y-1">
-              <li>Thí sinh mang Principal cá nhân; Quiz Service tự thẩm định ranh giới tổ chức theo header <code className="text-sky-300 font-mono">X-Tenant-ID</code>.</li>
-              <li>Đề thi nội bộ chặn hoàn toàn các truy cập xuyên tổ chức trái phép.</li>
+              <li>Thí sinh sử dụng định danh cá nhân đã xác thực để tham gia ca thi.</li>
+              <li>Hệ thống bảo vệ quyền sở hữu ca thi, chống can thiệp chéo giữa các thí sinh.</li>
               <li>Tự động kích hoạt chống gian lận đa tab (Multi-tab defense).</li>
               <li>Lưu bài theo chuẩn idempotency và đối chiếu timestamp chống mạng trễ.</li>
             </ul>
