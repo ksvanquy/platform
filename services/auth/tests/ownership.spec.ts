@@ -96,7 +96,7 @@ describe('Contracts & Ownership Evaluation (Single-Tenant ABAC Ownership + RBAC 
   });
 
   describe('2. evaluateOwnership (Standard Helper)', () => {
-    it('should evaluate resource ownership cleanly without tenant checks', () => {
+    it('should evaluate resource ownership cleanly based on principal and owner ID', () => {
       const ownerPrincipal: Principal = {
         id: 'usr_instructor_01',
         roles: ['INSTRUCTOR'],

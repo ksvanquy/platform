@@ -1,6 +1,6 @@
 # HƯỚNG DẪN KẾT NỐI POSTGRESQL CHO QUIZ SERVICE (`quiz_db`), SEED DỮ LIỆU VÀ CHẠY TEST BẰNG PNPM TRÊN WINDOWS (VS CODE)
 
-> **Mục tiêu:** Hướng dẫn kết nối cơ sở dữ liệu PostgreSQL có sẵn trên máy của bạn với **Quiz Core Engine Service** trong cấu trúc **Monorepo PNPM Workspace** (gồm 2 Server, 2 Client, 3 Packages), thiết lập kiến trúc Database-per-Service độc lập với `auth_db`, cơ chế Domain-Driven Multi-Tenancy (header `X-Tenant-ID`), phân quyền sở hữu tài nguyên (ABAC Ownership Policy), thực thi Drizzle Migration & Seed đề thi mẫu, và chạy toàn bộ bộ kiểm thử tự động (Vitest) trên môi trường **Windows** trong **Visual Studio Code (VS Code)**.
+> **Mục tiêu:** Hướng dẫn kết nối cơ sở dữ liệu PostgreSQL có sẵn trên máy của bạn với **Quiz Core Engine Service** trong cấu trúc **Monorepo PNPM Workspace** (gồm 2 Server, 2 Client, 3 Packages), thiết lập kiến trúc Database-per-Service độc lập với `auth_db`, kiến trúc Single-Tenant tinh gọn, phân quyền sở hữu tài nguyên (ABAC Ownership Policy), thực thi Drizzle Migration & Seed đề thi mẫu, và chạy toàn bộ bộ kiểm thử tự động (Vitest) trên môi trường **Windows** trong **Visual Studio Code (VS Code)**.
 
 ---
 
@@ -18,7 +18,7 @@ quiz-platform-monorepo/
 │   ├── auth/                       # @platform/auth-service: Dịch vụ xác thực JWT RS256,
 │   │                               # Generic Identity, RBAC, quản lý database auth_db (Port 3001)
 │   └── quiz/                       # @platform/quiz-service: Lõi khảo thí Assessment Core Engine
-│                                   # (Domain Tenancy, Ownership Policy, State Machine, Auto-Submit) (Port 3000)
+│                                   # (Single-Tenant, Ownership Policy, State Machine, Auto-Submit) (Port 3000)
 │
 ├── apps/                           # [2 CLIENTS PHÍA FRONTEND]
 │   ├── quiz-web/                   # @platform/quiz-web: Ứng dụng thi trực tuyến dành cho Học viên (Port 5173)
@@ -27,28 +27,26 @@ quiz-platform-monorepo/
 ├── packages/                       # [3 THƯ VIỆN DÙNG CHUNG - SHARED PACKAGES]
 │   ├── contracts/                  # @platform/contracts: DTOs, Enums, Roles & System Permissions
 │   ├── auth-client/                # @platform/auth-client: SDK xác thực, quản lý phiên & Silent Refresh
-│   └── api-client/                 # @platform/api-client: HTTP SDK gọi API kèm header X-Tenant-ID tự động
+│   └── api-client/                 # @platform/api-client: HTTP SDK gọi REST API thống nhất
 │
 └── guides/                         # Thư mục tài liệu kỹ thuật
     ├── auth_postgres_setup_guide.md # Hướng dẫn thiết lập Auth Service (auth_db)
     └── quiz_postgres_setup_guide.md # Hướng dẫn thiết lập Quiz Service (quiz_db - Tài liệu này)
 ```
 
-### Kiến Trúc Lưu Trữ Quiz Service (Database-per-Service & Domain Tenancy):
+### Kiến Trúc Lưu Trữ Quiz Service (Database-per-Service & Single-Tenant):
 - **Cơ sở dữ liệu độc lập (`quiz_db`)**: Quiz Service sở hữu cơ sở dữ liệu riêng, hoàn toàn tách biệt với `auth_db`.
   - Auth Service không lưu trữ hay quản lý đề thi hoặc ca thi.
   - Quiz Service không lưu trữ mật khẩu hay refresh token, chỉ nhận `Principal` từ JWT đã được ký hợp lệ.
-- **Domain-Driven Multi-Tenancy (Clean-Cut Tenancy)**:
-  - `tenantId` đã được **loại bỏ hoàn toàn khỏi Principal/User** trong Auth Service.
-  - Quiz Service xác định tổ chức thông qua HTTP Header `X-Tenant-ID` gửi kèm từ client (mặc định: `tenant_default` hoặc `tenant_core`).
-  - Mọi thao tác truy vấn đề thi và ca thi đều được lọc và kiểm tra cách ly theo `tenant_id` tương ứng trong bảng `quizzes` và `attempts`.
+- **Kiến Trúc Single-Tenant & ABAC Ownership**:
+  - Không tồn tại khái niệm tenant hay đa khách thuê trong toàn bộ hệ thống.
+  - Quyền tác giả và kiểm soát truy cập dựa trên **ABAC Ownership Policy** trực tiếp: Thí sinh sở hữu ca thi (`userId`), Giảng viên sở hữu đề thi (`ownerId`), Quản trị viên (`ADMIN`) có quyền bypass toàn quyền.
 - **Cấu trúc 3 bảng quan hệ trong `quiz_db`**:
   1. **`quizzes`**: Quản lý thông tin đề thi.
      - `id`: Định danh duy nhất (khóa chính).
      - `code`: Mã đề duy nhất trong hệ thống (Unique Constraint).
      - `title`, `description`: Tiêu đề và mô tả đề thi.
      - `owner_id`: ID của giảng viên/người tạo đề (ABAC Authoring Guard).
-     - `tenant_id`: Mã tổ chức sở hữu đề thi (Tenant Isolation).
      - `status`: Trạng thái đề (`DRAFT`, `PUBLISHED`, `ARCHIVED`).
      - `current_published_version_id`: Phiên bản đang được công bố cho thí sinh làm bài.
   2. **`quiz_versions`**: Phiên bản đề thi bất biến (Immutable Versioning).
@@ -64,7 +62,6 @@ quiz-platform-monorepo/
      - `id`: Khóa chính ca thi.
      - `user_id`: ID thí sinh thực hiện bài thi (chống IDOR).
      - `quiz_id`, `quiz_version_id`: Khóa ngoại tới đề và phiên bản đề.
-     - `tenant_id`: Mã tổ chức ca thi (Tenant Isolation).
      - `status`: Trạng thái máy trạng thái thi (`CREATED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `TIMED_OUT_GRADED`).
      - `started_at`, `deadline`, `submitted_at`: Dấu mốc thời gian chính thức do máy chủ quyết định (Server-Authoritative Timing).
      - `manifest`: Bản snapshot đề thi đã xáo trộn và **bảo mật tuyệt đối** (đã lược bỏ đáp án đúng trước khi trả về client) lưu dạng `JSONB`.
@@ -162,7 +159,7 @@ pnpm --filter @platform/quiz-service db:migrate
    + Created table: quizzes
    + Created table: quiz_versions
    + Created table: attempts
-   + Created indexes: idx_quizzes_code, idx_quizzes_owner, idx_quizzes_tenant, idx_attempts_sweeper,...
+   + Created indexes: idx_quizzes_code, idx_quizzes_owner, idx_quizzes_status, idx_attempts_sweeper,...
 ✅ Quiz Service PostgreSQL migrations completed successfully.
 ```
 
@@ -185,7 +182,7 @@ pnpm --filter @platform/quiz-service db:seed
   + Seeded Quiz: 'Bài Thi Thử Kiến Trúc Core' (Code: REACT_CORE)
   + Seeded Version: v1 (15 phút, Passing: 3/5 điểm, 3 câu hỏi mẫu: Single-choice, Multi-choice, True/False)
   + Published Version ID: ver_demo_v1
-✅ [quiz_db] Seeding completed: 1 quiz, 1 published version initialized in PostgreSQL.
+✅ [quiz_db] Seeding completed: 4 quizzes initialized in PostgreSQL (Single-Tenant).
 ```
 
 ### 📋 Cấu Trúc Đề Thi Mẫu Sau Khi Seed:
@@ -194,7 +191,6 @@ pnpm --filter @platform/quiz-service db:seed
 | :--- | :--- | :--- |
 | **Mã Đề (`code`)** | `REACT_CORE` | Mã số dùng để bắt đầu ca thi qua API `POST /v1/attempts` |
 | **Tiêu đề** | Bài Thi Thử Kiến Trúc Core | Tên hiển thị trên giao diện học viên |
-| **Tổ chức (`tenantId`)** | `tenant_default` | Tổ chức sở hữu đề thi (cô lập đa khách hàng) |
 | **Tác giả (`ownerId`)** | `admin_master` | Định danh người tạo đề, chỉ tác giả hoặc ADMIN mới sửa được đề |
 | **Thời lượng thi** | `15` phút | Bộ đếm thời gian phía Server kiểm soát nghiêm ngặt |
 | **Dạng câu hỏi** | 3 loại: Single Choice, Multiple Choice, True/False | Kiểm thử toàn diện chính sách chấm điểm và xáo trộn |
@@ -203,7 +199,7 @@ pnpm --filter @platform/quiz-service db:seed
 
 ## 5. CHẠY BỘ KIỂM THỬ TỰ ĐỘNG BẰNG PNPM (TEST SUITE)
 
-Hệ thống kiểm thử của Quiz Service bao gồm kiểm thử máy trạng thái, kiểm soát tương tranh bất đối xứng, cách ly tổ chức, và chống gian lận đáp án.
+Hệ thống kiểm thử của Quiz Service bao gồm kiểm thử máy trạng thái, kiểm soát tương tranh bất đối xứng, chính sách sở hữu ABAC, và chống gian lận đáp án.
 
 ### 5.1. Chạy Riêng Tests Của Quiz Service
 ```powershell
@@ -216,7 +212,7 @@ pnpm vitest services/quiz/tests
 - `server-timing-invariants.spec.ts`: Tính toán thời gian nộp bài dựa trên đồng hồ Server, chống gian lận đổi giờ máy client.
 - `attempt-sequence-concurrency.spec.ts`: Kiểm soát thứ tự lưu câu trả lời bằng sequence number chống race condition do mạng giật lag.
 - `attempt-expiry-sweeper.spec.ts`: Background daemon tự động thu gom và tự động nộp bài khi hết giờ.
-- `ownership-policy.spec.ts`: Kiểm thử ranh giới tổ chức qua header `X-Tenant-ID` và chính sách sở hữu đề thi / ca thi.
+- `ownership-policy.spec.ts`: Kiểm thử chính sách sở hữu đề thi và ca thi (ABAC Ownership Policy).
 - `drizzle-assessment-persistence.spec.ts`: Kiểm thử tầng lưu trữ Drizzle PostgreSQL 100%.
 
 ### 5.2. Chạy Toàn Bộ Test Files Trong Toàn Monorepo
@@ -229,7 +225,7 @@ pnpm test
 
 ## 6. KHỞI CHẠY HỆ THỐNG (2 SERVERS & 2 CLIENTS)
 
-Để ứng dụng vận hành đầy đủ luồng từ đăng nhập, soạn đề, đổi tổ chức cho đến thi trực tuyến, bạn khởi chạy đồng thời các service:
+Để ứng dụng vận hành đầy đủ luồng từ đăng nhập, soạn đề cho đến thi trực tuyến, bạn khởi chạy đồng thời các service:
 
 Trong VS Code, mở 4 tab Terminal:
 
@@ -255,26 +251,22 @@ Trong VS Code, mở 4 tab Terminal:
    ```powershell
    pnpm run dev:admin
    ```
-   *Truy cập `http://localhost:5174` để quản trị đề thi, duyệt đề, đổi tổ chức.*
+   *Truy cập `http://localhost:5174` để quản trị đề thi, duyệt đề và phân quyền.*
 
 ---
 
-## 7. CƠ CHẾ DOMAIN-DRIVEN MULTI-TENANCY & WORKSPACE SWITCHER
+## 7. CHÍNH SÁCH BẢO MẬT & SỞ HỮU TÀI NGUYÊN (ABAC OWNERSHIP POLICY)
 
-Hệ thống áp dụng mô hình đa tổ chức theo kiến trúc sạch (**Clean-Cut Tenancy**):
+Hệ thống áp dụng kiến trúc Single-Tenant chuẩn hóa và chính sách sở hữu tài nguyên trực tiếp:
 
-1. **Không gian làm việc độc lập**:
-   - Dữ liệu đề thi và ca thi được phân cách độc lập theo các định danh tổ chức:
-     - `tenant_core` / `tenant_default`: Không gian đào tạo tiêu chuẩn.
-     - `tenant_foreign`: Không gian liên kết quốc tế.
-     - `tenant_polytechnic`: Không gian khối cao đẳng/nghề.
-2. **Truyền Ngữ Cảnh Qua Header HTTP**:
-   - Mọi truy vấn từ frontend thông qua thư viện `@platform/api-client` đều tự động đính kèm header:
-     ```http
-     X-Tenant-ID: tenant_core
-     ```
-3. **Workspace Switcher trên Giao Diện Web**:
-   - Cả hai ứng dụng `quiz-web` và `admin-web` đều tích hợp bộ chọn không gian làm việc trực quan trên thanh tiêu đề. Khi người dùng chọn tổ chức khác, header `X-Tenant-ID` sẽ lập tức cập nhật và tải lại dữ liệu của tổ chức tương ứng.
+1. **Tài nguyên Đề thi (`Quiz`)**:
+   - Tác giả đề thi (`ownerId`) và Quản trị viên (`ADMIN`) có toàn quyền cập nhật, thêm phiên bản câu hỏi và phát hành đề thi.
+   - Giảng viên khác không thể chỉnh sửa đề thi của người khác trừ khi có vai trò `ADMIN`.
+   - Thí sinh (`STUDENT`) chỉ có quyền xem các đề thi đã phát hành (`PUBLISHED`).
+
+2. **Tài nguyên Ca thi (`Attempt`)**:
+   - Thí sinh chỉ được phép tương tác với ca thi do chính mình tạo ra (`attempt.userId === principal.id`).
+   - Mọi hành vi cố gắng can thiệp vào bài thi của người khác sẽ bị từ chối truy cập ngay lập tức.
 
 ---
 
@@ -304,9 +296,9 @@ Hệ thống áp dụng mô hình đa tổ chức theo kiến trúc sạch (**Cl
      ```env
      QUIZ_DATABASE_URL=postgres://postgres:mật_khẩu_của_bạn@localhost:5432/quiz_db
      ```
-2. **Lỗi `FORBIDDEN_CROSS_TENANT_ACCESS (403 Forbidden)`**:
-   - **Nguyên nhân**: Thí sinh hoặc giảng viên đang cố gắng truy cập vào đề thi hoặc ca thi thuộc về tổ chức khác với giá trị trong header `X-Tenant-ID`.
-   - **Cách xử lý**: Kiểm tra lại tổ chức đang chọn trên Workspace Switcher hoặc header `X-Tenant-ID` truyền vào API.
+2. **Lỗi `FORBIDDEN_RESOURCE_ACCESS (403 Forbidden)`**:
+   - **Nguyên nhân**: Thí sinh đang cố gắng xem/nộp bài ca thi của thí sinh khác, hoặc giảng viên cố gắng chỉnh sửa đề thi của tác giả khác mà không có quyền ADMIN.
+   - **Cách xử lý**: Đăng nhập đúng tài khoản sở hữu tài nguyên hoặc sử dụng tài khoản `admin@quiz.com` để thao tác.
 3. **Lỗi `OUTDATED_ANSWER_SEQUENCE (409 Conflict)`**:
    - **Nguyên nhân**: Hệ thống nhận được gói tin lưu câu trả lời có số `sequenceNumber` nhỏ hơn số thứ tự đã ghi nhận gần nhất (do độ trễ mạng gây đảo thứ tự gói tin).
    - **Cách xử lý**: Đây là cơ chế bảo vệ tính toàn vẹn dữ liệu. Client chỉ cần gửi phiên bản mới nhất với `sequenceNumber` tăng dần.

@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1788484378724,
-      "tag": "0000_remarkable_grandmaster",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1788484900000,
-      "tag": "0001_remove_tenant_id_add_metadata",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1788485500000,
-      "tag": "0003_add_refresh_token_family_id",
+      "when": 1788699052807,
+      "tag": "0000_amused_maximus",
       "breakpoints": true
     }
   ]

@@ -27,7 +27,7 @@ quiz-platform-monorepo/
 ├── packages/                       # [3 THƯ VIỆN DÙNG CHUNG - SHARED PACKAGES]
 │   ├── contracts/                  # @platform/contracts: DTOs, Enums, Roles & System Permissions
 │   ├── auth-client/                # @platform/auth-client: SDK xác thực, quản lý phiên & Silent Refresh
-│   └── api-client/                 # @platform/api-client: HTTP SDK gọi API kèm header X-Tenant-ID tự động
+│   └── api-client/                 # @platform/api-client: HTTP SDK gọi REST API thống nhất
 │
 └── guides/                         # Thư mục tài liệu hướng dẫn kỹ thuật
     ├── auth_postgres_setup_guide.md # Hướng dẫn thiết lập Auth Service (Tài liệu này)
@@ -36,11 +36,10 @@ quiz-platform-monorepo/
 
 ### Kiến Trúc Lưu Trữ Auth Service (Generic Identity & Normalized RBAC):
 - **Cơ sở dữ liệu độc lập (Database-per-Service)**: Auth Service sở hữu cơ sở dữ liệu riêng (`auth_db`), hoàn toàn tách biệt với `quiz_db` của Quiz Service.
-- **Định danh Thuần Túy (Generic Identity - Clean-Cut Tenancy)**:
-  - Cột `tenant_id` đã được **xóa bỏ vĩnh viễn** khỏi bảng `users`.
-  - Auth Service không chứa khái niệm "trường/tổ chức" của người dùng. Tài khoản thuộc về cá nhân (Global Identity).
-  - Bổ sung cột `metadata` kiểu `JSONB` để lưu trữ cài đặt cá nhân (ngôn ngữ, tùy biến) mà không phá vỡ ranh giới domain.
-  - Ngữ cảnh tổ chức (`TenantContext`) được bàn giao 100% tự chủ cho Quiz Service quản lý và truyền qua HTTP Header `X-Tenant-ID`.
+- **Định danh Thuần Túy (Zero-Tenant / Generic Identity)**:
+  - Hệ thống hoàn toàn không sử dụng mô hình multi-tenancy. Không tồn tại cột `tenant_id` trong bất kỳ bảng nào.
+  - Auth Service định danh người dùng trực tiếp qua email và ID cá nhân độc lập.
+  - Bổ sung cột `metadata` kiểu `JSONB` để lưu trữ cài đặt tài khoản cá nhân.
 - **Cấu trúc 6 bảng chuẩn hóa trong `auth_db`**:
   1. `users`: Lưu trữ tài khoản với mật khẩu băm an toàn bằng `scryptSync` (kèm salt ngẫu nhiên 16 bytes), cờ `isActive`, và `metadata JSONB`.
   2. `roles`: Danh mục vai trò toàn cục (`STUDENT`, `INSTRUCTOR`, `ADMIN`).
@@ -123,7 +122,7 @@ pnpm install
 ---
 
 ### Bước 4.2: Chạy Migration (Khởi Tạo Cấu Trúc Bảng Database)
-Thực thi toàn bộ các migration SQL của Auth Service (`0000`, `0001_remove_tenant_id_add_metadata`, `0002_purge_domain_permissions`):
+Thực thi migration SQL chuẩn hóa của Auth Service (`0000_amused_maximus`):
 
 ```powershell
 # Cách 1: Chạy qua script tại root
@@ -136,12 +135,9 @@ pnpm --filter @platform/auth-service db:migrate
 **Màn hình xuất thông báo thành công:**
 ```text
 🔄 Running Auth Service PostgreSQL migrations...
-   + Migration 0000: Initial schema (users, roles, permissions, user_roles, role_permissions, refresh_tokens)
-   + Migration 0001: Remove tenant_id, add metadata JSONB
-   + Migration 0002: Purge domain permissions (quiz:*, attempt:*)
 ✅ Auth Service PostgreSQL migrations completed successfully.
 ```
-*(Lúc này trong database `auth_db` đã được tạo đầy đủ 6 bảng chuẩn hóa).*
+*(Lúc này trong database `auth_db` đã được tạo đầy đủ 6 bảng chuẩn hóa: `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `refresh_tokens`).*
 
 ---
 
@@ -183,7 +179,7 @@ pnpm --filter @platform/auth-service db:seed
 | `instructor@quiz.local`| `teacher123` | `["INSTRUCTOR"]` | `["user:read", "user:write"]` | Tài khoản Giảng viên dự phòng môi trường local |
 | `student@quiz.local` | `student123` | `["STUDENT"]` | `["user:read", "user:write"]` | Tài khoản Học viên dự phòng môi trường local |
 
-*Ghi chú quan trọng:* Tài khoản Auth Service là **Generic Identity**. Bạn có thể sử dụng cùng một tài khoản để làm việc trên bất kỳ tổ chức/không gian làm việc nào (`tenant_core`, `tenant_foreign`, `tenant_polytechnic`) mà không cần tạo lại tài khoản.
+*Ghi chú quan trọng:* Tài khoản Auth Service là **Generic Identity**. Bạn có thể sử dụng cùng một tài khoản để truy cập hệ thống thi và quản trị mà không cần phân mảnh theo tổ chức hay trường học.
 
 ---
 

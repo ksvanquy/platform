@@ -59,10 +59,10 @@ describe('Auth Service Phase 4: 100% PostgreSQL Persistence & Fail-Fast', () => 
       expect(sanitizedOther).toContain('sslmode=disable');
 
       // Custom non-public schema mapped to search_path
-      const urlCustomSchema = 'postgres://user:pass@localhost:5432/db?schema=tenant_1';
+      const urlCustomSchema = 'postgres://user:pass@localhost:5432/db?schema=custom_app_schema';
       const sanitizedCustom = sanitizePostgresUrl(urlCustomSchema);
-      expect(sanitizedCustom).not.toContain('schema=tenant_1');
-      expect(sanitizedCustom).toContain('search_path=tenant_1');
+      expect(sanitizedCustom).not.toContain('schema=custom_app_schema');
+      expect(sanitizedCustom).toContain('search_path=custom_app_schema');
     });
   });
 

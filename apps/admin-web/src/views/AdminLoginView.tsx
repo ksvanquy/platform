@@ -206,7 +206,7 @@ export const AdminLoginView: React.FC<AdminLoginViewProps> = ({ onLoginSuccess }
 
           {mode === 'register' && (
             <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 text-[11px] text-slate-400 leading-relaxed">
-              ℹ️ <span className="font-semibold text-slate-300">Generic Identity:</span> Tài khoản tạo ra độc lập với bất kỳ trường/khoa nào. Quyền hạn theo từng tổ chức sẽ do Quiz/LMS Service cấp qua cơ chế phân quyền workspace.
+              ℹ️ <span className="font-semibold text-slate-300">Quản trị hệ thống:</span> Tài khoản định danh trực tiếp theo kiến trúc Single-Tenant với phân quyền RBAC minh bạch.
             </div>
           )}
 

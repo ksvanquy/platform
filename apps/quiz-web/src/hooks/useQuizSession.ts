@@ -31,7 +31,7 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
         setUserId(customUserId.trim());
       }
 
-      const data = await quizApi.startQuiz(quizId, activeUserId);
+      const data = await quizApi.startQuiz(quizId);
       const rawSession: any = data.session;
       
       // Chuẩn hóa Session DTO (hỗ trợ cả getter hoặc private prefix từ backend)

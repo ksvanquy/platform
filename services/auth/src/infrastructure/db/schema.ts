@@ -13,7 +13,7 @@ import { relations } from 'drizzle-orm';
 /**
  * 1. Bảng Users chuẩn hóa (Identity-only bounded context).
  * Không còn chứa mảng chuỗi roles tĩnh. Mọi phân quyền thông qua user_roles.
- * Không chứa tenantId của domain cụ thể; metadata JSONB mở rộng lưu trữ thông tin phi định danh.
+ * Quản lý định danh người dùng độc lập; metadata JSONB mở rộng lưu trữ thông tin tùy biến.
  */
 export const users = pgTable(
   'users',

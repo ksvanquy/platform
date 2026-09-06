@@ -26,7 +26,7 @@ export const quizApi = {
    * 1. POST /v1/attempts (Khởi tạo / resume attempt với quizId)
    * 2. POST /v1/attempts/:id/start (Kích hoạt tính giờ & nhận sanitized manifest)
    */
-  async startQuiz(quizId: string, _legacyUserId?: string): Promise<StartQuizResponse['data']> {
+  async startQuiz(quizId: string): Promise<StartQuizResponse['data']> {
     // 1. Tạo hoặc khôi phục attempt từ máy chủ
     const createRes = await apiClient.attempts.create(quizId);
     const attempt = createRes.data;

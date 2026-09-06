@@ -194,7 +194,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
           {mode === 'register' && (
             <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 text-[11px] text-slate-400 leading-relaxed">
-              ℹ️ <span className="font-semibold text-slate-300">Tài khoản thuần túy (Generic):</span> Không yêu cầu mã trường hay tổ chức. Bạn có thể dùng tài khoản này tham gia bất kỳ workspace nào được mời.
+              ℹ️ <span className="font-semibold text-slate-300">Tài khoản chuẩn hóa:</span> Tài khoản định danh cá nhân trực tiếp, sẵn sàng tham gia các bài thi trên hệ thống.
             </div>
           )}
 
