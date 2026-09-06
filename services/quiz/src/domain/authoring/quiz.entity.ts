@@ -10,7 +10,6 @@ export interface QuizProps {
   title: string;
   description?: string;
   ownerId: string;
-  tenantId?: string;
   isPublic?: boolean;
   currentPublishedVersionId?: string;
   status?: QuizStatus;
@@ -28,7 +27,6 @@ export class Quiz {
   private _title: string;
   private _description?: string;
   readonly ownerId: string;
-  readonly tenantId: string;
   private _isPublic: boolean;
   private _currentPublishedVersionId?: string;
   private _status: QuizStatus;
@@ -51,7 +49,6 @@ export class Quiz {
     this._title = props.title;
     this._description = props.description;
     this.ownerId = props.ownerId;
-    this.tenantId = props.tenantId || 'tenant_default';
     this._isPublic = props.isPublic ?? false;
     this._currentPublishedVersionId = props.currentPublishedVersionId;
     this._status = props.status ?? 'DRAFT';
@@ -156,7 +153,6 @@ export class Quiz {
       title: this._title,
       description: this._description,
       ownerId: this.ownerId,
-      tenantId: this.tenantId,
       isPublic: this._isPublic,
       currentPublishedVersionId: this._currentPublishedVersionId,
       status: this._status,

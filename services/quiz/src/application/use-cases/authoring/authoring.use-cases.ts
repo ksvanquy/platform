@@ -2,15 +2,14 @@ import { Quiz } from '../../../domain/authoring/quiz.entity.js';
 import { QuizVersion, AuthoringQuestion, ScoringPolicyConfig, RandomizationPolicy } from '../../../domain/authoring/quiz-version.entity.js';
 import { AuthoringRepositoryPort } from '../../../domain/ports/assessment.repository.ports.js';
 import { QuizNotFoundError, OwnershipDomainError } from '../../../domain/errors/domain-errors.js';
-import { evaluateOwnership, evaluateTenantIsolation } from '@platform/contracts';
-import type { Principal, TenantContext } from '@platform/contracts';
+import { evaluateOwnership } from '@platform/contracts';
+import type { Principal } from '@platform/contracts';
 
 export interface CreateQuizInput {
   code: string;
   title: string;
   description?: string;
   ownerId: string;
-  tenantId?: string;
   isPublic?: boolean;
 }
 
@@ -41,8 +40,7 @@ export class AuthoringUseCases {
 
   async createQuiz(
     input: CreateQuizInput,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<Quiz> {
     const existing = await this.authoringRepo.findQuizByCode(input.code);
     if (existing) {
@@ -50,12 +48,6 @@ export class AuthoringUseCases {
     }
 
     const ownerId = principal?.id || input.ownerId;
-    const activeTenantId = tenantContext?.tenantId || input.tenantId || 'tenant_default';
-
-    if (tenantContext?.tenantId && input.tenantId && tenantContext.tenantId !== input.tenantId) {
-      throw new OwnershipDomainError('Cross-tenant quiz creation prohibited');
-    }
-
     const quizId = `quiz_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const quiz = new Quiz({
       id: quizId,
@@ -63,7 +55,6 @@ export class AuthoringUseCases {
       title: input.title,
       description: input.description,
       ownerId,
-      tenantId: activeTenantId,
       isPublic: input.isPublic ?? false,
       status: 'DRAFT',
     });
@@ -74,8 +65,7 @@ export class AuthoringUseCases {
 
   async addVersion(
     input: CreateQuizVersionInput,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<QuizVersion> {
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
@@ -89,11 +79,9 @@ export class AuthoringUseCases {
           resourceType: 'quiz',
           resourceId: quiz.id,
           ownerId: quiz.ownerId,
-          tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:update',
-        'quiz:manage_all',
-        tenantContext
+        'quiz:manage_all'
       );
 
       if (!evaluation.allowed) {
@@ -125,8 +113,7 @@ export class AuthoringUseCases {
 
   async updateQuiz(
     input: UpdateQuizInput,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<Quiz> {
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
@@ -140,11 +127,9 @@ export class AuthoringUseCases {
           resourceType: 'quiz',
           resourceId: quiz.id,
           ownerId: quiz.ownerId,
-          tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:update',
-        'quiz:manage_all',
-        tenantContext
+        'quiz:manage_all'
       );
 
       if (!evaluation.allowed) {
@@ -161,8 +146,7 @@ export class AuthoringUseCases {
 
   async publishQuiz(
     input: PublishQuizInput,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<{ quiz: Quiz; version: QuizVersion }> {
     const quiz = await this.authoringRepo.findQuizById(input.quizId);
     if (!quiz) {
@@ -176,11 +160,9 @@ export class AuthoringUseCases {
           resourceType: 'quiz',
           resourceId: quiz.id,
           ownerId: quiz.ownerId,
-          tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:publish',
-        'quiz:manage_all',
-        tenantContext
+        'quiz:manage_all'
       );
 
       if (!evaluation.allowed) {
@@ -203,8 +185,7 @@ export class AuthoringUseCases {
 
   async deleteQuiz(
     quizId: string,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<void> {
     const quiz = await this.authoringRepo.findQuizById(quizId);
     if (!quiz) {
@@ -218,11 +199,9 @@ export class AuthoringUseCases {
           resourceType: 'quiz',
           resourceId: quiz.id,
           ownerId: quiz.ownerId,
-          tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:delete',
-        'quiz:manage_all',
-        tenantContext
+        'quiz:manage_all'
       );
 
       if (!evaluation.allowed) {
@@ -236,21 +215,13 @@ export class AuthoringUseCases {
     await this.authoringRepo.saveQuiz(quiz);
   }
 
-  async getPublishedQuizzes(tenantId?: string): Promise<Quiz[]> {
-    const all = await this.authoringRepo.listPublishedQuizzes();
-    if (!tenantId) {
-      return all;
-    }
-    return all.filter((q) => {
-      if (q.isPublic === true) return true;
-      return evaluateTenantIsolation({ tenantId }, { tenantId: q.tenantId || 'tenant_default' });
-    });
+  async getPublishedQuizzes(): Promise<Quiz[]> {
+    return this.authoringRepo.listPublishedQuizzes();
   }
 
   async getQuizDetails(
     quizId: string,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<{ quiz: Quiz; currentVersion?: QuizVersion }> {
     const quiz = await this.authoringRepo.findQuizById(quizId);
     if (!quiz) {
@@ -264,21 +235,15 @@ export class AuthoringUseCases {
           resourceType: 'quiz',
           resourceId: quiz.id,
           ownerId: quiz.ownerId,
-          tenantId: quiz.tenantId || 'tenant_default',
         },
         'quiz:read',
-        'quiz:manage_all',
-        tenantContext
+        'quiz:manage_all'
       );
 
       if (!evaluation.allowed) {
         throw new OwnershipDomainError(
           evaluation.reason || 'You do not have permission to view this non-published quiz'
         );
-      }
-    } else if (tenantContext && !quiz.isPublic) {
-      if (!evaluateTenantIsolation(tenantContext, { tenantId: quiz.tenantId })) {
-        throw new OwnershipDomainError('Cross-tenant access prohibited');
       }
     }
 

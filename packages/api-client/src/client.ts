@@ -28,7 +28,6 @@ export class ApiClientError extends Error {
 export class ApiClient {
   private baseUrl: string;
   private getToken?: () => string | null | undefined | Promise<string | null | undefined>;
-  private getTenantId?: () => string | null | undefined | Promise<string | null | undefined>;
   private currentTenantId: string | null = null;
   private timeoutMs: number;
   private defaultHeaders: Record<string, string>;
@@ -37,7 +36,6 @@ export class ApiClient {
   constructor(config: ApiClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.getToken = config.getToken;
-    this.getTenantId = config.getTenantId;
     this.timeoutMs = config.timeoutMs ?? 30000;
     this.defaultHeaders = config.headers ?? {};
     this.fetchFn = config.fetchFn ?? (typeof fetch !== 'undefined' ? fetch.bind(globalThis) : (undefined as any));
@@ -95,16 +93,7 @@ export class ApiClient {
       }
     }
 
-    if (!headers['X-Tenant-ID'] && !headers['x-tenant-id']) {
-      if (this.getTenantId) {
-        const tenantId = await this.getTenantId();
-        if (tenantId) {
-          headers['X-Tenant-ID'] = tenantId;
-        }
-      } else if (this.currentTenantId) {
-        headers['X-Tenant-ID'] = this.currentTenantId;
-      }
-    }
+    // Note: Single-tenant mode: X-Tenant-ID header injection removed.
 
     let reqBody: any = undefined;
     if (body !== undefined && body !== null) {

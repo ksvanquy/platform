@@ -7,14 +7,9 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   const router = Router();
 
   // GET /v1/quizzes - Danh mục đề thi đã xuất bản
-  router.get('/', async (req: Request, res: Response) => {
+  router.get('/', async (_req: Request, res: Response) => {
     try {
-      const activeTenantId =
-        req.tenantContext?.tenantId ||
-        (req.headers['x-tenant-id'] as string) ||
-        (req.query.tenantId as string) ||
-        undefined;
-      const quizzes = await authoring.getPublishedQuizzes(activeTenantId);
+      const quizzes = await authoring.getPublishedQuizzes();
       res.status(200).json({
         success: true,
         data: quizzes.map((q) => ({
@@ -23,7 +18,6 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           title: q.title,
           description: q.description,
           status: q.status,
-          tenantId: q.tenantId,
           isPublic: q.isPublic,
           currentPublishedVersionId: q.currentPublishedVersionId,
         })),
@@ -33,7 +27,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
     }
   });
 
-    // POST /v1/quizzes - Khởi tạo đề thi mới (DRAFT) - Yêu cầu INSTRUCTOR hoặc ADMIN
+  // POST /v1/quizzes - Khởi tạo đề thi mới (DRAFT) - Yêu cầu INSTRUCTOR hoặc ADMIN
   router.post('/', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
       const principal = req.principal;
@@ -45,11 +39,9 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           title,
           description,
           ownerId: principal?.id || 'anonymous_author',
-          tenantId: req.tenantContext?.tenantId,
           isPublic: isPublic !== undefined ? Boolean(isPublic) : undefined,
         },
-        principal,
-        req.tenantContext
+        principal
       );
 
       res.status(201).json({ success: true, data: quiz });
@@ -62,7 +54,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
   // GET /v1/quizzes/:id - Xem chi tiết đề thi
   router.get('/:id', async (req: Request, res: Response) => {
     try {
-      const details = await authoring.getQuizDetails(String(req.params.id), req.principal, req.tenantContext);
+      const details = await authoring.getQuizDetails(String(req.params.id), req.principal);
       res.status(200).json({ success: true, data: details });
     } catch (err: any) {
       const status = err instanceof DomainError ? err.statusCode : 404;
@@ -81,8 +73,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           description,
           isPublic: isPublic !== undefined ? Boolean(isPublic) : undefined,
         },
-        req.principal,
-        req.tenantContext
+        req.principal
       );
 
       res.status(200).json({ success: true, data: quiz });
@@ -106,8 +97,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           scoringPolicy,
           randomizationPolicy: randomizationPolicy || { shuffleQuestions: false, shuffleOptions: false },
         },
-        req.principal,
-        req.tenantContext
+        req.principal
       );
 
       res.status(201).json({ success: true, data: version });
@@ -126,8 +116,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases): Router {
           quizId: String(req.params.id),
           versionId,
         },
-        req.principal,
-        req.tenantContext
+        req.principal
       );
 
       res.status(200).json({ success: true, data: result });

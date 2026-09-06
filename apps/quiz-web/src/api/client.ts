@@ -47,13 +47,11 @@ export const authClient: AuthClient = createAuthClient({
 /**
  * Singleton ApiClient kết nối tới Quiz Service:
  * - Tự động inject header "Authorization: Bearer <token>" từ authClient
- * - Tự động đính kèm header "X-Tenant-ID: <activeWorkspaceId>" theo chuẩn Domain-Driven Tenancy
  * - Cung cấp generic HTTP methods và typed domain resources (quizzes, sessions)
  */
 export const apiClient: ApiClient = createApiClient({
   baseUrl: (import.meta as any).env?.VITE_QUIZ_API_URL || '',
   getToken: () => authClient.getAccessToken(),
-  getTenantId: () => getActiveWorkspaceId(),
 });
 
 export { authClient as auth, apiClient as api };

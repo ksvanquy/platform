@@ -86,7 +86,7 @@ describe('Bước 5 — packages/api-client', () => {
       );
     });
 
-    it('should inject X-Tenant-ID header when getTenantId is provided', async () => {
+    it('should operate cleanly without injecting X-Tenant-ID header in single-tenant mode', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         headers: new Headers({ 'content-type': 'application/json' }),
@@ -96,7 +96,6 @@ describe('Bước 5 — packages/api-client', () => {
       api = createApiClient({
         baseUrl: 'http://quiz.api.local',
         getToken: () => mockToken,
-        getTenantId: () => 'tenant_engineering_dept',
         fetchFn: mockFetch,
       });
 
@@ -107,13 +106,14 @@ describe('Bước 5 — packages/api-client', () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             Authorization: `Bearer ${mockToken}`,
-            'X-Tenant-ID': 'tenant_engineering_dept',
           }),
         })
       );
+      const callHeaders = mockFetch.mock.calls[0][1].headers;
+      expect(callHeaders['X-Tenant-ID']).toBeUndefined();
     });
 
-    it('should inject X-Tenant-ID header when setTenantId is configured', async () => {
+    it('should maintain backward compatible setTenantId API as no-op in single-tenant mode', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         headers: new Headers({ 'content-type': 'application/json' }),
@@ -130,39 +130,8 @@ describe('Bước 5 — packages/api-client', () => {
 
       await api.get('/quizzes');
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://quiz.api.local/quizzes',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'X-Tenant-ID': 'tenant_medical_school',
-          }),
-        })
-      );
-    });
-
-    it('should handle async getTenantId resolution', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => ({ success: true, data: [] }),
-      });
-
-      api = createApiClient({
-        baseUrl: 'http://quiz.api.local',
-        getTenantId: async () => Promise.resolve('tenant_async_workspace'),
-        fetchFn: mockFetch,
-      });
-
-      await api.get('/quizzes');
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://quiz.api.local/quizzes',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'X-Tenant-ID': 'tenant_async_workspace',
-          }),
-        })
-      );
+      const callHeaders = mockFetch.mock.calls[0][1].headers;
+      expect(callHeaders['X-Tenant-ID']).toBeUndefined();
     });
   });
 

@@ -20,31 +20,13 @@ export interface OwnershipEvaluationResult {
 }
 
 /**
- * 1. Đảm bảo request đang thao tác đúng tổ chức của tài nguyên (Tenant Isolation Check).
+ * @deprecated In single-tenant architecture, tenant isolation is bypassed and always allowed.
  */
 export function evaluateTenantIsolation(
-  tenantContext: TenantContext,
-  resource: TenantScopedResource
+  _tenantContext?: TenantContext,
+  _resource?: TenantScopedResource
 ): boolean {
-  if (!tenantContext || !resource) {
-    return false;
-  }
-  const ctxTenant = tenantContext.tenantId?.trim();
-  const resTenant = resource.tenantId?.trim();
-  if (!ctxTenant || !resTenant) {
-    return false;
-  }
-  if (ctxTenant === resTenant) {
-    return true;
-  }
-  // Cho phép tương thích ngược giữa tenant_default và tenant_core (cùng đại diện không gian đào tạo mặc định)
-  if (
-    (ctxTenant === 'tenant_core' && resTenant === 'tenant_default') ||
-    (ctxTenant === 'tenant_default' && resTenant === 'tenant_core')
-  ) {
-    return true;
-  }
-  return false;
+  return true;
 }
 
 /**

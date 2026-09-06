@@ -86,7 +86,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
 
       expect(quiz.id).toBeDefined();
       expect(quiz.ownerId).toBe(instructorA.id);
-      expect(quiz.tenantId).toBe('tenant_core');
     });
 
     it('Instructor A (owner) can add version, update, and publish their own quiz', async () => {
@@ -239,33 +238,6 @@ describe('Gói WP-6: Áp dụng Ownership Policy tại Quiz Service (ABAC Lightw
         tenantCore
       );
       expect(result.quiz.status).toBe('PUBLISHED');
-    });
-
-    it('Instructor from foreign tenant is blocked by tenant boundary', async () => {
-      const quiz = await authoringUseCases.createQuiz(
-        {
-          code: 'BIO_101',
-          title: 'Sinh Học 101',
-          ownerId: instructorA.id,
-        },
-        instructorA,
-        tenantCore
-      );
-
-      await expect(
-        authoringUseCases.addVersion(
-          {
-            quizId: quiz.id,
-            durationMinutes: 15,
-            passingScore: 1,
-            questions: [],
-            scoringPolicy: { strategyType: 'exact-match' },
-            randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
-          },
-          instructorA,
-          tenantForeign
-        )
-      ).rejects.toThrow(OwnershipDomainError);
     });
   });
 

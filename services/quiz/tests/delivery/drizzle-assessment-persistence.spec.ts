@@ -23,7 +23,6 @@ describe('Gói WP-8: Drizzle Assessment Persistence Integration Tests (PostgreSQ
         title: 'PostgreSQL Mastery Exam',
         description: 'Comprehensive test for Drizzle + PostgreSQL',
         ownerId: 'inst_expert',
-        tenantId: 'tenant_engineering',
         status: 'PUBLISHED',
         currentPublishedVersionId: 'ver_psql_v1',
       });
@@ -70,7 +69,6 @@ describe('Gói WP-8: Drizzle Assessment Persistence Integration Tests (PostgreSQ
       expect(retrievedQuiz).toBeDefined();
       expect(retrievedQuiz?.code).toBe('PSQL_101');
       expect(retrievedQuiz?.title).toBe('PostgreSQL Mastery Exam');
-      expect(retrievedQuiz?.tenantId).toBe('tenant_engineering');
       expect(retrievedQuiz?.status).toBe('PUBLISHED');
 
       const retrievedVersion = await testCtx.authoringRepo.findVersionById('ver_psql_v1');
@@ -93,7 +91,6 @@ describe('Gói WP-8: Drizzle Assessment Persistence Integration Tests (PostgreSQ
         userId: 'candidate_elena',
         quizId: 'quiz_demo',
         quizVersionId: 'ver_demo_v1',
-        tenantId: 'tenant_default',
         status: 'IN_PROGRESS',
         startedAt: now,
         deadline,
@@ -127,7 +124,6 @@ describe('Gói WP-8: Drizzle Assessment Persistence Integration Tests (PostgreSQ
         userId: 'student_slow',
         quizId: 'quiz_demo',
         quizVersionId: 'ver_demo_v1',
-        tenantId: 'tenant_default',
         status: 'IN_PROGRESS',
         startedAt: new Date(currentTime.getTime() - 120000),
         deadline: pastDeadline,

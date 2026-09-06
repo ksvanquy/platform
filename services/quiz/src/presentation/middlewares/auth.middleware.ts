@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
-import type { Principal, TenantContext } from '@platform/contracts';
+import type { Principal } from '@platform/contracts';
 import { resolvePermissionsForRoles } from '@platform/contracts';
 import { getDefaultRsaKeyPair } from '@platform/auth-service';
 
@@ -8,10 +8,8 @@ declare global {
   namespace Express {
     interface Request {
       principal?: Principal;
-      tenantContext?: TenantContext;
       context?: {
         principal?: Principal;
-        tenantContext?: TenantContext;
       };
     }
   }
@@ -232,17 +230,10 @@ export async function authContextMiddleware(
     };
   }
 
-  // 3. Phân giải TenantContext độc lập trực tiếp từ Header X-Tenant-ID (Domain-Driven Tenancy)
-  const rawTenantId = (req.headers['x-tenant-id'] as string) || undefined;
-  const tenantId = rawTenantId?.trim();
-  const tenantContext: TenantContext | undefined = tenantId ? { tenantId } : undefined;
-
-  // Gán thông tin principal và tenantContext vào request (nếu có)
+  // Gán thông tin principal vào request
   req.principal = principal;
-  req.tenantContext = tenantContext;
   req.context = {
     principal,
-    tenantContext,
   };
 
   next();

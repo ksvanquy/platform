@@ -126,7 +126,6 @@ describe('Bước 3 — Quiz Service nhận Principal từ Authentication Contex
       const { accessToken } = tokenService.generateTokens({
         sub: 'usr_student_02',
         roles: ['STUDENT'],
-        tenantId: 'tenant_academy',
       });
 
       const mockReq: any = {
@@ -183,7 +182,6 @@ describe('Bước 3 — Quiz Service nhận Principal từ Authentication Contex
       const mockReq: any = {
         headers: {
           'x-user-id': 'usr_instructor_99',
-          'x-tenant-id': 'tenant_special',
         },
       };
       const mockRes: any = {};

@@ -46,13 +46,11 @@ export const authClient: AuthClient = createAuthClient({
 /**
  * Singleton ApiClient cho Admin Portal kết nối tới Quiz Service:
  * - Tự động gắn Authorization: Bearer <token> từ authClient
- * - Tự động đính kèm header "X-Tenant-ID: <activeWorkspaceId>" theo chuẩn Domain-Driven Tenancy
  * - Cung cấp generic HTTP methods và domain resources
  */
 export const apiClient: ApiClient = createApiClient({
   baseUrl: (import.meta as any).env?.VITE_QUIZ_API_URL || '',
   getToken: () => authClient.getAccessToken(),
-  getTenantId: () => getActiveWorkspaceId(),
 });
 
 export { authClient as auth, apiClient as api };

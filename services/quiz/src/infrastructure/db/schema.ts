@@ -33,7 +33,6 @@ export const quizzes = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
     ownerId: varchar('owner_id', { length: 64 }).notNull(),
-    tenantId: varchar('tenant_id', { length: 64 }).notNull().default('tenant_default'),
     isPublic: boolean('is_public').notNull().default(false),
     currentPublishedVersionId: varchar('current_published_version_id', { length: 64 }),
     status: varchar('status', { length: 32 }).notNull().default('DRAFT'),
@@ -43,9 +42,7 @@ export const quizzes = pgTable(
   (table) => [
     index('idx_quizzes_code').on(table.code),
     index('idx_quizzes_owner').on(table.ownerId),
-    index('idx_quizzes_tenant').on(table.tenantId),
     index('idx_quizzes_status').on(table.status),
-    index('idx_quizzes_owner_tenant').on(table.ownerId, table.tenantId),
   ]
 );
 
@@ -94,7 +91,6 @@ export const attempts = pgTable(
     quizVersionId: varchar('quiz_version_id', { length: 64 })
       .notNull()
       .references(() => quizVersions.id, { onDelete: 'restrict' }),
-    tenantId: varchar('tenant_id', { length: 64 }).notNull().default('tenant_default'),
     status: varchar('status', { length: 32 }).notNull().default('CREATED'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     deadline: timestamp('deadline', { withTimezone: true }),
@@ -108,7 +104,6 @@ export const attempts = pgTable(
   (table) => [
     index('idx_attempts_user').on(table.userId),
     index('idx_attempts_user_quiz').on(table.userId, table.quizId),
-    index('idx_attempts_tenant').on(table.tenantId),
     index('idx_attempts_sweeper').on(table.status, table.deadline),
   ]
 );

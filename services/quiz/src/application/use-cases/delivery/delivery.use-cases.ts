@@ -12,13 +12,11 @@ import {
   ForbiddenError,
   OwnershipDomainError,
 } from '../../../domain/errors/domain-errors.js';
-import { evaluateTenantIsolation } from '@platform/contracts';
-import type { Principal, TenantContext } from '@platform/contracts';
+import type { Principal } from '@platform/contracts';
 
 export interface CreateAttemptInput {
   userId: string;
   quizId: string;
-  tenantId?: string;
 }
 
 export interface StartAttemptInput {
@@ -53,8 +51,7 @@ export class DeliveryUseCases {
    */
   async createAttempt(
     input: CreateAttemptInput,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<{ attempt: Attempt; isExisting: boolean }> {
     if (principal && principal.id !== input.userId && !principal.roles.includes('ADMIN')) {
       throw new OwnershipDomainError('Access denied: Cannot start an attempt on behalf of another user');
@@ -67,25 +64,6 @@ export class DeliveryUseCases {
     if (quiz.status !== 'PUBLISHED' || !quiz.currentPublishedVersionId) {
       throw new QuizNotPublishedError(input.quizId);
     }
-
-    // Tenant Isolation (WP-4: Domain-Driven Tenancy)
-    const resolvedTenant = tenantContext || (input.tenantId ? { tenantId: input.tenantId } : undefined);
-
-    if (quiz.isPublic === true) {
-      // Đề thi công khai: cho phép mọi thí sinh tham gia
-    } else {
-      // Đề thi nội bộ: bắt buộc cùng tenant boundary
-      if (resolvedTenant) {
-        const isAllowed = evaluateTenantIsolation(resolvedTenant, { tenantId: quiz.tenantId });
-        if (!isAllowed) {
-          throw new OwnershipDomainError('Cross-tenant access prohibited');
-        }
-      } else if (input.tenantId && quiz.tenantId && input.tenantId !== quiz.tenantId) {
-        throw new OwnershipDomainError('Cross-tenant access prohibited');
-      }
-    }
-
-    const tenantId = resolvedTenant?.tenantId || input.tenantId || quiz.tenantId || 'tenant_default';
 
     const version = await this.authoringRepo.findVersionById(quiz.currentPublishedVersionId);
     if (!version) {
@@ -122,7 +100,6 @@ export class DeliveryUseCases {
       userId: input.userId,
       quizId: input.quizId,
       quizVersionId: version.id,
-      tenantId,
       status: 'CREATED',
     });
 
@@ -135,8 +112,7 @@ export class DeliveryUseCases {
    */
   async startAttempt(
     input: StartAttemptInput,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<{
     attempt: Attempt;
     manifest: AttemptManifest;
@@ -151,15 +127,6 @@ export class DeliveryUseCases {
     const isAdmin = principal?.roles.includes('ADMIN') || (principal?.permissions?.includes('*') ?? false);
     if (!isOwner && !isAdmin) {
       throw new OwnershipDomainError('Access denied: You do not own this attempt');
-    }
-
-    // Thẩm định ranh giới tổ chức cho bài thi
-    const quiz = await this.authoringRepo.findQuizById(attempt.quizId);
-    if (quiz && !quiz.isPublic && tenantContext) {
-      const isAllowed = evaluateTenantIsolation(tenantContext, { tenantId: quiz.tenantId });
-      if (!isAllowed) {
-        throw new OwnershipDomainError('Cross-tenant access prohibited');
-      }
     }
 
     const version = await this.authoringRepo.findVersionById(attempt.quizVersionId);
@@ -183,8 +150,7 @@ export class DeliveryUseCases {
    */
   async recordAnswer(
     input: RecordAnswerInput,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<void> {
     const attempt = await this.deliveryRepo.findAttemptById(input.attemptId);
     if (!attempt) {
@@ -194,10 +160,6 @@ export class DeliveryUseCases {
     const isOwner = attempt.userId === input.userId && (!principal || principal.id === attempt.userId);
     if (!isOwner) {
       throw new OwnershipDomainError('Access denied: You do not own this attempt');
-    }
-
-    if (tenantContext && attempt.tenantId && !evaluateTenantIsolation(tenantContext, { tenantId: attempt.tenantId })) {
-      throw new OwnershipDomainError('Cross-tenant access prohibited');
     }
 
     const sequenceNumber = input.sequenceNumber ?? input.clientTimestamp ?? Date.now();
@@ -214,8 +176,7 @@ export class DeliveryUseCases {
    */
   async submitAttempt(
     input: SubmitAttemptInput,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<{
     attempt: Attempt;
     scoreResult: AttemptScoreResult;
@@ -228,10 +189,6 @@ export class DeliveryUseCases {
     const isOwner = attempt.userId === input.userId && (!principal || principal.id === attempt.userId);
     if (!isOwner) {
       throw new OwnershipDomainError('Access denied: You do not own this attempt');
-    }
-
-    if (tenantContext && attempt.tenantId && !evaluateTenantIsolation(tenantContext, { tenantId: attempt.tenantId })) {
-      throw new OwnershipDomainError('Cross-tenant access prohibited');
     }
 
     const version = await this.authoringRepo.findVersionById(attempt.quizVersionId);
@@ -261,8 +218,7 @@ export class DeliveryUseCases {
     userId: string,
     now: Date = new Date(),
     gracePeriodMs = 15000,
-    principal?: Principal,
-    tenantContext?: TenantContext
+    principal?: Principal
   ): Promise<{
     attempt: Attempt;
     questions?: readonly DeliveryQuestion[];
@@ -291,10 +247,6 @@ export class DeliveryUseCases {
 
     if (!allowed) {
       throw new OwnershipDomainError('Access denied: You do not own this attempt');
-    }
-
-    if (tenantContext && attempt.tenantId && !evaluateTenantIsolation(tenantContext, { tenantId: attempt.tenantId })) {
-      throw new OwnershipDomainError('Cross-tenant access prohibited');
     }
 
     let autoSwept = false;

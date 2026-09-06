@@ -33,7 +33,7 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, x-tenant-id, x-internal-secret');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, x-internal-secret');
   res.header('Access-Control-Expose-Headers', 'X-Server-Time, X-Server-Timestamp');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);

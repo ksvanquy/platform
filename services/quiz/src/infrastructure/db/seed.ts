@@ -14,7 +14,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   console.log('🌱 [quiz_db] Seeding default quizzes and versions into PostgreSQL...');
   const repo = new DrizzleAuthoringRepository(customDb);
 
-  // 1. Đề thi cho Đại Học Công Nghệ (tenant_core / tenant_default)
+  // 1. Đề thi Kiến Trúc Core
   const quizId = 'quiz_demo';
   const versionId = 'ver_demo_v1';
 
@@ -64,9 +64,8 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     id: quizId,
     code: 'REACT_CORE',
     title: 'Bài Thi Thử Kiến Trúc Core',
-    description: 'Kiểm tra tổng hợp các loại câu hỏi (Đại Học Công Nghệ)',
+    description: 'Kiểm tra tổng hợp các loại câu hỏi',
     ownerId: 'admin_master',
-    tenantId: 'tenant_core',
     status: 'PUBLISHED',
     currentPublishedVersionId: versionId,
   });
@@ -74,7 +73,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   await repo.saveQuiz(quiz);
   await repo.saveVersion(version);
 
-  // 2. Đề thi cho Đại Học Quốc Tế (tenant_foreign)
+  // 2. Đề thi Tiếng Anh B2
   const foreignQuizId = 'quiz_foreign';
   const foreignVersionId = 'ver_foreign_v1';
 
@@ -112,10 +111,9 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   const foreignQuiz = new Quiz({
     id: foreignQuizId,
     code: 'ENGLISH_B2',
-    title: 'Đề Thi Tiếng Anh B2 Quốc Tế',
-    description: 'Đánh giá năng lực ngoại ngữ học thuật (Khoa Ngoại Ngữ)',
+    title: 'Đề Thi Tiếng Anh B2',
+    description: 'Đánh giá năng lực ngoại ngữ học thuật',
     ownerId: 'usr_inst_c',
-    tenantId: 'tenant_foreign',
     status: 'PUBLISHED',
     currentPublishedVersionId: foreignVersionId,
   });
@@ -123,7 +121,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   await repo.saveQuiz(foreignQuiz);
   await repo.saveVersion(foreignVersion);
 
-  // 3. Đề thi cho Viện Bách Khoa (tenant_polytechnic)
+  // 3. Đề thi Cấu Trúc Dữ Liệu & Giải Thuật
   const polyQuizId = 'quiz_poly';
   const polyVersionId = 'ver_poly_v1';
 
@@ -162,9 +160,8 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     id: polyQuizId,
     code: 'ALGO_DATA',
     title: 'Đề Thi Cấu Trúc Dữ Liệu & Giải Thuật',
-    description: 'Kiểm tra giải thuật cơ sở (Viện Bách Khoa Đào Tạo Mở)',
+    description: 'Kiểm tra giải thuật cơ sở',
     ownerId: 'admin_master',
-    tenantId: 'tenant_polytechnic',
     status: 'PUBLISHED',
     currentPublishedVersionId: polyVersionId,
   });
@@ -172,7 +169,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   await repo.saveQuiz(polyQuiz);
   await repo.saveVersion(polyVersion);
 
-  // 4. Đề thi công khai (isPublic: true) - Thí sinh mọi tổ chức đều có thể làm
+  // 4. Đề thi công khai (isPublic: true)
   const publicQuizId = 'quiz_public';
   const publicVersionId = 'ver_public_v1';
 
@@ -203,10 +200,9 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   const publicQuiz = new Quiz({
     id: publicQuizId,
     code: 'PUBLIC_SURVEY',
-    title: 'Bài Khảo Sát Kiến Thức Mở (Công Khai)',
-    description: 'Đề thi tự do cho phép mọi thí sinh từ bất kỳ tổ chức nào tham gia',
+    title: 'Bài Khảo Sát Kiến Thức Mở',
+    description: 'Đề thi tự do cho phép mọi thí sinh tham gia',
     ownerId: 'admin_master',
-    tenantId: 'tenant_core',
     isPublic: true,
     status: 'PUBLISHED',
     currentPublishedVersionId: publicVersionId,
@@ -215,7 +211,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   await repo.saveQuiz(publicQuiz);
   await repo.saveVersion(publicVersion);
 
-  console.log('✅ [quiz_db] Seeding completed: 4 quizzes (tenant_core, tenant_foreign, tenant_polytechnic, public) initialized in PostgreSQL.');
+  console.log('✅ [quiz_db] Seeding completed: 4 quizzes initialized in PostgreSQL (Single-Tenant).');
 }
 
 // Allow direct execution via CLI

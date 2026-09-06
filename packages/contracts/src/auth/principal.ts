@@ -66,14 +66,15 @@ export interface Principal {
 }
 
 /**
- * 2. Hợp đồng Ngữ Cảnh Tổ Chức (Tenant Context Contract) dành cho Resource Services.
+ * 2. Hợp đồng Ngữ Cảnh Tổ Chức (Tenant Context Contract) - Deprecated trong kiến trúc Single-Tenant.
+ * Giữ lại dạng optional nhằm đảm bảo tương thích ngược.
  */
 export interface TenantContext {
-  readonly tenantId: string;
+  readonly tenantId?: string;
 }
 
 export interface TenantScopedResource {
-  readonly tenantId: string;
+  readonly tenantId?: string;
 }
 
 export interface OwnedResource {

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { authClient, adminApi } from '../api/index.js';
-import { getActiveWorkspaceId, setActiveWorkspaceId } from '../api/client.js';
 import type { UserProfile } from '@platform/auth-client';
 
 interface AdminDashboardViewProps {
@@ -9,18 +8,11 @@ interface AdminDashboardViewProps {
   onRefreshUser: () => void;
 }
 
-const AVAILABLE_WORKSPACES = [
-  { id: 'tenant_core', name: 'Đại Học Công Nghệ (Khoa CNTT)', tag: 'Mặc định' },
-  { id: 'tenant_foreign', name: 'Đại Học Quốc Tế (Khoa Ngoại Ngữ)', tag: 'Cross-Tenant' },
-  { id: 'tenant_polytechnic', name: 'Viện Bách Khoa Đào Tạo Mở', tag: 'Đào tạo' },
-];
-
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   user,
   onLogout,
   onRefreshUser,
 }) => {
-  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>(() => getActiveWorkspaceId());
   const [apiTestStatus, setApiTestStatus] = useState<string | null>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [showToken, setShowToken] = useState(false);
@@ -76,24 +68,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     }
   };
 
-  const handleWorkspaceChange = (newWorkspaceId: string) => {
-    setActiveWorkspaceId(newWorkspaceId);
-    setCurrentWorkspaceId(newWorkspaceId);
-    setApiTestStatus(null);
-  };
-
   const handleTestApi = async () => {
     setIsTestingApi(true);
     setApiTestStatus(null);
     try {
-      // Test gọi API đề thi quiz_demo qua adminApi (đính kèm Bearer token + X-Tenant-ID tự động)
+      // Test gọi API đề thi quiz_demo qua adminApi (đính kèm Bearer token tự động)
       const quiz = await adminApi.getQuiz('quiz_demo');
       setApiTestStatus(
-        `✅ Gọi API thành công với Header [X-Tenant-ID: ${currentWorkspaceId}]! Quiz: "${quiz?.title || 'quiz_demo'}" (${quiz?.questions?.length || 0} câu hỏi). Server phản hồi 200 OK.`
+        `✅ Gọi API thành công! Quiz: "${quiz?.title || 'quiz_demo'}" (${quiz?.questions?.length || 0} câu hỏi). Server phản hồi 200 OK.`
       );
     } catch (err: any) {
       setApiTestStatus(
-        `⚠️ Kiểm tra API thất bại [Tenant: ${currentWorkspaceId}]: ${err.message || 'Không thể kết nối đến Quiz Core Service (Port 3000)'}`
+        `⚠️ Kiểm tra API thất bại: ${err.message || 'Không thể kết nối đến Quiz Core Service (Port 3000)'}`
       );
     } finally {
       setIsTestingApi(false);
@@ -148,48 +134,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         </div>
       </header>
 
-      {/* Workspace Selector (Domain-Driven Tenancy) */}
-      <div className="p-5 rounded-3xl bg-slate-900 border border-indigo-500/30 shadow-xl space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-base">🏛️</span>
-            <div>
-              <h3 className="text-sm font-bold text-slate-200">Không Gian Làm Việc / Tổ Chức (Active Workspace)</h3>
-              <p className="text-xs text-slate-400">
-                Lựa chọn ngữ cảnh tổ chức để quản lý đề thi và ca thi (Header <code className="text-indigo-300 font-mono">X-Tenant-ID</code>)
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-mono px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
-            X-Tenant-ID: {currentWorkspaceId}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          {AVAILABLE_WORKSPACES.map((ws) => {
-            const isActive = currentWorkspaceId === ws.id;
-            return (
-              <button
-                key={ws.id}
-                type="button"
-                onClick={() => handleWorkspaceChange(ws.id)}
-                className={`p-3.5 rounded-2xl text-left border transition-all ${
-                  isActive
-                    ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200 shadow-md shadow-indigo-600/10'
-                    : 'bg-slate-800/40 border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <div className="text-xs font-bold truncate">{ws.name}</div>
-                <div className="flex items-center justify-between text-[11px] font-mono mt-1 text-slate-400">
-                  <span>{ws.id}</span>
-                  <span className="text-[10px] uppercase font-semibold text-slate-500">{ws.tag}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Main Status & Auth Verification Card */}
       <div className="p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
         <div className="flex items-start justify-between">
@@ -204,7 +148,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               </h3>
             </div>
             <p className="text-xs sm:text-sm text-slate-400">
-              admin-web đã kết nối với Auth Service, quản lý phiên và điều phối ngữ cảnh tổ chức độc lập.
+              admin-web đã kết nối với Auth Service, quản lý phiên và điều phối phân quyền hệ thống.
             </p>
           </div>
 
@@ -243,7 +187,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               {user.id}
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Định danh cá nhân độc lập không phụ thuộc tenant. Quiz Service dùng làm tác giả (`creatorId`) khi tạo đề.
+              Định danh cá nhân. Quiz Service dùng làm tác giả (`ownerId`) khi tạo đề thi.
             </p>
           </div>
         </div>
@@ -282,7 +226,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 Kiểm tra liên thông với Quiz Core Service
               </h4>
               <p className="text-xs text-slate-400">
-                Gửi request kèm <code className="text-indigo-300">Authorization: Bearer &lt;token&gt;</code> và <code className="text-indigo-300">X-Tenant-ID: {currentWorkspaceId}</code>
+                Gửi request kèm <code className="text-indigo-300">Authorization: Bearer &lt;token&gt;</code>
               </p>
             </div>
             <button
