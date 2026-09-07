@@ -18,8 +18,6 @@ export function loadEnvIfAvailable(force = false): void {
     return;
   }
 
-  if (process.env.AUTH_DATABASE_URL) return;
-
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
@@ -53,7 +51,7 @@ export function loadEnvIfAvailable(force = false): void {
       } catch {
         // ignore parse errors and proceed
       }
-      if (process.env.AUTH_DATABASE_URL) break;
+      break;
     }
   }
 }

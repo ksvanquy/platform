@@ -99,16 +99,23 @@ export interface StandaloneTaxonomyServer {
 }
 
 export function startTaxonomyServer(
-  port = Number(process.env.TAXONOMY_PORT) || 3002,
+  port?: number,
   customRepo?: TaxonomyRepositoryPort
 ): Promise<StandaloneTaxonomyServer> {
-  const app = createTaxonomyServer(customRepo, port);
+  loadEnvIfAvailable();
+  const rawPort = port ?? (process.env.TAXONOMY_PORT ? Number(process.env.TAXONOMY_PORT) : undefined);
+  if (!rawPort || isNaN(rawPort)) {
+    throw new Error(
+      '❌ [taxonomy-service] Biến môi trường "TAXONOMY_PORT" chưa được cấu hình trong .env! Vui lòng định nghĩa TAXONOMY_PORT trong file .env (ví dụ: TAXONOMY_PORT=3002).'
+    );
+  }
+  const app = createTaxonomyServer(customRepo, rawPort);
   return new Promise((resolve, reject) => {
-    const server = app.listen(port, '0.0.0.0', () => {
+    const server = app.listen(rawPort, '0.0.0.0', () => {
       resolve({
         app,
         server,
-        port,
+        port: rawPort,
         close: () =>
           new Promise<void>((res, rej) => {
             server.close((err) => (err ? rej(err) : res()));
@@ -129,8 +136,15 @@ const isDirectRun = Boolean(
 );
 
 if (isDirectRun) {
-  const port = Number(process.env.TAXONOMY_PORT) || 3002;
-  const app = createTaxonomyServer();
+  loadEnvIfAvailable();
+  const rawTaxonomyPort = process.env.TAXONOMY_PORT;
+  if (!rawTaxonomyPort || isNaN(Number(rawTaxonomyPort))) {
+    throw new Error(
+      '❌ [taxonomy-service] Biến môi trường "TAXONOMY_PORT" chưa được cấu hình trong .env! Vui lòng định nghĩa TAXONOMY_PORT trong file .env (ví dụ: TAXONOMY_PORT=3002).'
+    );
+  }
+  const port = Number(rawTaxonomyPort);
+  const app = createTaxonomyServer(undefined, port);
   app.listen(port, '0.0.0.0', async () => {
     console.log(`🚀 [taxonomy-service] Standalone Server running on http://0.0.0.0:${port}`);
     console.log(`   Healthcheck: http://localhost:${port}/health`);

@@ -25,7 +25,7 @@ import { createV1QuizzesRouter } from './routes/v1-quizzes.routes.js';
 import { createV1AttemptsRouter } from './routes/v1-attempts.routes.js';
 import { AttemptExpirySweeperService } from '../application/services/attempt-expiry-sweeper.service.js';
 import { createV1InternalRouter } from './routes/v1-internal.routes.js';
-import { isQuizDbConfigured } from '../infrastructure/db/connection.js';
+import { isQuizDbConfigured, loadEnvIfAvailable } from '../infrastructure/db/connection.js';
 import { runQuizMigrations } from '../infrastructure/db/migrate.js';
 import { seedQuizDatabase } from '../infrastructure/db/seed.js';
 import {
@@ -36,6 +36,8 @@ import {
   runTaxonomyMigrations,
   seedTaxonomyDatabase,
 } from '@platform/taxonomy-service';
+
+loadEnvIfAvailable();
 
 const app: Express = express();
 app.use(express.json());
@@ -362,10 +364,19 @@ if (fs.existsSync(quizWebDist)) {
   });
 }
 
-const PORT = 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Assessment Engine API Server running on http://0.0.0.0:${PORT}`);
-});
+let server: any = null;
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+  const rawQuizPort = process.env.QUIZ_PORT;
+  if (!rawQuizPort || isNaN(Number(rawQuizPort))) {
+    throw new Error(
+      '❌ [quiz-service] Biến môi trường "QUIZ_PORT" chưa được cấu hình trong .env! Vui lòng định nghĩa QUIZ_PORT trong file .env (ví dụ: QUIZ_PORT=3000).'
+    );
+  }
+  const PORT = Number(rawQuizPort);
+  server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Assessment Engine API Server running on http://0.0.0.0:${PORT}`);
+  });
+}
 
 // Auto-bootstrap PostgreSQL databases (migrations & initial seed) when configured
 async function bootstrapDatabases(): Promise<void> {

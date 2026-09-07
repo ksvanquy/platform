@@ -20,8 +20,6 @@ export function loadEnvIfAvailable(force = false): void {
     return;
   }
 
-  if (process.env.QUIZ_DATABASE_URL) return;
-
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
@@ -55,7 +53,7 @@ export function loadEnvIfAvailable(force = false): void {
       } catch {
         // bỏ qua lỗi đọc file
       }
-      if (process.env.QUIZ_DATABASE_URL) break;
+      break;
     }
   }
 }

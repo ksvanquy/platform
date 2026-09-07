@@ -5,7 +5,7 @@ import { IUserRepository } from '../domain/user/user.repository.port.js';
 import { createUserRepository } from '../infrastructure/persistence/repository.factory.js';
 import { TokenService } from '../infrastructure/token/token.service.js';
 import { createAuthRouter } from './http/auth.router.js';
-import { isAuthDbConfigured } from '../infrastructure/db/connection.js';
+import { isAuthDbConfigured, loadEnvIfAvailable } from '../infrastructure/db/connection.js';
 
 export interface AuthAppInstance {
   app: Express;
@@ -58,8 +58,6 @@ export function createAuthApp(
 }
 
 // Start standalone server when executed
-const PORT = process.env.AUTH_PORT ? parseInt(process.env.AUTH_PORT, 10) : 3001;
-
 const isDirectRun = Boolean(
   process.argv[1] &&
   path.normalize(fileURLToPath(import.meta.url)).toLowerCase() ===
@@ -69,6 +67,14 @@ const isDirectRun = Boolean(
 );
 
 if (isDirectRun) {
+  loadEnvIfAvailable();
+  const rawAuthPort = process.env.AUTH_PORT;
+  if (!rawAuthPort || isNaN(Number(rawAuthPort))) {
+    throw new Error(
+      '❌ [auth-service] Biến môi trường "AUTH_PORT" chưa được cấu hình trong .env! Vui lòng định nghĩa AUTH_PORT trong file .env (ví dụ: AUTH_PORT=3001).'
+    );
+  }
+  const PORT = Number(rawAuthPort);
   const { app } = createAuthApp();
   app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🔐 Auth Service is running on http://localhost:${PORT}`);
