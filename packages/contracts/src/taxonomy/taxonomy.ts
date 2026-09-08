@@ -8,6 +8,16 @@ export interface TaxonomyDTO {
   updatedAt?: string | Date;
 }
 
+export const STANDARD_TAXONOMY_CODES = {
+  TOPIC: 'TOPIC',
+  DIFFICULTY: 'DIFFICULTY',
+  TAG: 'TAG',
+  GRADE: 'GRADE',
+} as const;
+
+export type StandardTaxonomyCode =
+  (typeof STANDARD_TAXONOMY_CODES)[keyof typeof STANDARD_TAXONOMY_CODES];
+
 export interface TaxonomyNodeDTO {
   id: string;
   taxonomyId: string;

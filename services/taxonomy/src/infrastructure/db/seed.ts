@@ -25,6 +25,13 @@ export const SEED_TAXONOMIES: NewTaxonomyRow[] = [
     description: 'Nhãn gắn kèm tự do phục vụ tìm kiếm và chuyên đề thi',
     isHierarchical: false,
   },
+  {
+    id: 'tax_grade',
+    code: 'GRADE',
+    name: 'Khối lớp / Trình độ',
+    description: 'Hệ thống phân cấp trình độ giáo dục: Cấp học và Khối lớp theo chuẩn EdTech',
+    isHierarchical: true,
+  },
 ];
 
 export const SEED_TAXONOMY_NODES: NewTaxonomyNodeRow[] = [
@@ -197,6 +204,178 @@ export const SEED_TAXONOMY_NODES: NewTaxonomyNodeRow[] = [
     sortOrder: 3,
     status: 'PUBLISHED',
   },
+
+  // 5. Cây Khối lớp / Trình độ giáo dục (GRADE)
+  // Cấp 1: Tiểu học (Lớp 1 - 5)
+  {
+    id: 'node_grade_primary',
+    taxonomyId: 'tax_grade',
+    parentId: null,
+    name: 'Tiểu học',
+    slug: 'tieu-hoc',
+    description: 'Bậc giáo dục tiểu học (Lớp 1 đến Lớp 5)',
+    sortOrder: 1,
+    status: 'PUBLISHED',
+    metadata: { stage: 'primary', totalYears: 5 },
+  },
+  {
+    id: 'node_grade_1',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_primary',
+    name: 'Lớp 1',
+    slug: 'lop-1',
+    description: 'Chương trình giáo dục Lớp 1 (6-7 tuổi)',
+    sortOrder: 1,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 1, age: '6-7' },
+  },
+  {
+    id: 'node_grade_2',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_primary',
+    name: 'Lớp 2',
+    slug: 'lop-2',
+    description: 'Chương trình giáo dục Lớp 2 (7-8 tuổi)',
+    sortOrder: 2,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 2, age: '7-8' },
+  },
+  {
+    id: 'node_grade_3',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_primary',
+    name: 'Lớp 3',
+    slug: 'lop-3',
+    description: 'Chương trình giáo dục Lớp 3 (8-9 tuổi)',
+    sortOrder: 3,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 3, age: '8-9' },
+  },
+  {
+    id: 'node_grade_4',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_primary',
+    name: 'Lớp 4',
+    slug: 'lop-4',
+    description: 'Chương trình giáo dục Lớp 4 (9-10 tuổi)',
+    sortOrder: 4,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 4, age: '9-10' },
+  },
+  {
+    id: 'node_grade_5',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_primary',
+    name: 'Lớp 5',
+    slug: 'lop-5',
+    description: 'Chương trình giáo dục Lớp 5 (10-11 tuổi)',
+    sortOrder: 5,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 5, age: '10-11' },
+  },
+
+  // Cấp 2: Trung học cơ sở (Lớp 6 - 9)
+  {
+    id: 'node_grade_secondary',
+    taxonomyId: 'tax_grade',
+    parentId: null,
+    name: 'Trung học cơ sở',
+    slug: 'thcs',
+    description: 'Bậc giáo dục trung học cơ sở (Lớp 6 đến Lớp 9)',
+    sortOrder: 2,
+    status: 'PUBLISHED',
+    metadata: { stage: 'secondary', totalYears: 4 },
+  },
+  {
+    id: 'node_grade_6',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_secondary',
+    name: 'Lớp 6',
+    slug: 'lop-6',
+    description: 'Chương trình giáo dục Lớp 6 (11-12 tuổi)',
+    sortOrder: 1,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 6, age: '11-12' },
+  },
+  {
+    id: 'node_grade_7',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_secondary',
+    name: 'Lớp 7',
+    slug: 'lop-7',
+    description: 'Chương trình giáo dục Lớp 7 (12-13 tuổi)',
+    sortOrder: 2,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 7, age: '12-13' },
+  },
+  {
+    id: 'node_grade_8',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_secondary',
+    name: 'Lớp 8',
+    slug: 'lop-8',
+    description: 'Chương trình giáo dục Lớp 8 (13-14 tuổi)',
+    sortOrder: 3,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 8, age: '13-14' },
+  },
+  {
+    id: 'node_grade_9',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_secondary',
+    name: 'Lớp 9',
+    slug: 'lop-9',
+    description: 'Chương trình giáo dục Lớp 9 (14-15 tuổi)',
+    sortOrder: 4,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 9, age: '14-15' },
+  },
+
+  // Cấp 3: Trung học phổ thông (Lớp 10 - 12)
+  {
+    id: 'node_grade_high',
+    taxonomyId: 'tax_grade',
+    parentId: null,
+    name: 'Trung học phổ thông',
+    slug: 'thpt',
+    description: 'Bậc giáo dục trung học phổ thông (Lớp 10 đến Lớp 12)',
+    sortOrder: 3,
+    status: 'PUBLISHED',
+    metadata: { stage: 'high_school', totalYears: 3 },
+  },
+  {
+    id: 'node_grade_10',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_high',
+    name: 'Lớp 10',
+    slug: 'lop-10',
+    description: 'Chương trình giáo dục Lớp 10 (15-16 tuổi)',
+    sortOrder: 1,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 10, age: '15-16' },
+  },
+  {
+    id: 'node_grade_11',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_high',
+    name: 'Lớp 11',
+    slug: 'lop-11',
+    description: 'Chương trình giáo dục Lớp 11 (16-17 tuổi)',
+    sortOrder: 2,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 11, age: '16-17' },
+  },
+  {
+    id: 'node_grade_12',
+    taxonomyId: 'tax_grade',
+    parentId: 'node_grade_high',
+    name: 'Lớp 12',
+    slug: 'lop-12',
+    description: 'Chương trình giáo dục Lớp 12 và Ôn thi Tốt nghiệp THPT (17-18 tuổi)',
+    sortOrder: 3,
+    status: 'PUBLISHED',
+    metadata: { gradeNum: 12, age: '17-18' },
+  },
 ];
 
 export async function seedTaxonomyDatabase(customDb?: any): Promise<void> {
@@ -244,7 +423,7 @@ export async function seedTaxonomyDatabase(customDb?: any): Promise<void> {
       });
   }
 
-  console.log('✅ [taxonomy_db] Seed completed successfully: 3 Taxonomies and 11 Nodes created/updated.');
+  console.log(`✅ [taxonomy_db] Seed completed successfully: ${SEED_TAXONOMIES.length} Taxonomies and ${SEED_TAXONOMY_NODES.length} Nodes created/updated.`);
 }
 
 // Allow direct execution
