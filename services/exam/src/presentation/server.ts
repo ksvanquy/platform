@@ -1,14 +1,14 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { Express, Request, Response } from 'express';
-import { createAssessmentRouter } from './routes/v1-assessments.routes.js';
-import { loadEnvIfAvailable, isAssessmentDbConfigured } from '../infrastructure/db/connection.js';
-import { runAssessmentMigrations } from '../infrastructure/db/migrate.js';
-import { seedAssessmentDatabase } from '../infrastructure/db/seed.js';
+import { createExamRouter } from './routes/v1-exams.routes.js';
+import { loadEnvIfAvailable, isExamDbConfigured } from '../infrastructure/db/connection.js';
+import { runExamMigrations } from '../infrastructure/db/migrate.js';
+import { seedExamDatabase } from '../infrastructure/db/seed.js';
 
 loadEnvIfAvailable();
 
-export function createAssessmentServer(): Express {
+export function createExamServer(): Express {
   const app: Express = express();
   app.use(express.json());
 
@@ -21,10 +21,10 @@ export function createAssessmentServer(): Express {
   });
 
   app.get('/health', (_req: Request, res: Response) => {
-    res.status(200).json({ status: 'ok', service: 'Assessment Service', timestamp: new Date() });
+    res.status(200).json({ status: 'ok', service: 'Exam Service', timestamp: new Date() });
   });
 
-  app.use('/v1/assessments', createAssessmentRouter());
+  app.use('/v1/exams', createExamRouter());
 
   return app;
 }
@@ -38,23 +38,23 @@ const isDirectRun = Boolean(
 );
 
 if (isDirectRun) {
-  const PORT = Number(process.env.ASSESSMENT_PORT) || 3004;
-  const app = createAssessmentServer();
+  const PORT = Number(process.env.EXAM_PORT) || 3005;
+  const app = createExamServer();
 
-  if (isAssessmentDbConfigured()) {
-    runAssessmentMigrations()
-      .then(() => seedAssessmentDatabase())
+  if (isExamDbConfigured()) {
+    runExamMigrations()
+      .then(() => seedExamDatabase())
       .then(() => {
         app.listen(PORT, () => {
-          console.log(`🚀 Assessment Service running on http://localhost:${PORT}`);
+          console.log(`🚀 Exam Service running on http://localhost:${PORT}`);
         });
       })
       .catch((err) => {
-        console.error('Failed to initialize Assessment Service:', err);
+        console.error('Failed to initialize Exam Service:', err);
         process.exit(1);
       });
   } else {
-    console.error('❌ Assessment Service failed to start: ASSESSMENT_DATABASE_URL not configured.');
+    console.error('❌ Exam Service failed to start: EXAM_DATABASE_URL not configured.');
     process.exit(1);
   }
 }

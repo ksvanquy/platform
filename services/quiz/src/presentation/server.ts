@@ -52,6 +52,14 @@ import {
   runAssessmentMigrations,
   seedAssessmentDatabase,
 } from '@platform/assessment-service';
+import {
+  createExamRouter,
+  ExamRepositoryPort,
+  DrizzleExamRepository,
+  isExamDbConfigured,
+  runExamMigrations,
+  seedExamDatabase,
+} from '@platform/exam-service';
 
 loadEnvIfAvailable();
 
@@ -276,6 +284,18 @@ const apiDiscovery = {
     { method: 'PATCH', path: '/v1/assessments/:id/status', description: 'Assessment: Transition lifecycle status (AUTHOR)' },
     { method: 'PUT', path: '/v1/assessments/:id/blueprint', description: 'Assessment: Update blueprint criteria matrix (AUTHOR)' },
     { method: 'POST', path: '/v1/assessments/:id/blueprint/lock', description: 'Assessment: Lock blueprint against edits (AUTHOR)' },
+    { method: 'GET', path: '/v1/exams', description: 'Exam: List exams' },
+    { method: 'POST', path: '/v1/exams', description: 'Exam: Generate exam from blueprint matrix (AUTHOR)' },
+    { method: 'GET', path: '/v1/exams/:idOrCode', description: 'Exam: Get exam details and variants' },
+    { method: 'PUT', path: '/v1/exams/:id', description: 'Exam: Update exam metadata (AUTHOR)' },
+    { method: 'PATCH', path: '/v1/exams/:id/status', description: 'Exam: Update exam status (READY, ACTIVE, CLOSED)' },
+    { method: 'POST', path: '/v1/exams/:id/publish', description: 'Exam: Publish exam (AUTHOR)' },
+    { method: 'POST', path: '/v1/exams/:id/unpublish', description: 'Exam: Unpublish exam (AUTHOR)' },
+    { method: 'DELETE', path: '/v1/exams/:id', description: 'Exam: Delete exam and snapshots (AUTHOR/ADMIN)' },
+    { method: 'GET', path: '/v1/exams/:idOrCode/manifest', description: 'Exam: Get sanitized exam manifest for candidates' },
+    { method: 'GET', path: '/v1/exams/:idOrCode/variants/:variantCode/manifest', description: 'Exam: Get variant sanitized manifest' },
+    { method: 'GET', path: '/v1/exams/:idOrCode/variants/:variantCode/frozen', description: 'Exam: Get internal frozen snapshot (AUTHOR/ADMIN)' },
+    { method: 'POST', path: '/v1/exams/:idOrCode/generate-variants', description: 'Exam: Generate or refresh exam variants (AUTHOR)' },
   ],
 };
 
@@ -363,6 +383,34 @@ function getAssessmentRouter(): express.Router {
   return assessmentRouterInstance!;
 }
 
+// Exam Service Dynamic Router Delegation (Unified Port 3000 Gateway)
+let examRepoInstance: ExamRepositoryPort | null = null;
+let examRouterInstance: express.Router | null = null;
+
+function getExamRepository(): ExamRepositoryPort | null {
+  if (!examRepoInstance) {
+    try {
+      examRepoInstance = new DrizzleExamRepository();
+    } catch (err: any) {
+      console.warn('⚠️ Could not initialize DrizzleExamRepository:', err?.message || err);
+    }
+  }
+  return examRepoInstance;
+}
+
+function setExamRepository(repo: ExamRepositoryPort): void {
+  examRepoInstance = repo;
+  examRouterInstance = createExamRouter({ examRepo: repo });
+}
+
+function getExamRouter(): express.Router {
+  if (!examRouterInstance) {
+    const repo = getExamRepository();
+    examRouterInstance = createExamRouter({ examRepo: repo || undefined });
+  }
+  return examRouterInstance!;
+}
+
 app.get('/api', (_req: Request, res: Response) => {
   res.status(200).json(apiDiscovery);
 });
@@ -402,6 +450,19 @@ app.use('/v1/assessments', (req: Request, res: Response, next: any) => {
     return res.status(503).json({
       success: false,
       message: err?.message || 'Assessment service database not configured',
+    });
+  }
+});
+
+// Mount Exam Engine Routes (Unified Gateway on Port 3000)
+app.use('/v1/exams', (req: Request, res: Response, next: any) => {
+  try {
+    const router = getExamRouter();
+    return router(req, res, next);
+  } catch (err: any) {
+    return res.status(503).json({
+      success: false,
+      message: err?.message || 'Exam service database not configured',
     });
   }
 });
@@ -559,6 +620,18 @@ async function bootstrapDatabases(): Promise<void> {
       console.warn('⚠️ [assessment_db] Database bootstrap warning:', err?.message || err);
     }
   }
+
+  // 6. Exam DB auto-migration and seeding
+  if (isExamDbConfigured()) {
+    try {
+      console.log('🔄 [exam_db] Running schema migrations...');
+      await runExamMigrations();
+      await seedExamDatabase();
+      console.log('✅ [exam_db] PostgreSQL database initialized successfully.');
+    } catch (err: any) {
+      console.warn('⚠️ [exam_db] Database bootstrap warning:', err?.message || err);
+    }
+  }
 }
 
 bootstrapDatabases();
@@ -577,4 +650,5 @@ export {
   setTaxonomyRepository,
   setQuestionRepository,
   setAssessmentRepository,
+  setExamRepository,
 };

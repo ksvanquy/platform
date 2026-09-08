@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express, { Express, Request, Response } from 'express';
 import { createQuestionRouter } from './routes/v1-questions.routes.js';
 import { loadEnvIfAvailable, isQuestionDbConfigured } from '../infrastructure/db/connection.js';
@@ -27,7 +29,15 @@ export function createQuestionServer(): Express {
   return app;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('server.ts')) {
+const isDirectRun = Boolean(
+  process.argv[1] &&
+  path.normalize(fileURLToPath(import.meta.url)).toLowerCase() ===
+    path.normalize(path.resolve(process.argv[1])).toLowerCase() &&
+  process.env.NODE_ENV !== 'test' &&
+  !process.env.VITEST
+);
+
+if (isDirectRun) {
   const PORT = Number(process.env.QUESTION_PORT) || 3003;
   const app = createQuestionServer();
 

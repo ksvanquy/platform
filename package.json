@@ -42,7 +42,12 @@
     "db:generate:assessment": "drizzle-kit generate --config=services/assessment/drizzle.config.ts",
     "db:migrate:assessment": "tsx services/assessment/src/infrastructure/db/migrate.ts",
     "db:push:assessment": "drizzle-kit push --config=services/assessment/drizzle.config.ts",
-    "db:seed:assessment": "tsx services/assessment/src/infrastructure/db/seed.ts"
+    "db:seed:assessment": "tsx services/assessment/src/infrastructure/db/seed.ts",
+    "dev:exam": "tsx watch services/exam/src/presentation/server.ts",
+    "db:generate:exam": "drizzle-kit generate --config=services/exam/drizzle.config.ts",
+    "db:migrate:exam": "tsx services/exam/src/infrastructure/db/migrate.ts",
+    "db:push:exam": "drizzle-kit push --config=services/exam/drizzle.config.ts",
+    "db:seed:exam": "tsx services/exam/src/infrastructure/db/seed.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

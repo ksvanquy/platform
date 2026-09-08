@@ -1,8 +1,15 @@
 {
-  "name": "@platform/quiz-service",
+  "name": "@platform/exam-service",
   "version": "1.0.0",
-  "description": "Deterministic, Secure, and Real-time Core Quiz Engine Service",
-  "main": "dist/presentation/server.js",
+  "description": "Autonomous Exam Service with Matrix Solver, Deterministic PRNG Seed-based Shuffle, and SHA-256 Immutable Snapshots",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/presentation/server.ts",
@@ -14,18 +21,17 @@
     "db:seed": "tsx src/infrastructure/db/seed.ts"
   },
   "dependencies": {
-    "@platform/auth-service": "*",
-    "@platform/contracts": "*",
-    "@platform/taxonomy-service": "*",
-    "@platform/question-service": "*",
-    "@platform/assessment-service": "*",
-    "@platform/exam-service": "*",
+    "@platform/assessment-service": "workspace:*",
+    "@platform/auth-service": "workspace:*",
+    "@platform/contracts": "workspace:*",
+    "@platform/question-service": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@platform/api-client": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.1",
     "drizzle-kit": "^0.31.10",
