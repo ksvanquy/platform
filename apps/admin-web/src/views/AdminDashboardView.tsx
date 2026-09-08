@@ -5,6 +5,7 @@ import { TaxonomyManagementSection } from './TaxonomyManagementSection.js';
 import { QuizManagementSection } from './QuizManagementSection.js';
 import { QuestionManagementSection } from './QuestionManagementSection.js';
 import { AssessmentManagementSection } from './AssessmentManagementSection.js';
+import { ExamManagementSection } from './ExamManagementSection.js';
 
 interface AdminDashboardViewProps {
   user: UserProfile;
@@ -17,7 +18,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onLogout,
   onRefreshUser,
 }) => {
-  const [activeTab, setActiveTab] = useState<'questions' | 'assessments' | 'quizzes' | 'taxonomies' | 'system'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'assessments' | 'exams' | 'quizzes' | 'taxonomies' | 'system'>('questions');
   const [apiTestStatus, setApiTestStatus] = useState<string | null>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [showToken, setShowToken] = useState(false);
@@ -165,6 +166,17 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab('exams')}
+          className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'exams'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          ⚡ Kỳ Thi & Bộ Mã Đề
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('quizzes')}
           className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'quizzes'
@@ -202,6 +214,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       {activeTab === 'questions' && <QuestionManagementSection />}
 
       {activeTab === 'assessments' && <AssessmentManagementSection />}
+
+      {activeTab === 'exams' && <ExamManagementSection />}
 
       {activeTab === 'quizzes' && <QuizManagementSection />}
 

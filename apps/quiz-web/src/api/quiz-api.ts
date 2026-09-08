@@ -42,24 +42,57 @@ export const quizApi = {
   },
 
   /**
+   * Lấy danh sách các kỳ thi đã xuất bản (Exam Service)
+   */
+  async listExams(params?: { assessmentId?: string }): Promise<any[]> {
+    try {
+      const response = await apiClient.exams.list(params);
+      return response.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  /**
    * Bắt đầu hoặc khôi phục phiên làm bài theo chuẩn RESTful Delivery:
-   * 1. POST /v1/attempts (Khởi tạo / resume attempt với quizId)
+   * 1. POST /v1/attempts (Khởi tạo / resume attempt với examId hoặc quizId)
    * 2. POST /v1/attempts/:id/start (Kích hoạt tính giờ & nhận sanitized manifest)
    */
-  async startQuiz(quizId: string): Promise<StartQuizResponse['data']> {
+  async startQuiz(quizOrExamId: string, variantCode?: string): Promise<StartQuizResponse['data']> {
     // 1. Tạo hoặc khôi phục attempt từ máy chủ
-    const createRes = await apiClient.attempts.create(quizId);
+    const createRes: any = await apiClient.attempts.createOrRecover({
+      examId: quizOrExamId,
+      quizId: quizOrExamId,
+      variantCode,
+      autoStart: true,
+    });
     const attempt = createRes.data;
+    const initialManifest = createRes.manifest;
 
     // 2. Bắt đầu ca thi và nhận câu hỏi đã khử khuẩn cùng timing metadata
-    const startRes = await apiClient.attempts.start(attempt.id);
-    const {
-      attempt: startedAttempt,
-      questions: rawQuestions,
-      manifest,
-      serverTime,
-      remainingSeconds,
-    } = startRes.data;
+    let startedAttempt = attempt;
+    let manifest = initialManifest;
+    let rawQuestions = initialManifest?.questions || [];
+    let serverTime = createRes.serverTime;
+    let remainingSeconds: number | undefined;
+
+    if (!initialManifest?.questions || initialManifest.questions.length === 0) {
+      try {
+        const startRes: any = await apiClient.attempts.start(attempt.id);
+        const startData = startRes.data || {};
+        startedAttempt = startData.attempt || startData;
+        manifest = startRes.manifest || startData.manifest;
+        rawQuestions = startData.questions || manifest?.questions || [];
+        serverTime = startRes.serverTime || startData.serverTime;
+        if (startRes.remainingTimeMs !== undefined) {
+          remainingSeconds = Math.round(startRes.remainingTimeMs / 1000);
+        } else if (startData.remainingSeconds !== undefined) {
+          remainingSeconds = startData.remainingSeconds;
+        }
+      } catch {
+        // In case start was already performed by autoStart
+      }
+    }
 
     // Đồng bộ đồng hồ với mốc thời gian máy chủ trả về
     if (serverTime) {
@@ -108,8 +141,8 @@ export const quizApi = {
     const session: SessionDTO = {
       id: startedAttempt.id,
       userId: startedAttempt.userId,
-      quizId: startedAttempt.quizId,
-      durationMinutes: manifest?.timeLimitMinutes || 15,
+      quizId: startedAttempt.examId || startedAttempt.quizId || quizOrExamId,
+      durationMinutes: manifest?.durationMinutes || manifest?.timeLimitMinutes || 15,
       status: startedAttempt.status,
       startedAt: startedAttempt.startedAt || new Date().toISOString(),
       deadline: startedAttempt.deadline || manifest?.deadline,
@@ -120,6 +153,25 @@ export const quizApi = {
     };
 
     return { session, questions };
+  },
+
+  /**
+   * Ghi nhận sự kiện giám thị / chống gian lận (Anti-Cheat Telemetry Audit)
+   */
+  async recordEvent(
+    attemptId: string,
+    event: { eventType: string; metadata?: Record<string, unknown>; clientTimestamp?: string }
+  ) {
+    try {
+      const res = await apiClient.attempts.recordEvent(attemptId, {
+        eventType: event.eventType as any,
+        metadata: event.metadata,
+        clientTimestamp: event.clientTimestamp || new Date().toISOString(),
+      });
+      return res.data;
+    } catch {
+      return null;
+    }
   },
 
   /**

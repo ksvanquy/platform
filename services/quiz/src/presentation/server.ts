@@ -22,9 +22,9 @@ import { AuthoringUseCases } from '../application/use-cases/authoring/authoring.
 import { DeliveryUseCases } from '../application/use-cases/delivery/delivery.use-cases.js';
 import { authContextMiddleware, setUserActiveChecker } from './middlewares/auth.middleware.js';
 import { createV1QuizzesRouter } from './routes/v1-quizzes.routes.js';
-import { createV1AttemptsRouter } from './routes/v1-attempts.routes.js';
+import { createV1AttemptsRouter as createLegacyAttemptsRouter } from './routes/v1-attempts.routes.js';
 import { AttemptExpirySweeperService } from '../application/services/attempt-expiry-sweeper.service.js';
-import { createV1InternalRouter } from './routes/v1-internal.routes.js';
+import { createV1InternalRouter as createLegacyInternalRouter } from './routes/v1-internal.routes.js';
 import { isQuizDbConfigured, loadEnvIfAvailable } from '../infrastructure/db/connection.js';
 import { runQuizMigrations } from '../infrastructure/db/migrate.js';
 import { seedQuizDatabase } from '../infrastructure/db/seed.js';
@@ -60,6 +60,17 @@ import {
   runExamMigrations,
   seedExamDatabase,
 } from '@platform/exam-service';
+import {
+  createV1AttemptsRouter as createAttemptServiceRouter,
+  AttemptRepositoryPort as AttemptServiceRepositoryPort,
+  DrizzleAttemptRepository,
+  isAttemptDbConfigured,
+  runAttemptMigrations,
+  seedAttemptDatabase,
+  AttemptExpirySweeperService as AttemptSweeperDaemon,
+  createV1InternalRouter as createAttemptInternalRouter,
+  DirectExamClientAdapter,
+} from '@platform/attempt-service';
 
 loadEnvIfAvailable();
 
@@ -296,6 +307,16 @@ const apiDiscovery = {
     { method: 'GET', path: '/v1/exams/:idOrCode/variants/:variantCode/manifest', description: 'Exam: Get variant sanitized manifest' },
     { method: 'GET', path: '/v1/exams/:idOrCode/variants/:variantCode/frozen', description: 'Exam: Get internal frozen snapshot (AUTHOR/ADMIN)' },
     { method: 'POST', path: '/v1/exams/:idOrCode/generate-variants', description: 'Exam: Generate or refresh exam variants (AUTHOR)' },
+    { method: 'POST', path: '/v1/attempts', description: 'Attempt: Start or recover attempt session (CANDIDATE)' },
+    { method: 'GET', path: '/v1/attempts/:id', description: 'Attempt: Get active attempt and sanitized exam manifest' },
+    { method: 'POST', path: '/v1/attempts/:id/start', description: 'Attempt: Start timer countdown' },
+    { method: 'POST', path: '/v1/attempts/:id/answers', description: 'Attempt: High-throughput autosave candidate answer (<25ms)' },
+    { method: 'POST', path: '/v1/attempts/:id/events', description: 'Attempt: Record anti-cheat telemetry event' },
+    { method: 'GET', path: '/v1/attempts/:id/events', description: 'Attempt: Get telemetry audit log (PROCTOR/ADMIN)' },
+    { method: 'POST', path: '/v1/attempts/:id/submit', description: 'Attempt: Submit attempt and trigger scoring' },
+    { method: 'GET', path: '/v1/attempts/:id/result', description: 'Attempt: Get evaluation result breakdown' },
+    { method: 'GET', path: '/v1/attempts/time', description: 'Attempt: Server-authoritative time sync (Cristian algorithm)' },
+    { method: 'POST', path: '/v1/internal/attempts/sweep', description: 'Internal: Background sweeper for expired attempts' },
   ],
 };
 
@@ -411,6 +432,39 @@ function getExamRouter(): express.Router {
   return examRouterInstance!;
 }
 
+// Attempt Service Dynamic Router Delegation (Unified Port 3000 Gateway)
+let attemptRepoInstance: AttemptServiceRepositoryPort | null = null;
+let attemptRouterInstance: express.Router | null = null;
+let attemptSweeperDaemonInstance: AttemptSweeperDaemon | null = null;
+
+function getAttemptRepository(): AttemptServiceRepositoryPort | null {
+  if (!attemptRepoInstance) {
+    try {
+      attemptRepoInstance = new DrizzleAttemptRepository();
+    } catch (err: any) {
+      console.warn('⚠️ Could not initialize DrizzleAttemptRepository:', err?.message || err);
+    }
+  }
+  return attemptRepoInstance;
+}
+
+function setAttemptRepository(repo: AttemptServiceRepositoryPort): void {
+  attemptRepoInstance = repo;
+  const examClient = new DirectExamClientAdapter();
+  attemptRouterInstance = createAttemptServiceRouter({ attemptRepo: repo, examClient });
+  attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, examClient);
+}
+
+function getAttemptRouter(): express.Router {
+  if (!attemptRouterInstance) {
+    const repo = getAttemptRepository();
+    const examClient = new DirectExamClientAdapter();
+    attemptRouterInstance = createAttemptServiceRouter({ attemptRepo: repo || undefined, examClient });
+    attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo || new DrizzleAttemptRepository(), examClient);
+  }
+  return attemptRouterInstance!;
+}
+
 app.get('/api', (_req: Request, res: Response) => {
   res.status(200).json(apiDiscovery);
 });
@@ -425,8 +479,37 @@ app.get('/', (req: Request, res: Response) => {
 
 // RESTful v1 Domain Routes
 app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases, () => getTaxonomyRepository()));
-app.use('/v1/attempts', createV1AttemptsRouter(deliveryUseCases));
-app.use('/v1/internal', createV1InternalRouter(sweeperService));
+
+const legacyAttemptsRouterInstance = createLegacyAttemptsRouter(deliveryUseCases);
+app.use('/v1/attempts', (req: Request, res: Response, next: any) => {
+  if (attemptRepoInstance || isAttemptDbConfigured()) {
+    try {
+      const router = getAttemptRouter();
+      return router(req, res, next);
+    } catch {
+      // Fallback to legacy
+    }
+  }
+  return legacyAttemptsRouterInstance(req, res, next);
+});
+
+const legacyInternalRouterInstance = createLegacyInternalRouter(sweeperService);
+app.use('/v1/internal', (req: Request, res: Response, next: any) => {
+  if (attemptRepoInstance || isAttemptDbConfigured()) {
+    try {
+      const repo = getAttemptRepository();
+      const examClient = new DirectExamClientAdapter();
+      const sweeper =
+        attemptSweeperDaemonInstance ||
+        new AttemptSweeperDaemon(repo || new DrizzleAttemptRepository(), examClient);
+      const router = createAttemptInternalRouter(sweeper);
+      return router(req, res, next);
+    } catch {
+      // Fallback to legacy
+    }
+  }
+  return legacyInternalRouterInstance(req, res, next);
+});
 
 // Mount Question Bank Routes (Unified Gateway on Port 3000)
 app.use('/v1/questions', (req: Request, res: Response, next: any) => {
@@ -538,13 +621,7 @@ if (fs.existsSync(quizWebDist)) {
 
 let server: any = null;
 if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
-  const rawQuizPort = process.env.QUIZ_PORT;
-  if (!rawQuizPort || isNaN(Number(rawQuizPort))) {
-    throw new Error(
-      '❌ [quiz-service] Biến môi trường "QUIZ_PORT" chưa được cấu hình trong .env! Vui lòng định nghĩa QUIZ_PORT trong file .env (ví dụ: QUIZ_PORT=3000).'
-    );
-  }
-  const PORT = Number(rawQuizPort);
+  const PORT = Number(process.env.QUIZ_PORT) || 3000;
   server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Assessment Engine API Server running on http://0.0.0.0:${PORT}`);
   });
@@ -632,6 +709,23 @@ async function bootstrapDatabases(): Promise<void> {
       console.warn('⚠️ [exam_db] Database bootstrap warning:', err?.message || err);
     }
   }
+
+  // 7. Attempt DB auto-migration and seeding
+  if (isAttemptDbConfigured()) {
+    try {
+      console.log('🔄 [attempt_db] Running schema migrations...');
+      await runAttemptMigrations();
+      await seedAttemptDatabase();
+      console.log('✅ [attempt_db] PostgreSQL database initialized successfully.');
+      const repo = getAttemptRepository();
+      if (repo) {
+        attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, new DirectExamClientAdapter());
+        attemptSweeperDaemonInstance.start(30000);
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [attempt_db] Database bootstrap warning:', err?.message || err);
+    }
+  }
 }
 
 bootstrapDatabases();
@@ -651,4 +745,5 @@ export {
   setQuestionRepository,
   setAssessmentRepository,
   setExamRepository,
+  setAttemptRepository,
 };

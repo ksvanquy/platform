@@ -261,5 +261,114 @@ describe('Bước 5 — packages/api-client', () => {
       );
       expect(res.data!.isLocked).toBe(true);
     });
+
+    it('should call exams.generate() and exams.getSanitizedManifest()', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: { id: 'exam_999', code: 'EXAM_MATH', variantsCount: 4 },
+        }),
+      });
+
+      const genRes = await api.exams.generate({
+        assessmentId: 'asm_123',
+        code: 'EXAM_MATH',
+        title: 'Kỳ thi Toán Đại số',
+        variantsCount: 4,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/exams',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('EXAM_MATH'),
+        })
+      );
+      expect(genRes.data!.id).toBe('exam_999');
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: { examId: 'exam_999', variantCode: '101', questions: [] },
+        }),
+      });
+
+      const manifestRes = await api.exams.getSanitizedManifest('exam_999', '101');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/exams/exam_999/variants/101/manifest',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(manifestRes.data!.variantCode).toBe('101');
+    });
+
+    it('should call attempts.autosave() and recordEvent()', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: { success: true, sequenceNumber: 2, savedAt: new Date().toISOString() },
+        }),
+      });
+
+      const autoRes = await api.attempts.autosave('att_abc', 'q_1', {
+        answer: 'opt_A',
+        sequenceNumber: 2,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/attempts/att_abc/answers/q_1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.stringContaining('"sequenceNumber":2'),
+        })
+      );
+      expect(autoRes.data!.sequenceNumber).toBe(2);
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: { id: 'evt_1', eventType: 'TAB_SWITCH' },
+        }),
+      });
+
+      const evtRes = await api.attempts.recordEvent('att_abc', {
+        eventType: 'TAB_SWITCH',
+        clientTimestamp: new Date().toISOString(),
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/attempts/att_abc/events',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(evtRes.data!.eventType).toBe('TAB_SWITCH');
+    });
+
+    it('should compute clock offset in syncServerTime via Cristian algorithm', async () => {
+      const now = Date.now();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          serverTime: new Date(now + 100).toISOString(),
+          timestampMs: now + 100,
+        }),
+      });
+
+      const syncResult = await api.syncServerTime();
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/time',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(syncResult.serverTimestampMs).toBe(now + 100);
+      expect(typeof syncResult.clockOffsetMs).toBe('number');
+      expect(typeof syncResult.rttMs).toBe('number');
+    });
   });
 });

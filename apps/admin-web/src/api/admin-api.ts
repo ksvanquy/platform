@@ -101,4 +101,14 @@ export const adminApi = {
    * Quản lý Bài đánh giá & Ma trận đề thi (Assessments & Blueprints)
    */
   assessments: apiClient.assessments,
+
+  /**
+   * Công cụ sinh & quản lý đề thi (Exam Engine, Randomization Seed & Variants)
+   */
+  exams: apiClient.exams,
+
+  /**
+   * Quản lý ca thi & Giám thị (Attempts & Proctoring Telemetry)
+   */
+  attempts: apiClient.attempts,
 };

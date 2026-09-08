@@ -21,6 +21,18 @@ import type {
   UpdateBlueprintInput,
   AssessmentFilterQuery,
   AssessmentStatus,
+  ExamDTO,
+  ExamStatus,
+  ExamSnapshotDTO,
+  ExamVariantSummary,
+  GenerateExamInput,
+  UpdateExamInput,
+  SanitizedExamManifest,
+  AttemptDTO,
+  AttemptScoreResult,
+  AntiCheatEventDTO,
+  RecordAntiCheatEventInput,
+  SubmitAttemptInput,
 } from '@platform/contracts';
 
 export interface ApiClientConfig {
@@ -232,33 +244,154 @@ export class ApiClient {
   readonly v1Quizzes = this.quizzes;
 
   /**
-   * Attempts API Domain Resource (RESTful v1 Delivery)
+   * Attempts API Domain Resource (RESTful v1 Delivery & High-Write Runtime Engine)
    */
   readonly attempts = {
-    create: async (quizId: string): Promise<ApiResponse<any>> => {
-      return this.post<ApiResponse<any>>('/v1/attempts', { quizId });
+    /**
+     * Tạo hoặc khôi phục ca thi. Hỗ trợ cả legacy quizId string hoặc new exam payload.
+     */
+    create: async (
+      quizIdOrPayload: string | { examId?: string; quizId?: string; variantCode?: string; metadata?: Record<string, unknown> }
+    ): Promise<ApiResponse<any>> => {
+      const body = typeof quizIdOrPayload === 'string'
+        ? { quizId: quizIdOrPayload }
+        : quizIdOrPayload;
+      return this.post<ApiResponse<any>>('/v1/attempts', body);
     },
 
+    /**
+     * Tạo mới hoặc khôi phục ca thi đang dang dở (Multi-tab protection)
+     */
+    createOrRecover: async (payload: {
+      examId?: string;
+      quizId?: string;
+      variantCode?: string;
+      autoStart?: boolean;
+      metadata?: Record<string, unknown>;
+    }): Promise<ApiResponse<AttemptDTO>> => {
+      const body = {
+        ...payload,
+        examId: payload.examId || payload.quizId || '',
+        quizId: payload.quizId || payload.examId || '',
+      };
+      return this.post<ApiResponse<AttemptDTO>>('/v1/attempts', body);
+    },
+
+    /**
+     * Bắt đầu ca thi, kích hoạt đếm ngược thời gian từ đồng hồ máy chủ
+     */
     start: async (attemptId: string): Promise<ApiResponse<any>> => {
-      return this.post<ApiResponse<any>>(`/v1/attempts/${attemptId}/start`, {});
+      return this.post<ApiResponse<any>>(`/v1/attempts/${encodeURIComponent(attemptId)}/start`, {});
     },
 
-    get: async (attemptId: string): Promise<ApiResponse<any>> => {
-      return this.get<ApiResponse<any>>(`/v1/attempts/${attemptId}`);
+    /**
+     * Lấy thông tin ca thi hiện tại
+     */
+    get: async (attemptId: string): Promise<ApiResponse<AttemptDTO>> => {
+      return this.get<ApiResponse<AttemptDTO>>(`/v1/attempts/${encodeURIComponent(attemptId)}`);
     },
 
+    /**
+     * Lấy danh sách các ca thi (thí sinh hoặc giảng viên giám thị)
+     */
+    list: async (params?: { examId?: string; studentId?: string; status?: string }): Promise<ApiResponse<AttemptDTO[]>> => {
+      return this.get<ApiResponse<AttemptDTO[]>>('/v1/attempts', params);
+    },
+
+    /**
+     * Tự động lưu đáp án câu hỏi với Sequence Protection (<25ms SLA)
+     */
     recordAnswer: async (
       attemptId: string,
       questionId: string,
       payload: { answer: any; sequenceNumber?: number; clientTimestamp?: number }
     ): Promise<ApiResponse<any>> => {
-      return this.put<ApiResponse<any>>(`/v1/attempts/${attemptId}/answers/${questionId}`, payload);
+      return this.put<ApiResponse<any>>(
+        `/v1/attempts/${encodeURIComponent(attemptId)}/answers/${encodeURIComponent(questionId)}`,
+        payload
+      );
     },
 
-    submit: async (attemptId: string): Promise<ApiResponse<any>> => {
-      return this.post<ApiResponse<any>>(`/v1/attempts/${attemptId}/submit`, {});
+    /**
+     * Alias chuyên biệt cho autosave
+     */
+    autosave: async (
+      attemptId: string,
+      questionId: string,
+      payload: { answer: any; sequenceNumber: number; clientTimestamp?: number }
+    ): Promise<ApiResponse<{ success: boolean; sequenceNumber: number; savedAt: string }>> => {
+      return this.put<ApiResponse<{ success: boolean; sequenceNumber: number; savedAt: string }>>(
+        `/v1/attempts/${encodeURIComponent(attemptId)}/answers/${encodeURIComponent(questionId)}`,
+        payload
+      );
+    },
+
+    /**
+     * Ghi nhận sự kiện telemetry chống gian lận (rời tab, thoát toàn màn hình, paste...)
+     */
+    recordEvent: async (
+      attemptId: string,
+      payload: RecordAntiCheatEventInput
+    ): Promise<ApiResponse<AntiCheatEventDTO>> => {
+      return this.post<ApiResponse<AntiCheatEventDTO>>(
+        `/v1/attempts/${encodeURIComponent(attemptId)}/events`,
+        payload
+      );
+    },
+
+    /**
+     * Lấy danh sách nhật ký kiểm toán telemetry của ca thi
+     */
+    listEvents: async (attemptId: string): Promise<ApiResponse<AntiCheatEventDTO[]>> => {
+      return this.get<ApiResponse<AntiCheatEventDTO[]>>(`/v1/attempts/${encodeURIComponent(attemptId)}/events`);
+    },
+
+    /**
+     * Nộp bài thi và kích hoạt chấm thi tức thời
+     */
+    submit: async (attemptId: string, payload?: SubmitAttemptInput): Promise<ApiResponse<any>> => {
+      return this.post<ApiResponse<any>>(`/v1/attempts/${encodeURIComponent(attemptId)}/submit`, payload || {});
+    },
+
+    /**
+     * Xem kết quả chấm điểm chi tiết của ca thi
+     */
+    getResult: async (attemptId: string): Promise<ApiResponse<AttemptScoreResult>> => {
+      return this.get<ApiResponse<AttemptScoreResult>>(`/v1/attempts/${encodeURIComponent(attemptId)}/result`);
+    },
+
+    /**
+     * Lấy mốc thời gian máy chủ phục vụ đồng bộ đồng hồ
+     */
+    getTime: async (): Promise<ApiResponse<{ serverTime: string; timestampMs: number }>> => {
+      return this.get<ApiResponse<{ serverTime: string; timestampMs: number }>>('/v1/time');
     },
   };
+
+  /**
+   * Đồng bộ đồng hồ máy chủ với thuật toán Cristian's Algorithm
+   */
+  async syncServerTime(): Promise<{
+    serverTime: string;
+    serverTimestampMs: number;
+    rttMs: number;
+    clockOffsetMs: number;
+  }> {
+    const t1 = Date.now();
+    const res = await this.get<{ success: boolean; serverTime: string; timestampMs?: number }>('/v1/time');
+    const t3 = Date.now();
+    const rttMs = Math.max(0, t3 - t1);
+    const serverTimestampMs = res.timestampMs ?? new Date(res.serverTime).getTime();
+    const estimatedServerNow = serverTimestampMs + Math.round(rttMs / 2);
+    const clockOffsetMs = estimatedServerNow - t3;
+
+    return {
+      serverTime: res.serverTime,
+      serverTimestampMs,
+      rttMs,
+      clockOffsetMs,
+    };
+  }
 
   /**
    * Taxonomies API Domain Resource (Knowledge Catalog & Hierarchical Tree)
@@ -387,6 +520,71 @@ export class ApiClient {
 
     lockBlueprint: async (id: string): Promise<ApiResponse<BlueprintDTO>> => {
       return this.post<ApiResponse<BlueprintDTO>>(`/v1/assessments/${encodeURIComponent(id)}/blueprint/lock`);
+    },
+  };
+
+  /**
+   * Exams API Domain Resource (Matrix Solver, PRNG Seed Variants & SHA-256 Snapshots)
+   */
+  readonly exams = {
+    list: async (params?: { assessmentId?: string }): Promise<ApiResponse<ExamDTO[]>> => {
+      return this.get<ApiResponse<ExamDTO[]>>('/v1/exams', params);
+    },
+
+    get: async (idOrCode: string): Promise<ApiResponse<ExamDTO>> => {
+      return this.get<ApiResponse<ExamDTO>>(`/v1/exams/${encodeURIComponent(idOrCode)}`);
+    },
+
+    generate: async (payload: GenerateExamInput): Promise<ApiResponse<ExamDTO>> => {
+      return this.post<ApiResponse<ExamDTO>>('/v1/exams', payload);
+    },
+
+    update: async (id: string, payload: UpdateExamInput): Promise<ApiResponse<ExamDTO>> => {
+      return this.put<ApiResponse<ExamDTO>>(`/v1/exams/${encodeURIComponent(id)}`, payload);
+    },
+
+    updateStatus: async (id: string, status: ExamStatus): Promise<ApiResponse<ExamDTO>> => {
+      return this.patch<ApiResponse<ExamDTO>>(`/v1/exams/${encodeURIComponent(id)}/status`, { status });
+    },
+
+    publish: async (id: string): Promise<ApiResponse<ExamDTO>> => {
+      return this.post<ApiResponse<ExamDTO>>(`/v1/exams/${encodeURIComponent(id)}/publish`);
+    },
+
+    unpublish: async (id: string): Promise<ApiResponse<ExamDTO>> => {
+      return this.post<ApiResponse<ExamDTO>>(`/v1/exams/${encodeURIComponent(id)}/unpublish`);
+    },
+
+    delete: async (id: string): Promise<ApiResponse<void>> => {
+      return this.delete<ApiResponse<void>>(`/v1/exams/${encodeURIComponent(id)}`);
+    },
+
+    generateVariants: async (
+      idOrCode: string,
+      payload?: { variantsCount?: number }
+    ): Promise<ApiResponse<ExamVariantSummary[]>> => {
+      return this.post<ApiResponse<ExamVariantSummary[]>>(
+        `/v1/exams/${encodeURIComponent(idOrCode)}/generate-variants`,
+        payload || {}
+      );
+    },
+
+    getSanitizedManifest: async (
+      idOrCode: string,
+      variantCode: string = 'DEFAULT'
+    ): Promise<ApiResponse<SanitizedExamManifest>> => {
+      return this.get<ApiResponse<SanitizedExamManifest>>(
+        `/v1/exams/${encodeURIComponent(idOrCode)}/variants/${encodeURIComponent(variantCode)}/manifest`
+      );
+    },
+
+    getFrozenSnapshot: async (
+      idOrCode: string,
+      variantCode: string = 'DEFAULT'
+    ): Promise<ApiResponse<ExamSnapshotDTO>> => {
+      return this.get<ApiResponse<ExamSnapshotDTO>>(
+        `/v1/exams/${encodeURIComponent(idOrCode)}/variants/${encodeURIComponent(variantCode)}/frozen`
+      );
     },
   };
 }
