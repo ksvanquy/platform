@@ -11,6 +11,7 @@ export interface QuizProps {
   description?: string;
   ownerId: string;
   primaryNodeId?: string | null;
+  gradeNodeId?: string | null;
   isPublic?: boolean;
   currentPublishedVersionId?: string;
   status?: QuizStatus;
@@ -29,6 +30,7 @@ export class Quiz {
   private _description?: string;
   readonly ownerId: string;
   private _primaryNodeId?: string | null;
+  private _gradeNodeId?: string | null;
   private _isPublic: boolean;
   private _currentPublishedVersionId?: string;
   private _status: QuizStatus;
@@ -52,6 +54,7 @@ export class Quiz {
     this._description = props.description;
     this.ownerId = props.ownerId;
     this._primaryNodeId = props.primaryNodeId;
+    this._gradeNodeId = props.gradeNodeId;
     this._isPublic = props.isPublic ?? false;
     this._currentPublishedVersionId = props.currentPublishedVersionId;
     this._status = props.status ?? 'DRAFT';
@@ -65,6 +68,10 @@ export class Quiz {
 
   get primaryNodeId(): string | null | undefined {
     return this._primaryNodeId;
+  }
+
+  get gradeNodeId(): string | null | undefined {
+    return this._gradeNodeId;
   }
 
   get isPublic(): boolean {
@@ -94,7 +101,8 @@ export class Quiz {
     title?: string,
     description?: string,
     isPublic?: boolean,
-    primaryNodeId?: string | null
+    primaryNodeId?: string | null,
+    gradeNodeId?: string | null
   ): void {
     if (this._status === 'ARCHIVED') {
       throw new Error('Cannot update details of an ARCHIVED quiz');
@@ -110,6 +118,9 @@ export class Quiz {
     }
     if (primaryNodeId !== undefined) {
       this._primaryNodeId = primaryNodeId;
+    }
+    if (gradeNodeId !== undefined) {
+      this._gradeNodeId = gradeNodeId;
     }
     this._updatedAt = new Date();
   }
@@ -173,6 +184,7 @@ export class Quiz {
       description: this._description,
       ownerId: this.ownerId,
       primaryNodeId: this._primaryNodeId,
+      gradeNodeId: this._gradeNodeId,
       isPublic: this._isPublic,
       currentPublishedVersionId: this._currentPublishedVersionId,
       status: this._status,

@@ -25,6 +25,7 @@ export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
         description: raw.description,
         ownerId: raw.ownerId,
         primaryNodeId: raw.primaryNodeId || null,
+        gradeNodeId: raw.gradeNodeId || null,
         isPublic: raw.isPublic,
         currentPublishedVersionId: raw.currentPublishedVersionId,
         status: raw.status,
@@ -39,6 +40,7 @@ export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
           description: raw.description,
           ownerId: raw.ownerId,
           primaryNodeId: raw.primaryNodeId || null,
+          gradeNodeId: raw.gradeNodeId || null,
           isPublic: raw.isPublic,
           currentPublishedVersionId: raw.currentPublishedVersionId,
           status: raw.status,
@@ -59,12 +61,23 @@ export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
     return this.mapRowToQuiz(rows[0]);
   }
 
-  async listPublishedQuizzes(filter?: { primaryNodeId?: string; primaryNodeIds?: string[] }): Promise<Quiz[]> {
+  async listPublishedQuizzes(filter?: {
+    primaryNodeId?: string;
+    primaryNodeIds?: string[];
+    gradeNodeId?: string;
+    gradeNodeIds?: string[];
+  }): Promise<Quiz[]> {
     const conditions = [eq(quizzes.status, 'PUBLISHED')];
     if (filter?.primaryNodeIds && filter.primaryNodeIds.length > 0) {
       conditions.push(inArray(quizzes.primaryNodeId, filter.primaryNodeIds));
     } else if (filter?.primaryNodeId) {
       conditions.push(eq(quizzes.primaryNodeId, filter.primaryNodeId));
+    }
+
+    if (filter?.gradeNodeIds && filter.gradeNodeIds.length > 0) {
+      conditions.push(inArray(quizzes.gradeNodeId, filter.gradeNodeIds));
+    } else if (filter?.gradeNodeId) {
+      conditions.push(eq(quizzes.gradeNodeId, filter.gradeNodeId));
     }
 
     const rows = await this.db
@@ -141,6 +154,7 @@ export class DrizzleAuthoringRepository implements AuthoringRepositoryPort {
       description: row.description || undefined,
       ownerId: row.ownerId,
       primaryNodeId: row.primaryNodeId || undefined,
+      gradeNodeId: row.gradeNodeId || undefined,
       isPublic: Boolean(row.isPublic),
       currentPublishedVersionId: row.currentPublishedVersionId || undefined,
       status: row.status as QuizStatus,

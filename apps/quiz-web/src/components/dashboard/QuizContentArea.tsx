@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { UserProfile } from '@platform/auth-client';
+import type { TaxonomyTreeNodeDTO } from '@platform/contracts';
 import {
   ClockIcon,
   ShieldCheckIcon,
@@ -9,6 +10,7 @@ import {
   TagIcon,
   BookOpenIcon,
   LayersIcon,
+  AcademicCapIcon,
 } from '../common/Icons.js';
 
 interface QuizItem {
@@ -19,6 +21,7 @@ interface QuizItem {
   status: string;
   isPublic?: boolean;
   primaryNodeId?: string | null;
+  gradeNodeId?: string | null;
   currentPublishedVersionId?: string;
 }
 
@@ -36,6 +39,13 @@ interface QuizContentAreaProps {
   quizDetails?: any;
   loadingDetails?: boolean;
   isLoadingQuizzes?: boolean;
+  gradeTree?: TaxonomyTreeNodeDTO[];
+  selectedGradeNodeId?: string;
+  onSelectGradeNode?: (gradeNodeId: string) => void;
+  gradeMap?: Record<string, string>;
+  gradeCounts?: Record<string, number>;
+  onClearCategory?: () => void;
+  onClearGrade?: () => void;
 }
 
 export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
@@ -52,6 +62,13 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
   quizDetails,
   loadingDetails = false,
   isLoadingQuizzes = false,
+  gradeTree = [],
+  selectedGradeNodeId = '',
+  onSelectGradeNode,
+  gradeMap = {},
+  gradeCounts = {},
+  onClearCategory,
+  onClearGrade,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -156,6 +173,166 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
         </div>
       </div>
 
+      {/* 2D Facet Filter Bar: Khối Lớp & Cấp Học (Task 4.1 & 4.2) */}
+      <div id="grade-facet-filter-bar" className="bg-slate-900/70 border border-slate-800/90 rounded-2xl p-4 space-y-3 shrink-0">
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+          <div className="flex items-center space-x-2">
+            <AcademicCapIcon size={16} className="text-emerald-400" />
+            <span className="uppercase tracking-wider text-[11px] font-bold text-slate-200">
+              Lọc theo Khối Lớp & Cấp Học
+            </span>
+          </div>
+          {selectedGradeNodeId && (
+            <button
+              type="button"
+              onClick={() => onSelectGradeNode && onSelectGradeNode('')}
+              className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors"
+            >
+              Xem tất cả khối lớp
+            </button>
+          )}
+        </div>
+
+        {/* Grade Pills List */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-slate-800">
+          {/* All Grades Pill */}
+          <button
+            type="button"
+            onClick={() => onSelectGradeNode && onSelectGradeNode('')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 shrink-0 cursor-pointer ${
+              !selectedGradeNodeId
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 ring-1 ring-emerald-400/50'
+                : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/50'
+            }`}
+          >
+            <span>Tất cả khối lớp</span>
+          </button>
+
+          {/* Education Stage Roots (Tiểu học, THCS, THPT) */}
+          {gradeTree.map((root) => {
+            const isRootSelected = selectedGradeNodeId === root.id;
+            const count = gradeCounts[root.id] ?? 0;
+            return (
+              <button
+                key={root.id}
+                type="button"
+                onClick={() => onSelectGradeNode && onSelectGradeNode(root.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 shrink-0 cursor-pointer ${
+                  isRootSelected
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 ring-1 ring-emerald-400/50'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
+                }`}
+              >
+                <span>{root.name}</span>
+                {count > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none ${
+                      isRootSelected
+                        ? 'bg-slate-950 text-emerald-300'
+                        : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          {/* Divider */}
+          <div className="h-4 w-px bg-slate-700 shrink-0 mx-1" />
+
+          {/* Specific Grade Levels (Lớp 1..12) */}
+          {gradeTree
+            .flatMap((root) => root.children || [])
+            .map((gradeNode) => {
+              const isSelected = selectedGradeNodeId === gradeNode.id;
+              const count = gradeCounts[gradeNode.id] ?? 0;
+              return (
+                <button
+                  key={gradeNode.id}
+                  type="button"
+                  onClick={() => onSelectGradeNode && onSelectGradeNode(gradeNode.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center space-x-1 shrink-0 cursor-pointer ${
+                    isSelected
+                      ? 'bg-sky-500 text-slate-950 font-bold shadow-md shadow-sky-500/20 ring-1 ring-sky-400/50'
+                      : count > 0
+                      ? 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/50'
+                      : 'bg-slate-900/60 text-slate-500 hover:text-slate-300 border border-slate-800/80'
+                  }`}
+                >
+                  <span>{gradeNode.name}</span>
+                  {count > 0 && (
+                    <span
+                      className={`text-[10px] px-1 rounded font-mono font-bold leading-none ${
+                        isSelected
+                          ? 'bg-slate-950 text-sky-300'
+                          : 'bg-slate-700/80 text-slate-300'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+        </div>
+
+        {/* Active 2D Filter Badges Bar (when either Topic or Grade is selected) */}
+        {((selectedNodeName && selectedNodeName !== 'Tất cả bài thi') || selectedGradeNodeId) && (
+          <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 flex-wrap text-xs">
+            <span className="text-slate-500 text-[11px] font-medium">Đang lọc theo:</span>
+
+            {selectedNodeName && selectedNodeName !== 'Tất cả bài thi' && (
+              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-medium text-[11px]">
+                <TagIcon size={11} />
+                <span>Chủ đề: {selectedNodeName}</span>
+                {onClearCategory && (
+                  <button
+                    type="button"
+                    onClick={onClearCategory}
+                    className="ml-1 text-indigo-400 hover:text-white cursor-pointer"
+                    title="Bỏ lọc chủ đề"
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
+            )}
+
+            {selectedGradeNodeId && (
+              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium text-[11px]">
+                <AcademicCapIcon size={12} />
+                <span>Khối: {gradeMap[selectedGradeNodeId] || selectedGradeNodeId}</span>
+                {onClearGrade && (
+                  <button
+                    type="button"
+                    onClick={onClearGrade}
+                    className="ml-1 text-emerald-400 hover:text-white cursor-pointer"
+                    title="Bỏ lọc khối lớp"
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
+            )}
+
+            {selectedNodeName && selectedNodeName !== 'Tất cả bài thi' && selectedGradeNodeId && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onClearCategory) onClearCategory();
+                  if (onClearGrade) onClearGrade();
+                }}
+                className="text-[11px] text-slate-400 hover:text-slate-200 underline ml-auto cursor-pointer"
+              >
+                Đặt lại tất cả bộ lọc
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Error Message banner */}
       {errorMessage && (
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start space-x-3">
@@ -258,6 +435,13 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
                               <span className="truncate max-w-[150px]">{topicName}</span>
                             </span>
                           )}
+
+                          {quiz.gradeNodeId && gradeMap[quiz.gradeNodeId] && (
+                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              <AcademicCapIcon size={11} />
+                              <span className="truncate max-w-[150px]">{gradeMap[quiz.gradeNodeId]}</span>
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -308,10 +492,25 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
                 <div className="text-base font-black text-slate-100 leading-tight">
                   {selectedQuiz.title}
                 </div>
-                <div className="flex items-center space-x-2 text-xs text-slate-400">
+                <div className="flex items-center space-x-2 text-xs text-slate-400 flex-wrap gap-y-1">
                   <span className="font-mono bg-slate-800 px-2 py-0.5 rounded text-[11px] text-slate-300">
                     Mã: {selectedQuiz.code}
                   </span>
+                  {selectedQuiz.primaryNodeId && categoryMap[selectedQuiz.primaryNodeId] && (
+                    <>
+                      <span>•</span>
+                      <span className="text-indigo-400 font-medium">{categoryMap[selectedQuiz.primaryNodeId]}</span>
+                    </>
+                  )}
+                  {selectedQuiz.gradeNodeId && gradeMap[selectedQuiz.gradeNodeId] && (
+                    <>
+                      <span>•</span>
+                      <span className="text-emerald-400 font-medium flex items-center space-x-1">
+                        <AcademicCapIcon size={12} />
+                        <span>{gradeMap[selectedQuiz.gradeNodeId]}</span>
+                      </span>
+                    </>
+                  )}
                   <span>•</span>
                   <span>{selectedQuiz.isPublic ? 'Khảo sát mở' : 'Đánh giá chính thức'}</span>
                 </div>

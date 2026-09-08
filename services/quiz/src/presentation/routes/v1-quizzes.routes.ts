@@ -6,10 +6,12 @@ import { requireRole } from '../middlewares/rbac.middleware.js';
 export function createV1QuizzesRouter(authoring: AuthoringUseCases, getTaxonomyRepo?: () => any): Router {
   const router = Router();
 
-  // GET /v1/quizzes - Danh mục đề thi đã xuất bản (hỗ trợ lọc theo nodeId & cây phân cấp)
+  // GET /v1/quizzes - Danh mục đề thi đã xuất bản (hỗ trợ lọc theo nodeId, gradeNodeId & cây phân cấp)
   router.get('/', async (req: Request, res: Response) => {
     try {
       const nodeId = req.query.nodeId ? String(req.query.nodeId).trim() : undefined;
+      const gradeNodeId = req.query.gradeNodeId ? String(req.query.gradeNodeId).trim() : undefined;
+
       let primaryNodeIds: string[] | undefined;
       if (nodeId) {
         const taxonomyRepo = getTaxonomyRepo ? getTaxonomyRepo() : null;
@@ -25,8 +27,28 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases, getTaxonomyR
         }
       }
 
+      let gradeNodeIds: string[] | undefined;
+      if (gradeNodeId) {
+        const taxonomyRepo = getTaxonomyRepo ? getTaxonomyRepo() : null;
+        if (taxonomyRepo && typeof taxonomyRepo.findDescendantIds === 'function') {
+          try {
+            const descendants = await taxonomyRepo.findDescendantIds(gradeNodeId);
+            gradeNodeIds = descendants && descendants.length > 0 ? descendants : [gradeNodeId];
+          } catch {
+            gradeNodeIds = [gradeNodeId];
+          }
+        } else {
+          gradeNodeIds = [gradeNodeId];
+        }
+      }
+
       const quizzes = await authoring.getPublishedQuizzes(
-        primaryNodeIds ? { primaryNodeIds } : undefined
+        primaryNodeIds || gradeNodeIds
+          ? {
+              primaryNodeIds,
+              gradeNodeIds,
+            }
+          : undefined
       );
 
       res.status(200).json({
@@ -39,6 +61,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases, getTaxonomyR
           status: q.status,
           isPublic: q.isPublic,
           primaryNodeId: q.primaryNodeId,
+          gradeNodeId: q.gradeNodeId,
           currentPublishedVersionId: q.currentPublishedVersionId,
         })),
       });
@@ -51,7 +74,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases, getTaxonomyR
   router.post('/', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
       const principal = req.principal;
-      const { code, title, description, isPublic, primaryNodeId } = req.body;
+      const { code, title, description, isPublic, primaryNodeId, gradeNodeId } = req.body;
 
       const quiz = await authoring.createQuiz(
         {
@@ -60,6 +83,7 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases, getTaxonomyR
           description,
           ownerId: principal?.id || 'anonymous_author',
           primaryNodeId: primaryNodeId || null,
+          gradeNodeId: gradeNodeId || null,
           isPublic: isPublic !== undefined ? Boolean(isPublic) : undefined,
         },
         principal
@@ -86,13 +110,14 @@ export function createV1QuizzesRouter(authoring: AuthoringUseCases, getTaxonomyR
   // PUT /v1/quizzes/:id - Cập nhật thông tin đề thi (Chỉ chủ sở hữu hoặc ADMIN)
   router.put('/:id', requireRole('INSTRUCTOR', 'ADMIN'), async (req: Request, res: Response) => {
     try {
-      const { title, description, isPublic, primaryNodeId } = req.body;
+      const { title, description, isPublic, primaryNodeId, gradeNodeId } = req.body;
       const quiz = await authoring.updateQuiz(
         {
           quizId: String(req.params.id),
           title,
           description,
           primaryNodeId: primaryNodeId !== undefined ? primaryNodeId : undefined,
+          gradeNodeId: gradeNodeId !== undefined ? gradeNodeId : undefined,
           isPublic: isPublic !== undefined ? Boolean(isPublic) : undefined,
         },
         req.principal

@@ -11,6 +11,7 @@ export interface CreateQuizInput {
   description?: string;
   ownerId: string;
   primaryNodeId?: string | null;
+  gradeNodeId?: string | null;
   isPublic?: boolean;
 }
 
@@ -19,6 +20,7 @@ export interface UpdateQuizInput {
   title: string;
   description?: string;
   primaryNodeId?: string | null;
+  gradeNodeId?: string | null;
   isPublic?: boolean;
 }
 
@@ -58,6 +60,7 @@ export class AuthoringUseCases {
       description: input.description,
       ownerId,
       primaryNodeId: input.primaryNodeId,
+      gradeNodeId: input.gradeNodeId,
       isPublic: input.isPublic ?? false,
       status: 'DRAFT',
     });
@@ -142,7 +145,13 @@ export class AuthoringUseCases {
       }
     }
 
-    quiz.updateDetails(input.title, input.description, input.isPublic, input.primaryNodeId);
+    quiz.updateDetails(
+      input.title,
+      input.description,
+      input.isPublic,
+      input.primaryNodeId,
+      input.gradeNodeId
+    );
     await this.authoringRepo.saveQuiz(quiz);
     return quiz;
   }
@@ -218,7 +227,12 @@ export class AuthoringUseCases {
     await this.authoringRepo.saveQuiz(quiz);
   }
 
-  async getPublishedQuizzes(filter?: { primaryNodeId?: string; primaryNodeIds?: string[] }): Promise<Quiz[]> {
+  async getPublishedQuizzes(filter?: {
+    primaryNodeId?: string;
+    primaryNodeIds?: string[];
+    gradeNodeId?: string;
+    gradeNodeIds?: string[];
+  }): Promise<Quiz[]> {
     return this.authoringRepo.listPublishedQuizzes(filter);
   }
 

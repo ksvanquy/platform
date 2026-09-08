@@ -157,7 +157,7 @@ function initAssessmentServices(): void {
     saveQuiz: (quiz) => getActiveAuthoringRepo().saveQuiz(quiz),
     findQuizById: (id) => getActiveAuthoringRepo().findQuizById(id),
     findQuizByCode: (code) => getActiveAuthoringRepo().findQuizByCode(code),
-    listPublishedQuizzes: () => getActiveAuthoringRepo().listPublishedQuizzes(),
+    listPublishedQuizzes: (filter) => getActiveAuthoringRepo().listPublishedQuizzes(filter),
     saveVersion: (version) => getActiveAuthoringRepo().saveVersion(version),
     findVersionById: (id) => getActiveAuthoringRepo().findVersionById(id),
     findLatestVersionByQuizId: (quizId) => getActiveAuthoringRepo().findLatestVersionByQuizId(quizId),

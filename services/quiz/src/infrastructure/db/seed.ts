@@ -67,6 +67,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     description: 'Kiểm tra tổng hợp các loại câu hỏi',
     ownerId: 'admin_master',
     primaryNodeId: 'node_topic_it_web',
+    gradeNodeId: 'node_grade_11',
     status: 'PUBLISHED',
     currentPublishedVersionId: versionId,
   });
@@ -116,6 +117,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     description: 'Đánh giá năng lực ngoại ngữ học thuật',
     ownerId: 'usr_inst_c',
     primaryNodeId: 'node_topic_lang_en',
+    gradeNodeId: 'node_grade_12',
     status: 'PUBLISHED',
     currentPublishedVersionId: foreignVersionId,
   });
@@ -165,6 +167,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     description: 'Kiểm tra giải thuật cơ sở',
     ownerId: 'admin_master',
     primaryNodeId: 'node_topic_it',
+    gradeNodeId: 'node_grade_high',
     status: 'PUBLISHED',
     currentPublishedVersionId: polyVersionId,
   });
@@ -207,6 +210,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     description: 'Đề thi tự do cho phép mọi thí sinh tham gia',
     ownerId: 'admin_master',
     primaryNodeId: 'node_topic_it_web',
+    gradeNodeId: 'node_grade_secondary',
     isPublic: true,
     status: 'PUBLISHED',
     currentPublishedVersionId: publicVersionId,
@@ -269,6 +273,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     description: 'Kiểm tra kiến thức đại số chương trình lớp 10',
     ownerId: 'admin_master',
     primaryNodeId: 'node_topic_math_algebra_10',
+    gradeNodeId: 'node_grade_10',
     status: 'PUBLISHED',
     currentPublishedVersionId: mathAlgebraVersionId,
   });
@@ -318,6 +323,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     description: 'Đánh giá kiến thức hình học phẳng và giải tích tọa độ',
     ownerId: 'admin_master',
     primaryNodeId: 'node_topic_math_geometry',
+    gradeNodeId: 'node_grade_10',
     status: 'PUBLISHED',
     currentPublishedVersionId: mathGeoVersionId,
   });
@@ -367,6 +373,7 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
     description: 'Kiểm tra kiến thức chuẩn hóa dữ liệu quan hệ và truy vấn SQL',
     ownerId: 'admin_master',
     primaryNodeId: 'node_topic_it_db',
+    gradeNodeId: 'node_grade_11',
     status: 'PUBLISHED',
     currentPublishedVersionId: dbVersionId,
   });
@@ -374,7 +381,107 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   await repo.saveQuiz(dbQuiz);
   await repo.saveVersion(dbVersion);
 
-  console.log('✅ [quiz_db] Seeding completed: 7 quizzes initialized across Math, IT & English topics.');
+  // 8. Đề thi Toán học - Lớp 5 (Tiểu học)
+  const mathPriQuizId = 'quiz_math_pri_5';
+  const mathPriVersionId = 'ver_math_pri_v1';
+
+  const mathPriVersion = new QuizVersion({
+    id: mathPriVersionId,
+    quizId: mathPriQuizId,
+    versionNumber: 1,
+    durationMinutes: 20,
+    passingScore: 5,
+    maxAttempts: 3,
+    questions: [
+      {
+        id: 'q_pri_1',
+        type: 'single-choice',
+        prompt: 'Diện tích hình thang có đáy lớn 8cm, đáy bé 6cm, chiều cao 4cm là:',
+        points: 5,
+        options: [
+          { id: 'opt_p1', text: '28 cm2', isCorrect: true },
+          { id: 'opt_p2', text: '56 cm2', isCorrect: false },
+          { id: 'opt_p3', text: '24 cm2', isCorrect: false },
+        ],
+      },
+      {
+        id: 'q_pri_2',
+        type: 'true-false',
+        prompt: '1 tấn bằng 1000 kg.',
+        points: 5,
+        correctAnswer: true,
+      },
+    ],
+    scoringPolicy: { strategyType: 'exact-match' },
+    randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
+  });
+
+  const mathPriQuiz = new Quiz({
+    id: mathPriQuizId,
+    code: 'MATH_PRI_5',
+    title: 'Đề Ôn Tập Toán Tiểu Học - Lớp 5',
+    description: 'Kiểm tra số học và hình học chương trình lớp 5',
+    ownerId: 'admin_master',
+    primaryNodeId: 'node_topic_math',
+    gradeNodeId: 'node_grade_5',
+    status: 'PUBLISHED',
+    currentPublishedVersionId: mathPriVersionId,
+  });
+
+  await repo.saveQuiz(mathPriQuiz);
+  await repo.saveVersion(mathPriVersion);
+
+  // 9. Đề thi Toán học - Lớp 7 (THCS)
+  const mathSecQuizId = 'quiz_math_sec_7';
+  const mathSecVersionId = 'ver_math_sec_v1';
+
+  const mathSecVersion = new QuizVersion({
+    id: mathSecVersionId,
+    quizId: mathSecQuizId,
+    versionNumber: 1,
+    durationMinutes: 25,
+    passingScore: 5,
+    maxAttempts: 3,
+    questions: [
+      {
+        id: 'q_sec_1',
+        type: 'single-choice',
+        prompt: 'Giá trị tuyệt đối của một số hữu tỉ x kí hiệu là:',
+        points: 5,
+        options: [
+          { id: 'opt_s1', text: '|x|', isCorrect: true },
+          { id: 'opt_s2', text: '[x]', isCorrect: false },
+          { id: 'opt_s3', text: '(x)', isCorrect: false },
+        ],
+      },
+      {
+        id: 'q_sec_2',
+        type: 'true-false',
+        prompt: 'Tổng ba góc của một tam giác luôn bằng 180 độ.',
+        points: 5,
+        correctAnswer: true,
+      },
+    ],
+    scoringPolicy: { strategyType: 'exact-match' },
+    randomizationPolicy: { shuffleQuestions: false, shuffleOptions: false },
+  });
+
+  const mathSecQuiz = new Quiz({
+    id: mathSecQuizId,
+    code: 'MATH_SEC_7',
+    title: 'Đề Khảo Sát Toán THCS - Lớp 7',
+    description: 'Số học, tỉ lệ thức và tam giác bằng nhau',
+    ownerId: 'admin_master',
+    primaryNodeId: 'node_topic_math',
+    gradeNodeId: 'node_grade_7',
+    status: 'PUBLISHED',
+    currentPublishedVersionId: mathSecVersionId,
+  });
+
+  await repo.saveQuiz(mathSecQuiz);
+  await repo.saveVersion(mathSecVersion);
+
+  console.log('✅ [quiz_db] Seeding completed: 9 quizzes initialized across Math, IT & English and Grade levels (Tiểu học, THCS, THPT, Lớp 5, 7, 10, 11, 12).');
 }
 
 // Allow direct execution via CLI

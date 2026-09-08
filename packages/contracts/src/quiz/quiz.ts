@@ -9,6 +9,7 @@ export interface QuizSummary {
   isPublic?: boolean;
   status?: string;
   primaryNodeId?: string | null;
+  gradeNodeId?: string | null;
   currentPublishedVersionId?: string | null;
 }
 
@@ -26,6 +27,7 @@ export interface CreateQuizInput {
   passingPercentage?: number;
   isPublic?: boolean;
   primaryNodeId?: string | null;
+  gradeNodeId?: string | null;
 }
 
 export interface UpdateQuizInput {
@@ -33,4 +35,5 @@ export interface UpdateQuizInput {
   description?: string;
   isPublic?: boolean;
   primaryNodeId?: string | null;
+  gradeNodeId?: string | null;
 }

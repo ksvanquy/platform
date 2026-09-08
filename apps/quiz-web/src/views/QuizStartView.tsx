@@ -32,12 +32,18 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
-  // Taxonomy tree & node lookup maps
+  // Taxonomy tree & node lookup maps (TOPIC)
   const [taxonomyTree, setTaxonomyTree] = useState<TaxonomyTreeNodeDTO[]>([]);
   const [selectedCategoryNodeId, setSelectedCategoryNodeId] = useState<string>('');
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
   const [nodeBreadcrumbMap, setNodeBreadcrumbMap] = useState<Record<string, string[]>>({});
   const descendantMapRef = useRef<Record<string, Set<string>>>({});
+
+  // Taxonomy tree & node lookup maps (GRADE) - Task 4.1 & 4.2
+  const [gradeTree, setGradeTree] = useState<TaxonomyTreeNodeDTO[]>([]);
+  const [selectedGradeNodeId, setSelectedGradeNodeId] = useState<string>('');
+  const [gradeMap, setGradeMap] = useState<Record<string, string>>({});
+  const gradeDescendantMapRef = useRef<Record<string, Set<string>>>({});
 
   // Selected quiz details (duration, passingScore, etc.)
   const [quizDetails, setQuizDetails] = useState<any>(null);
@@ -92,6 +98,48 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
     }
   };
 
+  // 1b. Fetch Taxonomy Tree (GRADE) - Task 4.1
+  const fetchGradeTaxonomy = async () => {
+    try {
+      const treeRes = await quizApi.getTaxonomyTree('GRADE');
+      if (treeRes && treeRes.tree) {
+        const gMap: Record<string, string> = {};
+        const descendants: Record<string, Set<string>> = {};
+
+        const collectDescendants = (node: TaxonomyTreeNodeDTO): string[] => {
+          const ids = [node.id];
+          if (node.children && Array.isArray(node.children)) {
+            for (const child of node.children) {
+              ids.push(...collectDescendants(child));
+            }
+          }
+          descendants[node.id] = new Set(ids);
+          return ids;
+        };
+
+        for (const root of treeRes.tree) {
+          collectDescendants(root);
+        }
+        gradeDescendantMapRef.current = descendants;
+
+        const traverse = (items: TaxonomyTreeNodeDTO[]) => {
+          for (const item of items) {
+            gMap[item.id] = item.name;
+            if (item.children && item.children.length > 0) {
+              traverse(item.children);
+            }
+          }
+        };
+
+        traverse(treeRes.tree);
+        setGradeTree(treeRes.tree);
+        setGradeMap(gMap);
+      }
+    } catch (err) {
+      console.warn('Could not fetch grade taxonomy tree:', err);
+    }
+  };
+
   // 2. Fetch all published quizzes
   const fetchQuizzes = useCallback(async () => {
     setLoadingQuizzes(true);
@@ -143,6 +191,7 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
 
   useEffect(() => {
     fetchCategories();
+    fetchGradeTaxonomy();
     fetchQuizzes();
   }, [fetchQuizzes]);
 
@@ -173,20 +222,70 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
     return counts;
   }, [taxonomyTree, allQuizzes]);
 
-  // Filter quizzes based on selected category node
-  const displayedQuizzes = useMemo(() => {
-    if (!selectedCategoryNodeId) {
-      return allQuizzes;
-    }
-    const allowedDescendants = descendantMapRef.current[selectedCategoryNodeId];
-    return allQuizzes.filter((q) => {
-      if (!q.primaryNodeId) return false;
-      if (allowedDescendants) {
-        return allowedDescendants.has(q.primaryNodeId);
+  // Compute quiz count for each grade taxonomy node (including descendants, respecting current topic selection)
+  const gradeCountsByNode = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const descendants = gradeDescendantMapRef.current;
+
+    // Filter by topic first if active
+    const baseQuizzes = !selectedCategoryNodeId
+      ? allQuizzes
+      : allQuizzes.filter((q) => {
+          if (!q.primaryNodeId) return false;
+          const allowed = descendantMapRef.current[selectedCategoryNodeId];
+          return allowed ? allowed.has(q.primaryNodeId) : q.primaryNodeId === selectedCategoryNodeId;
+        });
+
+    const countForNode = (nodeId: string): number => {
+      const allowed = descendants[nodeId];
+      return baseQuizzes.filter((q) => {
+        if (!q.gradeNodeId) return false;
+        if (allowed) return allowed.has(q.gradeNodeId);
+        return q.gradeNodeId === nodeId;
+      }).length;
+    };
+
+    const traverse = (items: TaxonomyTreeNodeDTO[]) => {
+      for (const item of items) {
+        counts[item.id] = countForNode(item.id);
+        if (item.children) {
+          traverse(item.children);
+        }
       }
-      return q.primaryNodeId === selectedCategoryNodeId;
+    };
+
+    traverse(gradeTree);
+    return counts;
+  }, [gradeTree, allQuizzes, selectedCategoryNodeId]);
+
+  // Filter quizzes based on both selected category node AND selected grade node (2D Facet Filtering - Task 4.2)
+  const displayedQuizzes = useMemo(() => {
+    return allQuizzes.filter((q) => {
+      // 1. Topic filter
+      if (selectedCategoryNodeId) {
+        if (!q.primaryNodeId) return false;
+        const allowedDescendants = descendantMapRef.current[selectedCategoryNodeId];
+        if (allowedDescendants) {
+          if (!allowedDescendants.has(q.primaryNodeId)) return false;
+        } else if (q.primaryNodeId !== selectedCategoryNodeId) {
+          return false;
+        }
+      }
+
+      // 2. Grade filter
+      if (selectedGradeNodeId) {
+        if (!q.gradeNodeId) return false;
+        const allowedGradeDescendants = gradeDescendantMapRef.current[selectedGradeNodeId];
+        if (allowedGradeDescendants) {
+          if (!allowedGradeDescendants.has(q.gradeNodeId)) return false;
+        } else if (q.gradeNodeId !== selectedGradeNodeId) {
+          return false;
+        }
+      }
+
+      return true;
     });
-  }, [allQuizzes, selectedCategoryNodeId]);
+  }, [allQuizzes, selectedCategoryNodeId, selectedGradeNodeId]);
 
   // Keep selected quiz valid within filtered list
   useEffect(() => {
@@ -302,6 +401,13 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
           quizDetails={quizDetails}
           loadingDetails={loadingDetails}
           isLoadingQuizzes={loadingQuizzes}
+          gradeTree={gradeTree}
+          selectedGradeNodeId={selectedGradeNodeId}
+          onSelectGradeNode={setSelectedGradeNodeId}
+          gradeMap={gradeMap}
+          gradeCounts={gradeCountsByNode}
+          onClearCategory={() => setSelectedCategoryNodeId('')}
+          onClearGrade={() => setSelectedGradeNodeId('')}
         />
       </div>
 

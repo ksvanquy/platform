@@ -240,34 +240,36 @@ Lộ trình được chia thành **4 Giai đoạn (Phases)** tuần tự với c
 
 ---
 
-#### 🔹 Giai đoạn 4: Quiz Web 2D Facet Filtering & End-to-End Delivery
+#### 🔹 Giai đoạn 4: Quiz Web 2D Facet Filtering & End-to-End Delivery (Đã hoàn thành - 100%)
 - **Mục tiêu**: Mang lại trải nghiệm học tập phân cấp cho Thí sinh trên `apps/quiz-web`.
 - **Nhiệm vụ cụ thể**:
-  - [ ] **Task 4.1**: Trong `apps/quiz-web/src/views/QuizStartView.tsx`, thêm thanh bộ lọc Khối lớp (Pills: *Tất cả, Tiểu học, THCS, Lớp 10, Lớp 11, Lớp 12*).
-  - [ ] **Task 4.2**: Kết hợp điều kiện lọc chéo:
-    - Khi chọn Khối lớp cha (ví dụ `THPT`): Tự động gọi API `descendant-ids` để lọc tất cả đề thi có `gradeNodeId` nằm trong danh sách con cháu.
+  - [x] **Task 4.1**: Trong `apps/quiz-web/src/views/QuizStartView.tsx` & `QuizContentArea.tsx`, thêm thanh bộ lọc Khối lớp (Pills: *Tất cả, Tiểu học, THCS, THPT, Lớp 1..12* với số lượng đề thi tương ứng).
+  - [x] **Task 4.2**: Kết hợp điều kiện lọc chéo 2D:
+    - Khi chọn Khối lớp cha (ví dụ `THPT`): Tự động lọc tất cả đề thi có `gradeNodeId` nằm trong danh sách con cháu (`[node_grade_high, node_grade_10, node_grade_11, node_grade_12]`).
     - Khi chọn kết hợp cả Môn học + Khối lớp: Hiển thị đúng các đề thi giao thoa của 2 trục.
-  - [ ] **Task 4.3**: Chạy linter (`lint_applet`) và biên dịch hệ thống (`compile_applet`) để nghiệm thu toàn diện.
-- **Deliverable**: Giao diện người học lọc đề thi 2 chiều mượt mà, sẵn sàng sản xuất.
-- **Exit Gate**: Toàn bộ hệ sinh thái biên dịch thành công, không phát sinh cảnh báo type hay runtime error.
+    - Hiển thị badge Khối lớp trên từng thẻ bài thi và bảng thông tin chi tiết ca thi.
+    - Hỗ trợ thẻ chip bộ lọc đang hoạt động với khả năng gỡ từng tiêu chí hoặc đặt lại tất cả.
+  - [x] **Task 4.3**: Chạy linter (`lint_applet`) và biên dịch hệ thống (`compile_applet`) để nghiệm thu toàn diện (Build Succeeded).
+- **Deliverable**: Giao diện người học lọc đề thi 2 chiều (Môn học × Khối lớp) mượt mà, phản hồi tức thì, sẵn sàng sản xuất.
+- **Exit Gate**: Toàn bộ hệ sinh thái biên dịch thành công, không phát sinh cảnh báo type hay runtime error. [PASSED]
 
 ---
 
 ## 5. BẢNG TIÊU CHÍ NGHIỆM THU ĐÃ ĐỐI SOÁT (ACCEPTANCE CRITERIA)
 
-| STT | Hạng mục kiểm tra | Tiêu chí đạt chuẩn kỹ thuật |
-| :--- | :--- | :--- |
-| **AC-1** | Bản ghi Taxonomy `GRADE` | `GET /v1/taxonomies/GRADE` trả về HTTP 200, code `GRADE`, `isHierarchical: true`. |
-| **AC-2** | Cây phân cấp đầy đủ | `GET /v1/taxonomies/GRADE/tree` trả về 3 nhánh gốc và 12 nút lá với thứ tự `sortOrder` tăng dần từ 1 đến 12. |
-| **AC-3** | Thuật toán CTE Nút con | `GET /v1/nodes/node_grade_high/descendant-ids` trả về đúng 4 phần tử: `['node_grade_high', 'node_grade_10', 'node_grade_11', 'node_grade_12']`. |
-| **AC-4** | Breadcrumb navigation | `GET /v1/nodes/node_grade_12/breadcrumbs` trả về đúng 2 phần tử `['Trung học phổ thông', 'Lớp 12']`. |
-| **AC-5** | Tính tương thích ngược | Toàn bộ các test suite hiện tại (`api.spec.ts`, `tree-structure.spec.ts`, `cycle-prevention.spec.ts`, v.v.) tiếp tục pass 100%. |
-| **AC-6** | Lọc chéo 2D Ma trận | Đề thi có thể được truy vấn kết hợp đồng thời theo cả `primaryNodeId` (Môn học) và `gradeNodeId` (Khối lớp). |
+| STT | Hạng mục kiểm tra | Tiêu chí đạt chuẩn kỹ thuật | Trạng thái |
+| :--- | :--- | :--- | :--- |
+| **AC-1** | Bản ghi Taxonomy `GRADE` | `GET /v1/taxonomies/GRADE` trả về HTTP 200, code `GRADE`, `isHierarchical: true`. | ✅ Đạt |
+| **AC-2** | Cây phân cấp đầy đủ | `GET /v1/taxonomies/GRADE/tree` trả về 3 nhánh gốc và 12 nút lá với thứ tự `sortOrder` tăng dần từ 1 đến 12. | ✅ Đạt |
+| **AC-3** | Thuật toán CTE Nút con | `GET /v1/nodes/node_grade_high/descendant-ids` trả về đúng 4 phần tử: `['node_grade_high', 'node_grade_10', 'node_grade_11', 'node_grade_12']`. | ✅ Đạt |
+| **AC-4** | Breadcrumb navigation | `GET /v1/nodes/node_grade_12/breadcrumbs` trả về đúng 2 phần tử `['Trung học phổ thông', 'Lớp 12']`. | ✅ Đạt |
+| **AC-5** | Tính tương thích ngược | Toàn bộ các test suite hiện tại (`api.spec.ts`, `tree-structure.spec.ts`, `cycle-prevention.spec.ts`, v.v.) tiếp tục pass 100%. | ✅ Đạt |
+| **AC-6** | Lọc chéo 2D Ma trận | Đề thi có thể được truy vấn kết hợp đồng thời theo cả `primaryNodeId` (Môn học) và `gradeNodeId` (Khối lớp) trên cả API backend và Quiz Web frontend. | ✅ Đạt |
 
 ---
 
 ## 6. TRẠNG THÁI HIỆN TẠI & BƯỚC TIẾP THEO
 
-- **Trạng thái**: Kế hoạch và Lộ trình triển khai (Roadmap) đã được xây dựng hoàn chỉnh, chi tiết từng task, liên kết chặt chẽ với codebase.
+- **Trạng thái**: Đã hoàn thành xuất sắc Giai đoạn 1 (Core Taxonomy), Giai đoạn 2 (Automated Testing), và Giai đoạn 4 (Quiz Web 2D Facet Filtering & End-to-End Delivery).
+- **Giai đoạn 3 (Admin Web)**: Tạm thời bỏ qua theo yêu cầu người dùng, sẵn sàng kích hoạt bất kỳ lúc nào khi cần mở rộng giao diện quản trị.
 - **Vị trí file kế hoạch**: `/plan/grade_taxonomy_plan.md`.
-- **Sẵn sàng thực thi**: Khi bạn sẵn sàng (ví dụ: *"Bắt đầu Giai đoạn 1"* hoặc *"Tiến hành code theo roadmap"*), tôi sẽ bắt đầu triển khai các task của Giai đoạn 1 ngay lập tức!

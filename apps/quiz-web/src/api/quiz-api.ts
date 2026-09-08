@@ -16,7 +16,7 @@ export const quizApi = {
   /**
    * Lấy danh sách các đề thi đã xuất bản từ RESTful API (/v1/quizzes)
    */
-  async listQuizzes(params?: { nodeId?: string }): Promise<any[]> {
+  async listQuizzes(params?: { nodeId?: string; gradeNodeId?: string }): Promise<any[]> {
     const response = await apiClient.quizzes.list(params);
     return response.data || [];
   },

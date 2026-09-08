@@ -34,6 +34,7 @@ export const quizzes = pgTable(
     description: text('description'),
     ownerId: varchar('owner_id', { length: 64 }).notNull(),
     primaryNodeId: varchar('primary_node_id', { length: 64 }),
+    gradeNodeId: varchar('grade_node_id', { length: 64 }),
     isPublic: boolean('is_public').notNull().default(false),
     currentPublishedVersionId: varchar('current_published_version_id', { length: 64 }),
     status: varchar('status', { length: 32 }).notNull().default('DRAFT'),
@@ -44,6 +45,7 @@ export const quizzes = pgTable(
     index('idx_quizzes_code').on(table.code),
     index('idx_quizzes_owner').on(table.ownerId),
     index('idx_quizzes_primary_node').on(table.primaryNodeId),
+    index('idx_quizzes_grade_node').on(table.gradeNodeId),
     index('idx_quizzes_status').on(table.status),
   ]
 );

@@ -173,7 +173,7 @@ export class ApiClient {
    * Quizzes API Domain Resource (RESTful v1 Authoring / Catalog)
    */
   readonly quizzes = {
-    list: async (params?: { nodeId?: string }): Promise<ApiResponse<any[]>> => {
+    list: async (params?: { nodeId?: string; gradeNodeId?: string }): Promise<ApiResponse<any[]>> => {
       return this.get<ApiResponse<any[]>>('/v1/quizzes', params);
     },
 
@@ -187,6 +187,7 @@ export class ApiClient {
       description?: string;
       isPublic?: boolean;
       primaryNodeId?: string | null;
+      gradeNodeId?: string | null;
     }): Promise<ApiResponse<any>> => {
       return this.post<ApiResponse<any>>('/v1/quizzes', payload);
     },
@@ -198,6 +199,7 @@ export class ApiClient {
         description?: string;
         isPublic?: boolean;
         primaryNodeId?: string | null;
+        gradeNodeId?: string | null;
       }
     ): Promise<ApiResponse<any>> => {
       return this.put<ApiResponse<any>>(`/v1/quizzes/${quizId}`, payload);
