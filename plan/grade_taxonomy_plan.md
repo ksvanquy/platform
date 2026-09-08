@@ -163,14 +163,14 @@ Lộ trình được chia thành **4 Giai đoạn (Phases)** tuần tự với c
  │ • Bổ sung Seed Data: `tax_grade` + 15 Nodes (Tiểu học, THCS, THPT và 12 Lớp)         │
  │ • Chuyển đổi câu log seed sang đếm số lượng động                                     │
  └─────────────────────────────────────────┬────────────────────────────────────────────┘
-                                           │ [Quality Gate 1: Seed chạy thành công]
+                                           │ [Quality Gate 1: Seed chạy thành công - PASSED]
  ┌─────────────────────────────────────────▼────────────────────────────────────────────┐
- │ GIAI ĐOẠN 2: TEST SUITE & VERIFICATION (Taxonomy Tests)                               │
+ │ GIAI ĐOẠN 2: TEST SUITE & VERIFICATION (Taxonomy Tests) - [HOÀN TẤT]                  │
  │ • Tạo test file `services/taxonomy/tests/grade-taxonomy.spec.ts`                     │
  │ • Kiểm thử chi tiết: Cây phân cấp, Đếm nút, Recursive CTE Descendants, Breadcrumbs    │
- │ • Chạy regression test toàn bộ các test suite hiện tại                               │
+ │ • Chạy regression test toàn bộ các test suite: 35/35 files, 304/304 tests passed     │
  └─────────────────────────────────────────┬────────────────────────────────────────────┘
-                                           │ [Quality Gate 2: Test Suite 100% Xanh]
+                                           │ [Quality Gate 2: Test Suite 100% Xanh - PASSED]
  ┌─────────────────────────────────────────▼────────────────────────────────────────────┐
  │ GIAI ĐOẠN 3: ADMIN WEB VALIDATION & QUIZ INTEGRATION                                 │
  │ • Xác thực Admin Web tự động hiển thị Tab GRADE trong mục Quản lý Danh mục           │
@@ -210,20 +210,21 @@ Lộ trình được chia thành **4 Giai đoạn (Phases)** tuần tự với c
 
 ---
 
-#### 🔹 Giai đoạn 2: Automated Testing & Verification
+#### 🔹 Giai đoạn 2: Automated Testing & Verification (Đã hoàn thành - 100%)
 - **Mục tiêu**: Đảm bảo thuật toán cây và các endpoint API của `GRADE` hoạt động chính xác tuyệt đối.
 - **Nhiệm vụ cụ thể**:
-  - [ ] **Task 2.1**: Tạo file kiểm thử mới `services/taxonomy/tests/grade-taxonomy.spec.ts`.
-  - [ ] **Task 2.2**: Kiểm thử các ca kiểm thử chính:
+  - [x] **Task 2.1**: Tạo file kiểm thử mới `services/taxonomy/tests/grade-taxonomy.spec.ts`.
+  - [x] **Task 2.2**: Kiểm thử các ca kiểm thử chính:
     1. `GET /v1/taxonomies/GRADE` ➔ Trả về đúng `isHierarchical = true`.
-    2. `GET /v1/taxonomies/GRADE/tree` ➔ Cây trả về đúng 3 gốc và 12 nút lá con.
+    2. `GET /v1/taxonomies/GRADE/tree` ➔ Cây trả về đúng 3 gốc (Tiểu học, THCS, THPT) và 12 nút lá con (Lớp 1..12).
     3. `GET /v1/nodes/node_grade_high/descendant-ids` ➔ Trả về 4 IDs: `[node_grade_high, node_grade_10, node_grade_11, node_grade_12]`.
     4. `GET /v1/nodes/node_grade_secondary/descendant-ids` ➔ Trả về 5 IDs (THCS + Lớp 6..9).
     5. `GET /v1/nodes/node_grade_primary/descendant-ids` ➔ Trả về 6 IDs (Tiểu học + Lớp 1..5).
     6. `GET /v1/nodes/node_grade_12/breadcrumbs` ➔ Trả về mảng 2 phần tử `[Trung học phổ thông, Lớp 12]`.
-  - [ ] **Task 2.3**: Chạy kiểm thử hồi quy toàn bộ: `taxonomy.spec.ts`, `tree-structure.spec.ts`, `api.spec.ts`, `cycle-prevention.spec.ts`.
-- **Deliverable**: File `grade-taxonomy.spec.ts` đạt 100% pass, không gây ảnh hưởng tới các bài test khác.
-- **Exit Gate**: Toàn bộ unit và integration test của Taxonomy Service chạy xanh.
+    7. Tích hợp và xác thực trên SDK `@platform/api-client`.
+  - [x] **Task 2.3**: Chạy kiểm thử hồi quy toàn bộ dự án: 35 test files, 304 tests passed 100%.
+- **Deliverable**: File `grade-taxonomy.spec.ts` đạt 14/14 tests pass 100%, toàn bộ dự án 304/304 tests pass.
+- **Exit Gate**: Toàn bộ unit và integration test của Taxonomy Service chạy xanh. [PASSED]
 
 ---
 
