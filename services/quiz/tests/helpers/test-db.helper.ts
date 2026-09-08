@@ -25,16 +25,21 @@ export async function setupTestQuizDb(): Promise<TestQuizDbContext> {
   const client = new PGlite();
   const db = drizzle(client, { schema });
 
-  // Read and apply quiz_db migration SQL
-  const migrationPath = path.resolve(__dirname, '../../drizzle/migrations/0000_slow_pet_avengers.sql');
-  const sqlContent = fs.readFileSync(migrationPath, 'utf-8');
-  const statements = sqlContent
-    .split('--> statement-breakpoint')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  // Read and apply all quiz_db migration SQL files in sorted order
+  const migrationsDir = path.resolve(__dirname, '../../drizzle/migrations');
+  if (fs.existsSync(migrationsDir)) {
+    const sqlFiles = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
+    for (const file of sqlFiles) {
+      const sqlContent = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+      const statements = sqlContent
+        .split('--> statement-breakpoint')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
 
-  for (const stmt of statements) {
-    await client.exec(stmt);
+      for (const stmt of statements) {
+        await client.exec(stmt);
+      }
+    }
   }
 
   // Seed default quiz and published version into test database
