@@ -13,6 +13,11 @@ import {
   QuestionRevisionNotFoundError,
 } from '../../domain/errors/question-domain.errors.js';
 
+function getParam(param: string | string[] | undefined): string {
+  if (Array.isArray(param)) return param[0] || '';
+  return param || '';
+}
+
 export class QuestionController {
   constructor(
     private readonly createQuestionUseCase: CreateQuestionUseCase,
@@ -65,7 +70,7 @@ export class QuestionController {
 
   async getQuestion(req: Request, res: Response): Promise<void> {
     try {
-      const { idOrCode } = req.params;
+      const idOrCode = getParam(req.params.idOrCode);
       const question = idOrCode.startsWith('q_')
         ? await this.getQuestionUseCase.executeById(idOrCode)
         : await this.getQuestionUseCase.executeByCode(idOrCode);
@@ -100,7 +105,7 @@ export class QuestionController {
 
   async updateQuestion(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = getParam(req.params.id);
       const userId = req.principal?.id || 'usr_anonymous';
       const userRole = req.principal?.roles?.includes('ADMIN') ? 'ADMIN' : 'INSTRUCTOR';
 
@@ -125,7 +130,7 @@ export class QuestionController {
 
   async deleteQuestion(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = getParam(req.params.id);
       const userId = req.principal?.id || 'usr_anonymous';
       const userRole = req.principal?.roles?.includes('ADMIN') ? 'ADMIN' : 'INSTRUCTOR';
 
@@ -146,7 +151,7 @@ export class QuestionController {
 
   async listRevisions(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = getParam(req.params.id);
       const revisions = await this.manageRevisionsUseCase.listRevisions(id);
       res.status(200).json({ success: true, data: revisions });
     } catch (err: any) {
@@ -160,7 +165,8 @@ export class QuestionController {
 
   async getRevision(req: Request, res: Response): Promise<void> {
     try {
-      const { id, revisionNumber } = req.params;
+      const id = getParam(req.params.id);
+      const revisionNumber = getParam(req.params.revisionNumber);
       const revision = await this.manageRevisionsUseCase.getRevision(id, Number(revisionNumber));
       res.status(200).json({ success: true, data: revision });
     } catch (err: any) {
@@ -174,7 +180,7 @@ export class QuestionController {
 
   async addRevision(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = getParam(req.params.id);
       const userId = req.principal?.id || 'usr_anonymous';
       const userRole = req.principal?.roles?.includes('ADMIN') ? 'ADMIN' : 'INSTRUCTOR';
 

@@ -9,6 +9,18 @@ import type {
   CreateNodeInput,
   UpdateNodeInput,
   MoveNodeInput,
+  QuestionDTO,
+  QuestionRevisionDTO,
+  CreateQuestionInput,
+  UpdateQuestionInput,
+  QuestionFilterQuery,
+  AssessmentDTO,
+  BlueprintDTO,
+  CreateAssessmentInput,
+  UpdateAssessmentInput,
+  UpdateBlueprintInput,
+  AssessmentFilterQuery,
+  AssessmentStatus,
 } from '@platform/contracts';
 
 export interface ApiClientConfig {
@@ -300,6 +312,81 @@ export class ApiClient {
 
     getBreadcrumbs: async (nodeId: string): Promise<ApiResponse<BreadcrumbItemDTO[]>> => {
       return this.get<ApiResponse<BreadcrumbItemDTO[]>>(`/v1/nodes/${encodeURIComponent(nodeId)}/breadcrumbs`);
+    },
+  };
+
+  /**
+   * Questions API Domain Resource (Question Bank, LaTeX, Media & Revisions)
+   */
+  readonly questions = {
+    list: async (filter?: QuestionFilterQuery): Promise<ApiResponse<QuestionDTO[]>> => {
+      return this.get<ApiResponse<QuestionDTO[]>>('/v1/questions', filter);
+    },
+
+    get: async (idOrCode: string): Promise<ApiResponse<QuestionDTO>> => {
+      return this.get<ApiResponse<QuestionDTO>>(`/v1/questions/${encodeURIComponent(idOrCode)}`);
+    },
+
+    create: async (payload: CreateQuestionInput): Promise<ApiResponse<QuestionDTO>> => {
+      return this.post<ApiResponse<QuestionDTO>>('/v1/questions', payload);
+    },
+
+    update: async (id: string, payload: UpdateQuestionInput): Promise<ApiResponse<QuestionDTO>> => {
+      return this.put<ApiResponse<QuestionDTO>>(`/v1/questions/${encodeURIComponent(id)}`, payload);
+    },
+
+    delete: async (id: string): Promise<ApiResponse<void>> => {
+      return this.delete<ApiResponse<void>>(`/v1/questions/${encodeURIComponent(id)}`);
+    },
+
+    listRevisions: async (id: string): Promise<ApiResponse<QuestionRevisionDTO[]>> => {
+      return this.get<ApiResponse<QuestionRevisionDTO[]>>(`/v1/questions/${encodeURIComponent(id)}/revisions`);
+    },
+
+    getRevision: async (id: string, revisionNumber: number): Promise<ApiResponse<QuestionRevisionDTO>> => {
+      return this.get<ApiResponse<QuestionRevisionDTO>>(
+        `/v1/questions/${encodeURIComponent(id)}/revisions/${revisionNumber}`
+      );
+    },
+
+    addRevision: async (id: string, payload: any): Promise<ApiResponse<QuestionRevisionDTO>> => {
+      return this.post<ApiResponse<QuestionRevisionDTO>>(
+        `/v1/questions/${encodeURIComponent(id)}/revisions`,
+        payload
+      );
+    },
+  };
+
+  /**
+   * Assessments API Domain Resource (Blueprints, Criteria Matrix & Lifecycle)
+   */
+  readonly assessments = {
+    list: async (filter?: AssessmentFilterQuery): Promise<ApiResponse<AssessmentDTO[]>> => {
+      return this.get<ApiResponse<AssessmentDTO[]>>('/v1/assessments', filter);
+    },
+
+    get: async (idOrCode: string): Promise<ApiResponse<AssessmentDTO>> => {
+      return this.get<ApiResponse<AssessmentDTO>>(`/v1/assessments/${encodeURIComponent(idOrCode)}`);
+    },
+
+    create: async (payload: CreateAssessmentInput): Promise<ApiResponse<AssessmentDTO>> => {
+      return this.post<ApiResponse<AssessmentDTO>>('/v1/assessments', payload);
+    },
+
+    update: async (id: string, payload: UpdateAssessmentInput): Promise<ApiResponse<AssessmentDTO>> => {
+      return this.put<ApiResponse<AssessmentDTO>>(`/v1/assessments/${encodeURIComponent(id)}`, payload);
+    },
+
+    updateStatus: async (id: string, status: AssessmentStatus): Promise<ApiResponse<AssessmentDTO>> => {
+      return this.patch<ApiResponse<AssessmentDTO>>(`/v1/assessments/${encodeURIComponent(id)}/status`, { status });
+    },
+
+    updateBlueprint: async (id: string, payload: UpdateBlueprintInput): Promise<ApiResponse<BlueprintDTO>> => {
+      return this.put<ApiResponse<BlueprintDTO>>(`/v1/assessments/${encodeURIComponent(id)}/blueprint`, payload);
+    },
+
+    lockBlueprint: async (id: string): Promise<ApiResponse<BlueprintDTO>> => {
+      return this.post<ApiResponse<BlueprintDTO>>(`/v1/assessments/${encodeURIComponent(id)}/blueprint/lock`);
     },
   };
 }

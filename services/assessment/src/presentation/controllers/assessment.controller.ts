@@ -14,6 +14,11 @@ import {
   UnauthorizedAssessmentAccessError,
 } from '../../domain/errors/assessment-domain.errors.js';
 
+function getParam(param: string | string[] | undefined): string {
+  if (Array.isArray(param)) return param[0] || '';
+  return param || '';
+}
+
 export class AssessmentController {
   constructor(
     private readonly createAssessmentUseCase: CreateAssessmentUseCase,
@@ -54,7 +59,7 @@ export class AssessmentController {
 
   async getAssessment(req: Request, res: Response): Promise<void> {
     try {
-      const { idOrCode } = req.params;
+      const idOrCode = getParam(req.params.idOrCode);
       const assessment = idOrCode.startsWith('asm_')
         ? await this.getAssessmentUseCase.executeById(idOrCode)
         : await this.getAssessmentUseCase.executeByCode(idOrCode);
@@ -89,7 +94,7 @@ export class AssessmentController {
 
   async updateAssessment(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = getParam(req.params.id);
       const userId = req.principal?.id || 'usr_anonymous';
       const userRole = req.principal?.roles?.includes('ADMIN') ? 'ADMIN' : 'INSTRUCTOR';
 
@@ -114,7 +119,7 @@ export class AssessmentController {
 
   async updateStatus(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = getParam(req.params.id);
       const { status } = req.body;
       const userId = req.principal?.id || 'usr_anonymous';
       const userRole = req.principal?.roles?.includes('ADMIN') ? 'ADMIN' : 'INSTRUCTOR';
@@ -140,7 +145,7 @@ export class AssessmentController {
 
   async updateBlueprint(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = getParam(req.params.id);
       const userId = req.principal?.id || 'usr_anonymous';
       const userRole = req.principal?.roles?.includes('ADMIN') ? 'ADMIN' : 'INSTRUCTOR';
 
@@ -169,7 +174,7 @@ export class AssessmentController {
 
   async lockBlueprint(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = getParam(req.params.id);
       const userId = req.principal?.id || 'usr_anonymous';
       const userRole = req.principal?.roles?.includes('ADMIN') ? 'ADMIN' : 'INSTRUCTOR';
 

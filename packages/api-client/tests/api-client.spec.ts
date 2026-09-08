@@ -225,5 +225,41 @@ describe('Bước 5 — packages/api-client', () => {
       );
       expect(res.data[0].code).toBe('TS_101');
     });
+
+    it('should call questions.list() and questions.create()', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: [{ id: 'q_test_1', code: 'Q_101', prompt: 'Solve 1+1' }],
+        }),
+      });
+
+      const res = await api.questions.list({ difficulty: 'REMEMBER' });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/questions?difficulty=REMEMBER',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(res.data![0].code).toBe('Q_101');
+    });
+
+    it('should call assessments.list() and assessments.lockBlueprint()', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: { id: 'bp_123', isLocked: true },
+        }),
+      });
+
+      const res = await api.assessments.lockBlueprint('asm_456');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/assessments/asm_456/blueprint/lock',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(res.data!.isLocked).toBe(true);
+    });
   });
 });

@@ -91,4 +91,14 @@ export const adminApi = {
    * Quản lý Danh mục và Cây tri thức (Taxonomy & Knowledge Catalog)
    */
   taxonomies: apiClient.taxonomies,
+
+  /**
+   * Ngân hàng câu hỏi (Question Bank, LaTeX, Media & Revisions)
+   */
+  questions: apiClient.questions,
+
+  /**
+   * Quản lý Bài đánh giá & Ma trận đề thi (Assessments & Blueprints)
+   */
+  assessments: apiClient.assessments,
 };

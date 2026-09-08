@@ -3,6 +3,8 @@ import { authClient, adminApi } from '../api/index.js';
 import type { UserProfile } from '@platform/auth-client';
 import { TaxonomyManagementSection } from './TaxonomyManagementSection.js';
 import { QuizManagementSection } from './QuizManagementSection.js';
+import { QuestionManagementSection } from './QuestionManagementSection.js';
+import { AssessmentManagementSection } from './AssessmentManagementSection.js';
 
 interface AdminDashboardViewProps {
   user: UserProfile;
@@ -15,7 +17,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onLogout,
   onRefreshUser,
 }) => {
-  const [activeTab, setActiveTab] = useState<'quizzes' | 'taxonomies' | 'system'>('quizzes');
+  const [activeTab, setActiveTab] = useState<'questions' | 'assessments' | 'quizzes' | 'taxonomies' | 'system'>('questions');
   const [apiTestStatus, setApiTestStatus] = useState<string | null>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [showToken, setShowToken] = useState(false);
@@ -138,43 +140,69 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       </header>
 
       {/* Main Navigation Tabs */}
-      <div className="flex items-center space-x-2 p-1.5 rounded-2xl bg-slate-900 border border-slate-800 shadow-md">
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-slate-900 border border-slate-800 shadow-md">
+        <button
+          type="button"
+          onClick={() => setActiveTab('questions')}
+          className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'questions'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          📝 Ngân Hàng Câu Hỏi
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('assessments')}
+          className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'assessments'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          📐 Ma Trận Đề & Đánh Giá
+        </button>
         <button
           type="button"
           onClick={() => setActiveTab('quizzes')}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+          className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'quizzes'
               ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
-          📚 Quản Lý Đề Thi & Gán Node
+          📚 Đề Thi & Gán Node
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('taxonomies')}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+          className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'taxonomies'
               ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
-          🌳 Cây Tri Thức & Phân Loại
+          🌳 Cây Tri Thức
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('system')}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+          className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'system'
               ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
-          ⚙️ Hệ Thống & Tài Khoản
+          ⚙️ Hệ Thống & User
         </button>
       </div>
 
       {/* Tab Content */}
+      {activeTab === 'questions' && <QuestionManagementSection />}
+
+      {activeTab === 'assessments' && <AssessmentManagementSection />}
+
       {activeTab === 'quizzes' && <QuizManagementSection />}
 
       {activeTab === 'taxonomies' && <TaxonomyManagementSection />}

@@ -322,7 +322,7 @@ function getQuestionRepository(): QuestionRepositoryPort | null {
   return questionRepoInstance;
 }
 
-export function setQuestionRepository(repo: QuestionRepositoryPort): void {
+function setQuestionRepository(repo: QuestionRepositoryPort): void {
   questionRepoInstance = repo;
   questionRouterInstance = createQuestionRouter(repo);
 }
@@ -350,7 +350,7 @@ function getAssessmentRepository(): AssessmentRepositoryPort | null {
   return assessmentRepoInstance;
 }
 
-export function setAssessmentRepository(repo: AssessmentRepositoryPort): void {
+function setAssessmentRepository(repo: AssessmentRepositoryPort): void {
   assessmentRepoInstance = repo;
   assessmentRouterInstance = createAssessmentRouter(repo);
 }

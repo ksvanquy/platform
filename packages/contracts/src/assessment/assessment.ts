@@ -82,3 +82,14 @@ export interface UpdateBlueprintInput {
   scoringPolicy?: ScoringPolicyConfig;
   isLocked?: boolean;
 }
+
+export interface AssessmentFilterQuery {
+  status?: AssessmentStatus;
+  primaryTopicNodeId?: string;
+  gradeNodeId?: string;
+  ownerId?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
