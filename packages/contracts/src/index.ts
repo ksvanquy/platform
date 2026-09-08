@@ -1,16 +1,16 @@
 export * from './auth/principal.js';
 export * from './auth/ownership.js';
-export * from './quiz/quiz.js';
-export * from './quiz/attempt.js';
 export * from './taxonomy/taxonomy.js';
 
-export type QuestionType =
-  | 'SINGLE'
-  | 'MULTIPLE'
-  | 'FILL_IN'
-  | 'MATCHING'
-  | 'ORDERING'
-  | 'NUMERIC';
+// Specialized Microservices Domain Contracts (DDD)
+export * from './question/index.js';
+export * from './assessment/index.js';
+export * from './exam/index.js';
+export * from './attempt/index.js';
+
+// Legacy Quiz Contracts for backward compatibility
+export * from './quiz/quiz.js';
+export type { QuizAttempt } from './quiz/attempt.js';
 
 export type SessionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'SUBMITTED' | 'EXPIRED';
 

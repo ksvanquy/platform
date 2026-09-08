@@ -227,11 +227,316 @@ Hệ thống sẽ phân rã `services/quiz` thành 4 dịch vụ độc lập:
 
 ---
 
-## 4. THIẾT KẾ CƠ SỞ DỮ LIỆU & DRIZZLE ORM (DATABASE-PER-SERVICE)
+## 4. THIẾT KẾ CƠ SỞ DỮ LIỆU POSTGRESQL THẬT & DRIZZLE ORM (DATABASE-PER-SERVICE)
 
-Mỗi service sở hữu một Database Schema độc lập (Database-per-service pattern). Trong môi trường phát triển cục bộ và Cloud Run, các database này có thể là các database riêng rẽ trên cùng một PostgreSQL instance hoặc các cụm database tách biệt để tối ưu scaling.
+### 4.1. Nguyên tắc Cốt lõi: 100% PostgreSQL Thật (psql) - Xóa Bỏ Hoàn Toàn In-Memory Mode
 
-### 4.1. Quy ước Định danh ID Toàn Hệ Thống (Prefixed String IDs - `VARCHAR(64)`)
+Hệ thống tuân thủ triệt để các nguyên tắc lưu trữ dữ liệu chuyên nghiệp cấp doanh nghiệp:
+
+1. **Tuyệt đối Không Dùng In-Memory Mode**:
+   - **Loại bỏ vĩnh viễn**: Mọi hình thức lưu trữ tạm thời trong bộ nhớ (in-memory arrays, mock repositories, SQLite in-memory, PGLite) đều bị cấm hoàn toàn trong cả môi trường phát triển (development), kiểm thử tích hợp (integration testing), và sản xuất (production).
+   - **PostgreSQL bắt buộc**: Tất cả 4 microservices mới (`Question`, `Assessment`, `Exam`, `Attempt`) cùng các services hiện hữu (`Auth`, `Taxonomy`, `Quiz`) đều vận hành trực tiếp trên cơ sở dữ liệu PostgreSQL thật thông qua driver hiệu năng cao `postgres` (`postgres.js`) và ORM kiểu an toàn `drizzle-orm/postgres-js`.
+
+2. **Cơ chế Ngắt Lập Tức (Fail-Fast Startup Guarantee)**:
+   - Khi bất kỳ microservice nào khởi động, module kết nối cơ sở dữ liệu sẽ kiểm tra biến môi trường kết nối tương ứng (`QUESTION_DATABASE_URL`, `ASSESSMENT_DATABASE_URL`, `EXAM_DATABASE_URL`, `ATTEMPT_DATABASE_URL`).
+   - Nếu biến môi trường bị thiếu hoặc không đúng định dạng kết nối PostgreSQL (`postgres://` hoặc `postgresql://`), service sẽ ném ngoại lệ nghiêm trọng (Fatal Exception) và dừng tiến trình ngay lập tức:
+     ```text
+     FATAL ERROR: <SERVICE>_DATABASE_URL is not defined in environment variables.
+     In-memory persistence has been permanently removed; PostgreSQL (<service>_db) is strictly required.
+     ```
+
+3. **Xử lý An toàn URL Kết nối (PostgreSQL Startup Parameter Sanitization)**:
+   - Thư viện `postgres.js` tự động truyền các tham số query trong chuỗi kết nối vào gói tin `StartupMessage` của giao thức PostgreSQL.
+   - Nếu chuỗi kết nối chứa tham số `?schema=public` (thường xuất hiện khi copy từ Supabase, Neon hoặc Prisma), PostgreSQL sẽ từ chối kết nối và báo lỗi `FATAL: PostgresError: unrecognized configuration parameter "schema" (code 42704)`.
+   - Tất cả services đều tích hợp hàm `sanitizePostgresUrl(rawUrl)` để tự động chuẩn hóa: gỡ bỏ `schema=public` và chuyển đổi sang `search_path` hợp lệ nếu có schema tùy biến.
+
+---
+
+### 4.2. Danh mục Các Cơ sở Dữ liệu Độc lập (Independent Databases Topology)
+
+Mỗi service sở hữu một Cơ sở Dữ liệu PostgreSQL độc lập hoàn toàn (**Database-per-Service Pattern**). Các database này có thể chạy trên cùng một PostgreSQL cluster vật lý/container cục bộ (qua các database name riêng rẽ) hoặc trên các Cloud SQL / RDS instances độc lập:
+
+| Service | Tên Database PostgreSQL | Biến Môi Trường (.env) | Vai Trò & Ranh Giới Lưu Trữ Dữ Liệu |
+|---|---|---|---|
+| **Auth Service** | `auth_db` | `AUTH_DATABASE_URL` | Quản lý tài khoản người dùng, phiên đăng nhập, JWT tokens, RBAC roles & permissions. |
+| **Taxonomy Service** | `taxonomy_db` | `TAXONOMY_DATABASE_URL` | Quản lý cây phân loại học tập (Subjects, Grades, Topics, Learning Nodes). |
+| **Quiz Service (Legacy)** | `quiz_db` | `QUIZ_DATABASE_URL` | Quản lý Quizzes và Attempts cũ trong giai đoạn chuyển tiếp. |
+| **Question Service** | `question_db` | `QUESTION_DATABASE_URL` | Ngân hàng câu hỏi, phiên bản câu hỏi (revisions), rich-text/LaTeX, Bloom difficulty, media assets. |
+| **Assessment Service** | `assessment_db` | `ASSESSMENT_DATABASE_URL` | Bài đánh giá (Assessments), Khung ma trận đề (Blueprints), chính sách tính điểm (Scoring Policy) và lượt thi. |
+| **Exam Service** | `exam_db` | `EXAM_DATABASE_URL` | Đề thi chính thức, các biến thể đề (Variants), Snapshot đóng băng bất biến (SHA-256 Tamper-proof Hash). |
+| **Attempt Service** | `attempt_db` | `ATTEMPT_DATABASE_URL` | Phiên làm bài của thí sinh, bộ đệm autosave câu trả lời tốc độ cao, telemetry audit chống gian lận, kết quả chấm điểm. |
+
+#### Ranh giới Dữ liệu Tuyệt đối (Zero Cross-Database Foreign Keys):
+- **Không có khóa ngoại vật lý giữa các database**: Các bảng trong `question_db`, `assessment_db`, `exam_db`, `attempt_db` không tạo ràng buộc `REFERENCES` sang bảng của service khác.
+- **Liên kết Logic qua Prefixed String IDs**: Mọi tham chiếu liên dịch vụ sử dụng khóa chuỗi định danh duy nhất (`VARCHAR(64)`), ví dụ `usr_...`, `node_...`, `q_...`, `asm_...`, `exm_...`, `att_...`.
+- **Bảo đảm Tính toàn vẹn ở Tầng Ứng dụng (Application Layer Validation)**: Khi tạo Blueprint, Assessment Service kiểm tra sự tồn tại của `topicNodeId` qua Client Adapter của Taxonomy Service; khi Exam Service giải ma trận chọn câu hỏi, nó truy vấn Question Service qua gRPC/HTTP Client Port.
+
+---
+
+### 4.3. Thiết lập Biến Môi Trường (.env & .env.example) Đồng nhất Hệ Thống
+
+Tất cả các dịch vụ đọc cấu hình từ file `.env` tại thư mục gốc Monorepo, đồng thời tài liệu hóa toàn bộ biến yêu cầu trong `.env.example`:
+
+```env
+# ============================================================================
+# CƠ SỞ DỮ LIỆU POSTGRESQL THẬT (DATABASE-PER-SERVICE)
+# Bắt buộc kết nối PostgreSQL thật - Tuyệt đối không dùng In-Memory
+# ============================================================================
+AUTH_DATABASE_URL=postgres://postgres:root@localhost:5432/auth_db
+TAXONOMY_DATABASE_URL=postgres://postgres:root@localhost:5432/taxonomy_db
+QUIZ_DATABASE_URL=postgres://postgres:root@localhost:5432/quiz_db
+
+QUESTION_DATABASE_URL=postgres://postgres:root@localhost:5432/question_db
+ASSESSMENT_DATABASE_URL=postgres://postgres:root@localhost:5432/assessment_db
+EXAM_DATABASE_URL=postgres://postgres:root@localhost:5432/exam_db
+ATTEMPT_DATABASE_URL=postgres://postgres:root@localhost:5432/attempt_db
+
+# ============================================================================
+# BẢO MẬT & XÁC THỰC (JWT RS256 & SECRETS)
+# ============================================================================
+JWT_SECRET=your_jwt_shared_secret_min_32_chars
+JWT_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+
+# ============================================================================
+# CỔNG GIAO TIẾP DỊCH VỤ (SERVICE PORTS)
+# ============================================================================
+QUIZ_PORT=3000
+AUTH_PORT=3001
+TAXONOMY_PORT=3002
+QUESTION_PORT=3003
+ASSESSMENT_PORT=3004
+EXAM_PORT=3005
+ATTEMPT_PORT=3006
+```
+
+#### Câu lệnh Tạo Database PostgreSQL Nhanh trên Máy Phát triển:
+```sql
+-- Chạy trên psql console (postgres superuser)
+CREATE DATABASE question_db;
+CREATE DATABASE assessment_db;
+CREATE DATABASE exam_db;
+CREATE DATABASE attempt_db;
+```
+
+---
+
+### 4.4. Chuẩn hóa Module Kết nối Database (`connection.ts`) cho Từng Dịch Vụ
+
+Tất cả microservices đều triển khai file `src/infrastructure/db/connection.ts` theo đúng mẫu chuẩn hóa kiến trúc của `services/auth` và `services/quiz`, bao gồm:
+- Hàm `loadEnvIfAvailable()` nạp đa tầng từ `.env`, `.env.local` hoặc root `.env`.
+- Hàm `sanitizePostgresUrl(rawUrl)` gỡ bỏ các tham số query không hợp lệ.
+- Singleton Client Pool `postgres(connectionString, { max: 15, idle_timeout: 30, connect_timeout: 10 })`.
+- Đối tượng Drizzle ORM Singleton `get<Service>Db()`.
+- Hàm giải phóng kết nối `close<Service>Db()` phục vụ graceful shutdown và cleanup bài test.
+
+#### Mẫu Triển khai Chuẩn (`services/question/src/infrastructure/db/connection.ts`):
+```typescript
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import * as schema from './schema.js';
+
+let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let sqlClient: postgres.Sql | null = null;
+let envAttempted = false;
+
+export function loadEnvIfAvailable(force = false): void {
+  if (envAttempted && !force) return;
+  envAttempted = true;
+
+  if (!force && (process.env.NODE_ENV === 'test' || process.env.VITEST)) {
+    return;
+  }
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+
+  const envCandidates = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), '.env.local'),
+    path.resolve(__dirname, '../../../../.env'),
+    path.resolve(__dirname, '../../../../../.env'),
+  ];
+
+  for (const envPath of envCandidates) {
+    if (fs.existsSync(envPath)) {
+      try {
+        if (typeof process.loadEnvFile === 'function') {
+          process.loadEnvFile(envPath);
+        } else {
+          const content = fs.readFileSync(envPath, 'utf-8');
+          for (const line of content.split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const eqIdx = trimmed.indexOf('=');
+            if (eqIdx !== -1) {
+              const key = trimmed.slice(0, eqIdx).trim();
+              const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+              if (!process.env[key]) {
+                process.env[key] = val;
+              }
+            }
+          }
+        }
+      } catch {
+        // bỏ qua lỗi đọc file
+      }
+      break;
+    }
+  }
+}
+
+export function sanitizePostgresUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.searchParams.has('schema')) {
+      const schemaVal = parsed.searchParams.get('schema');
+      parsed.searchParams.delete('schema');
+      if (schemaVal && schemaVal !== 'public' && !parsed.searchParams.has('search_path')) {
+        parsed.searchParams.set('search_path', schemaVal);
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl
+      .replace(/([?&])schema=public(&|$)/g, (_m, p1, p2) => (p2 === '&' ? p1 : ''))
+      .replace(/([?&])schema=([^&#]+)(&|$)/g, (_m, p1, schemaVal, p2) => {
+        const next = p2 === '&' ? '&' : '';
+        return `${p1}search_path=${schemaVal}${next}`;
+      })
+      .replace(/\?$/, '');
+  }
+}
+
+export function getQuestionDatabaseUrl(): string | undefined {
+  loadEnvIfAvailable();
+  const url = process.env.QUESTION_DATABASE_URL?.trim();
+  if (!url || url === 'QUESTION_DATABASE_URL') return undefined;
+  if (!url.startsWith('postgres://') && !url.startsWith('postgresql://')) {
+    return undefined;
+  }
+  return sanitizePostgresUrl(url);
+}
+
+export function isQuestionDbConfigured(): boolean {
+  return Boolean(getQuestionDatabaseUrl());
+}
+
+export function getQuestionDb() {
+  if (dbInstance) {
+    return dbInstance;
+  }
+
+  const connectionString = getQuestionDatabaseUrl();
+  if (!connectionString) {
+    throw new Error(
+      'FATAL ERROR: QUESTION_DATABASE_URL is not defined in environment variables. ' +
+      'In-memory persistence has been permanently removed; PostgreSQL (question_db) is strictly required.'
+    );
+  }
+
+  sqlClient = postgres(connectionString, {
+    max: 15,
+    idle_timeout: 30,
+    connect_timeout: 10,
+    onnotice: () => {},
+  });
+
+  dbInstance = drizzle(sqlClient, { schema });
+  return dbInstance;
+}
+
+export async function closeQuestionDb(): Promise<void> {
+  if (sqlClient) {
+    await sqlClient.end();
+    sqlClient = null;
+    dbInstance = null;
+  }
+}
+```
+
+*(Tương tự, các file `services/assessment/src/infrastructure/db/connection.ts`, `services/exam/src/infrastructure/db/connection.ts`, và `services/attempt/src/infrastructure/db/connection.ts` được áp dụng mẫu thiết kế này với các hàm tương ứng `getAssessmentDb()`, `getExamDb()`, `getAttemptDb()` và các biến môi trường tương ứng).*
+
+---
+
+### 4.5. Cấu hình Drizzle ORM (`drizzle.config.ts`) cho Từng Dịch Vụ
+
+Mỗi dịch vụ có file cấu hình Drizzle riêng biệt độc lập:
+
+#### `services/question/drizzle.config.ts`:
+```typescript
+import { defineConfig } from 'drizzle-kit';
+import { getQuestionDatabaseUrl } from './src/infrastructure/db/connection.js';
+
+export default defineConfig({
+  schema: './src/infrastructure/db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: getQuestionDatabaseUrl() || 'postgres://postgres:root@localhost:5432/question_db',
+  },
+  verbose: true,
+  strict: true,
+});
+```
+
+#### `services/assessment/drizzle.config.ts`:
+```typescript
+import { defineConfig } from 'drizzle-kit';
+import { getAssessmentDatabaseUrl } from './src/infrastructure/db/connection.js';
+
+export default defineConfig({
+  schema: './src/infrastructure/db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: getAssessmentDatabaseUrl() || 'postgres://postgres:root@localhost:5432/assessment_db',
+  },
+  verbose: true,
+  strict: true,
+});
+```
+
+#### `services/exam/drizzle.config.ts`:
+```typescript
+import { defineConfig } from 'drizzle-kit';
+import { getExamDatabaseUrl } from './src/infrastructure/db/connection.js';
+
+export default defineConfig({
+  schema: './src/infrastructure/db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: getExamDatabaseUrl() || 'postgres://postgres:root@localhost:5432/exam_db',
+  },
+  verbose: true,
+  strict: true,
+});
+```
+
+#### `services/attempt/drizzle.config.ts`:
+```typescript
+import { defineConfig } from 'drizzle-kit';
+import { getAttemptDatabaseUrl } from './src/infrastructure/db/connection.js';
+
+export default defineConfig({
+  schema: './src/infrastructure/db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: getAttemptDatabaseUrl() || 'postgres://postgres:root@localhost:5432/attempt_db',
+  },
+  verbose: true,
+  strict: true,
+});
+```
+
+---
+
+### 4.6. Quy ước Định danh ID Toàn Hệ Thống (Prefixed String IDs - `VARCHAR(64)`)
 Đồng nhất 100% với convention hiện hữu (`usr_...`, `tax_...`, `node_...`):
 - Question Service: `q_<hash/uuid>` (câu hỏi), `qrev_<uuid>` (phiên bản câu hỏi).
 - Assessment Service: `asm_<uuid>` (bài đánh giá/khung đề), `bp_<uuid>` (blueprint).
@@ -240,7 +545,7 @@ Mỗi service sở hữu một Database Schema độc lập (Database-per-servic
 
 ---
 
-### 4.2. Chi tiết Drizzle ORM Schema cho Từng Dịch Vụ
+### 4.7. Chi tiết Drizzle ORM Schema cho Từng Dịch Vụ
 
 #### 1. Question Service Schema (`services/question/src/infrastructure/db/schema.ts`)
 ```typescript
@@ -249,14 +554,14 @@ import { pgTable, varchar, text, integer, timestamp, jsonb, boolean, index, uniq
 export const questions = pgTable('questions', {
   id: varchar('id', { length: 64 }).primaryKey(), // q_xxxx
   code: varchar('code', { length: 64 }).notNull().unique(), // MÃ ĐỊNH DANH (VD: MATH10-ALG-001)
-  type: varchar('type', { length: 32 }).notNull(), // SINGLE, MULTIPLE, FILL_IN, MATCHING, ORDERING, NUMERIC
-  topicNodeId: varchar('topic_node_id', { length: 64 }), // Khóa ngoại logic sang taxonomy_nodes (TOPIC)
-  gradeNodeId: varchar('grade_node_id', { length: 64 }), // Khóa ngoại logic sang taxonomy_nodes (GRADE)
-  difficulty: varchar('difficulty', { length: 32 }).notNull().default('MEDIUM'), // REMEMBER, UNDERSTAND, APPLY, ANALYZE
+  type: varchar('type', { length: 32 }).notNull(), // SINGLE, MULTIPLE, FILL_IN, MATCHING, ORDERING, NUMERIC, ESSAY
+  topicNodeId: varchar('topic_node_id', { length: 64 }), // Khóa logic tham chiếu sang taxonomy_nodes (TOPIC)
+  gradeNodeId: varchar('grade_node_id', { length: 64 }), // Khóa logic tham chiếu sang taxonomy_nodes (GRADE)
+  difficulty: varchar('difficulty', { length: 32 }).notNull().default('REMEMBER'), // REMEMBER, UNDERSTAND, APPLY, ANALYZE
   defaultPoints: integer('default_points').notNull().default(1),
   status: varchar('status', { length: 32 }).notNull().default('ACTIVE'), // DRAFT, ACTIVE, DEPRECATED
   currentRevisionId: varchar('current_revision_id', { length: 64 }),
-  ownerId: varchar('owner_id', { length: 64 }).notNull(), // Giảng viên sở hữu
+  ownerId: varchar('owner_id', { length: 64 }).notNull(), // Giảng viên sở hữu (ABAC)
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -264,6 +569,7 @@ export const questions = pgTable('questions', {
   index('idx_questions_grade').on(table.gradeNodeId),
   index('idx_questions_difficulty').on(table.difficulty),
   index('idx_questions_status').on(table.status),
+  index('idx_questions_owner').on(table.ownerId),
 ]);
 
 export const questionRevisions = pgTable('question_revisions', {
@@ -271,10 +577,11 @@ export const questionRevisions = pgTable('question_revisions', {
   questionId: varchar('question_id', { length: 64 }).notNull().references(() => questions.id, { onDelete: 'cascade' }),
   revisionNumber: integer('revision_number').notNull(),
   prompt: text('prompt').notNull(), // Nội dung câu hỏi (chứa Markdown + LaTeX: $$...$$)
-  options: jsonb('options').$type<Array<{ id: string; content: string; isCorrect: boolean }>>().notNull(), // Dữ liệu phương án
+  options: jsonb('options').$type<Array<{ id: string; content: string; isCorrect: boolean; explanation?: string }>>().notNull(),
+  pairs: jsonb('pairs').$type<Array<{ leftId: string; leftText: string; rightId: string; rightText: string }>>(),
   explanation: text('explanation'), // Lời giải chi tiết (chứa KaTeX)
   rubric: jsonb('rubric').$type<Record<string, unknown>>(), // Barem chấm điểm cho dạng câu phức tạp
-  mediaAssets: jsonb('media_assets').$type<Array<{ type: 'IMAGE' | 'AUDIO'; url: string; caption?: string }>>(),
+  mediaAssets: jsonb('media_assets').$type<Array<{ type: 'IMAGE' | 'AUDIO' | 'VIDEO'; url: string; caption?: string }>>(),
   createdBy: varchar('created_by', { length: 64 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -302,6 +609,7 @@ export const assessments = pgTable('assessments', {
   index('idx_assessments_topic').on(table.primaryTopicNodeId),
   index('idx_assessments_grade').on(table.gradeNodeId),
   index('idx_assessments_status').on(table.status),
+  index('idx_assessments_owner').on(table.ownerId),
 ]);
 
 export const blueprints = pgTable('blueprints', {
@@ -311,7 +619,7 @@ export const blueprints = pgTable('blueprints', {
   durationMinutes: integer('duration_minutes').notNull().default(45),
   passingPercentage: numeric('passing_percentage', { precision: 5, scale: 2 }).notNull().default('50.00'),
   maxAttempts: integer('max_attempts').notNull().default(1),
-  // Cấu hình ma trận phân bổ: danh sách tiêu chí chọn câu hỏi
+  // Cấu hình ma trận phân bổ: danh sách tiêu chí chọn câu hỏi theo Bloom Taxonomy
   criteria: jsonb('criteria').$type<Array<{
     topicNodeId: string;
     difficulty: 'REMEMBER' | 'UNDERSTAND' | 'APPLY' | 'ANALYZE';
@@ -323,6 +631,7 @@ export const blueprints = pgTable('blueprints', {
     strategyType: 'STANDARD' | 'PARTIAL' | 'ALL_OR_NOTHING';
     negativeMarkingPenalty?: number;
     roundingDecimal?: number;
+    partialScoringThreshold?: number;
   }>().notNull(),
   isLocked: boolean('is_locked').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -365,14 +674,21 @@ export const examSnapshots = pgTable('exam_snapshots', {
       revisionId: string;
       type: string;
       prompt: string;
-      options: Array<{ id: string; content: string; isCorrect: boolean }>;
+      options: Array<{ id: string; content: string; isCorrect: boolean; explanation?: string }>;
       points: number;
       explanation?: string;
+      rubric?: Record<string, unknown>;
     }>;
     scoringPolicy: Record<string, unknown>;
   }>().notNull(),
-  // Dữ liệu đã khử trùng (Sanitized) sẵn sàng phát cho client (ĐÃ XÓA SẠCH isCorrect, explanation)
+  // Dữ liệu đã khử trùng (Sanitized) phát cho thí sinh (ĐÃ XÓA SẠCH isCorrect, explanation)
   sanitizedManifest: jsonb('sanitized_manifest').$type<{
+    examId: string;
+    variantCode: string;
+    title: string;
+    durationMinutes: number;
+    totalQuestions: number;
+    totalPoints: number;
     questions: Array<{
       id: string;
       type: string;
@@ -380,6 +696,7 @@ export const examSnapshots = pgTable('exam_snapshots', {
       options: Array<{ id: string; content: string }>; // KHÔNG CÓ isCorrect
       points: number;
     }>;
+    serverTimestamp: number;
   }>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -398,11 +715,12 @@ export const attempts = pgTable('attempts', {
   examId: varchar('exam_id', { length: 64 }).notNull(), // Tham chiếu logic sang Exam Service
   snapshotId: varchar('snapshot_id', { length: 64 }).notNull(), // Tham chiếu snapshot đề thi bất biến
   variantCode: varchar('variant_code', { length: 32 }).notNull().default('DEFAULT'),
-  status: varchar('status', { length: 32 }).notNull().default('CREATED'), // CREATED, IN_PROGRESS, SUBMITTED, EXPIRED
+  status: varchar('status', { length: 32 }).notNull().default('CREATED'), // CREATED, IN_PROGRESS, PAUSED, SUBMITTED, EXPIRED
   startedAt: timestamp('started_at', { withTimezone: true }),
   deadline: timestamp('deadline', { withTimezone: true }),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
-  // Lưu nháp câu trả lời: Cập nhật liên tục với độ trễ thấp
+  durationMinutes: integer('duration_minutes').notNull(),
+  // Lưu nháp câu trả lời: Cập nhật liên tục với độ trễ thấp (<25ms)
   answers: jsonb('answers').$type<Record<string, {
     answer: unknown;
     answeredAt: string;
@@ -417,9 +735,13 @@ export const attempts = pgTable('attempts', {
     passed: boolean;
     evaluatedAt: string;
     breakdown: Record<string, {
+      questionId: string;
       isCorrect: boolean;
       scoreAwarded: number;
       maxScore: number;
+      candidateAnswer: unknown;
+      correctAnswer?: unknown;
+      explanation?: string;
       feedback?: string;
     }>;
   }>(),
@@ -441,7 +763,39 @@ export const attemptEvents = pgTable('attempt_events', {
   metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
 }, (table) => [
   index('idx_events_attempt').on(table.attemptId),
+  index('idx_events_user_time').on(table.userId, table.serverTimestamp),
 ]);
+```
+
+---
+
+### 4.8. Scripts Quản lý Migration & Seeding trên PostgreSQL Thật
+
+Tất cả các dịch vụ độc lập đều được cấu hình các scripts quản lý vòng đời cơ sở dữ liệu đồng nhất trong `package.json`:
+
+```json
+{
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:seed": "node --loader ts-node/esm src/infrastructure/db/seed.ts",
+    "db:studio": "drizzle-kit studio"
+  }
+}
+```
+
+#### Các lệnh thực thi đồng loạt từ Root Monorepo:
+```bash
+# Đẩy schema lên các database PostgreSQL độc lập
+pnpm --filter @platform/question-service run db:push
+pnpm --filter @platform/assessment-service run db:push
+pnpm --filter @platform/exam-service run db:push
+pnpm --filter @platform/attempt-service run db:push
+
+# Nạp dữ liệu mẫu ban đầu (Seed initial questions, blueprints & exams)
+pnpm --filter @platform/question-service run db:seed
+pnpm --filter @platform/assessment-service run db:seed
+pnpm --filter @platform/exam-service run db:seed
 ```
 
 ---
@@ -509,10 +863,10 @@ Port 3000 Reverse Proxy / Express Gateway:
 ```
 
 ### 6.2. Giao tiếp Trực tiếp giữa các Microservices (Inter-Service Ports)
-- Để đảm bảo hiệu năng tối đa khi chạy in-process và sẵn sàng cho môi trường distributed độc lập trong tương lai, giao tiếp giữa các services được trừu tượng hóa thông qua **Driven Ports**:
-  - `ExamService` phụ thuộc vào `QuestionClientPort` (lấy danh sách câu hỏi theo tiêu chí) và `AssessmentClientPort` (lấy thông tin Blueprint).
-  - `AttemptService` phụ thuộc vào `ExamClientPort` (lấy thông tin Snapshot và Manifest đã khử trùng).
-- Trong môi trường Monorepo hiện tại: Triển khai Adapter bằng In-Memory Client / Dynamic Module Delegation với xác thực HMAC/JWT Token nội bộ (`x-internal-secret`), không sinh thêm overhead HTTP dư thừa nhưng vẫn giữ tách biệt 100% ranh giới domain.
+- Để đảm bảo hiệu năng tối đa và sẵn sàng cho môi trường distributed độc lập, giao tiếp giữa các services được trừu tượng hóa thông qua **Driven Ports**:
+  - `ExamService` phụ thuộc vào `QuestionClientPort` (truy vấn danh sách câu hỏi theo tiêu chí từ `question_db`) và `AssessmentClientPort` (lấy thông tin Blueprint từ `assessment_db`).
+  - `AttemptService` phụ thuộc vào `ExamClientPort` (truy vấn snapshot và manifest từ `exam_db`).
+- **Nguyên tắc Thực thi**: Triển khai Adapter bằng Module Service Delegation (Inter-Service Direct Domain Client) hoặc HTTP Client nội bộ. Mỗi Service Instance vận hành độc lập, đọc ghi 100% trên **PostgreSQL Database riêng** của mình, tuyệt đối không chia sẻ bộ nhớ RAM hay dùng in-memory cache làm nguồn chân lý (Single Source of Truth là Real PostgreSQL).
 
 ---
 
