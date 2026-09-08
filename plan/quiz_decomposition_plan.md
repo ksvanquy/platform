@@ -260,7 +260,7 @@ Mỗi service sở hữu một Cơ sở Dữ liệu PostgreSQL độc lập hoà
 |---|---|---|---|
 | **Auth Service** | `auth_db` | `AUTH_DATABASE_URL` | Quản lý tài khoản người dùng, phiên đăng nhập, JWT tokens, RBAC roles & permissions. |
 | **Taxonomy Service** | `taxonomy_db` | `TAXONOMY_DATABASE_URL` | Quản lý cây phân loại học tập (Subjects, Grades, Topics, Learning Nodes). |
-| **Quiz Service (Legacy)** | `quiz_db` | `QUIZ_DATABASE_URL` | Quản lý Quizzes và Attempts cũ trong giai đoạn chuyển tiếp. |
+| **Quiz Service (Legacy)** | `quiz_db` | `QUIZ_DATABASE_URL` | Quản lý Quizzes và Attempts cũ trong giai đoạn chuyển tiếp (sẽ được loại bỏ hoàn toàn tại Giai đoạn 7). |
 | **Question Service** | `question_db` | `QUESTION_DATABASE_URL` | Ngân hàng câu hỏi, phiên bản câu hỏi (revisions), rich-text/LaTeX, Bloom difficulty, media assets. |
 | **Assessment Service** | `assessment_db` | `ASSESSMENT_DATABASE_URL` | Bài đánh giá (Assessments), Khung ma trận đề (Blueprints), chính sách tính điểm (Scoring Policy) và lượt thi. |
 | **Exam Service** | `exam_db` | `EXAM_DATABASE_URL` | Đề thi chính thức, các biến thể đề (Variants), Snapshot đóng băng bất biến (SHA-256 Tamper-proof Hash). |
@@ -897,7 +897,7 @@ Tách các module contracts thành các thư mục tương ứng:
 
 ## 8. KẾ HOẠCH & LỘ TRÌNH TRIỂN KHAI TỪNG BƯỚC (ROADMAP)
 
-Lộ trình được chia thành **6 giai đoạn rõ ràng**, đảm bảo hệ thống luôn biên dịch thành công (`compile_applet`), chạy thông suốt không gây gián đoạn (Zero Downtime) và có khả năng rollback nếu phát sinh sự cố.
+Lộ trình được chia thành **7 giai đoạn rõ ràng**, đảm bảo hệ thống luôn biên dịch thành công (`compile_applet`), chạy thông suốt không gây gián đoạn (Zero Downtime) và tiến tới loại bỏ hoàn toàn `services/quiz` monolithic cũ:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
@@ -930,19 +930,80 @@ Lộ trình được chia thành **6 giai đoạn rõ ràng**, đảm bảo hệ
 └────────────────────────────────────────┬─────────────────────────────────────────┘
                                          ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│ GIAI ĐOẠN 6: Di trú Dữ liệu (Data Migration), Kiểm thử Tải & Hoàn thiện          │
-│ - Viết script migrate từ schema cũ sang 4 schema mới                             │
-│ - Chạy test suites (Vitest), kiểm thử tải đồng thời (Concurrency & Latency)      │
+│ GIAI ĐOẠN 6: Khởi tạo Dữ liệu Mới (Clean Bootstrap/Seed), Kiểm thử Tải & E2E     │
+│ - KHÔNG migrate dữ liệu cũ sang mới (tránh Technical Debt & Schema Pollution)    │
+│ - Khởi tạo sạch 100% dữ liệu chuẩn mực cho Question, Assessment, Exam, Attempt   │
+│ - Kiểm thử tải & độ trễ (Autosave <25ms, Matrix Solver, Gateway Concurrency)     │
+│ - Xác thực thông suốt toàn bộ luồng E2E trên 4 microservices độc lập             │
+└────────────────────────────────────────┬─────────────────────────────────────────┘
+                                         ▼
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ GIAI ĐOẠN 7: Loại bỏ Hoàn toàn Quiz Service Cũ (Full Decommission Legacy Service)│
+│ - Chuyển Unified Gateway thành Pure API Gateway (Reverse Proxy / Routing Port)   │
+│ - Xóa bỏ toàn bộ mã nguồn legacy: domain/legacy, entities, use-cases cũ           │
+│ - Gỡ bỏ database quiz_db và biến QUIZ_DATABASE_URL khỏi hệ thống                 │
+│ - Hoàn tất chuyển đổi sang 100% Microservices thuần khiết (Zero Dead Code)       │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 8.1. Chi tiết Giai đoạn 6: Khởi tạo Dữ liệu Mới (Clean Bootstrap/Seed), Kiểm thử Tải & Hoàn thiện
+
+**Quyết định Thiết kế Trọng yếu**: **Không thực hiện di trú (migration) dữ liệu từ `quiz_db` cũ sang các schema mới**. 
+- *Lý do*: Cấu trúc dữ liệu cũ có tính kết dính cao (monolithic coupling), thiếu phân tầng Bloom, chưa hỗ trợ snapshot bất biến và thiếu trường dữ liệu chuẩn hóa cho RichText/LaTeX/Audit logs. Việc viết adapter di trú dữ liệu cũ sẽ đưa các trường dữ liệu khiếm khuyết hoặc lỗi thời vào các database mới, gây ra nợ kỹ thuật (technical debt) không đáng có.
+- *Giải pháp*: **Khởi tạo dữ liệu mới 100% (Fresh Clean Seeding)** với chuẩn dữ liệu cao nhất của hệ thống:
+  1. **Khởi tạo Ngân hàng Câu hỏi Chuẩn hóa (`question_db`)**:
+     - Tạo bộ câu hỏi mẫu đa dạng phân loại: Toán học (LaTeX/KaTeX), Khoa học tự nhiên, Khoa học xã hội, Tin học.
+     - Đầy đủ các định dạng: Single Choice, Multiple Choice, True/False, Fill-in-the-blank, Matching, Numeric.
+     - Gắn nhãn taxonomy chính xác (`topicNodeId`, `gradeNodeId`) và phân cấp độ nhận thức chuẩn Bloom Taxonomy (Remember, Understand, Apply, Analyze).
+  2. **Khởi tạo Khung Đề thi & Ma trận Chuẩn mực (`assessment_db`)**:
+     - Các bản Blueprint mẫu chuẩn mực với quy tắc ma trận phân bổ độ khó nghiêm ngặt (ví dụ: 40% Nhận biết, 30% Thông hiểu, 20% Vận dụng, 10% Vận dụng cao).
+     - Thiết lập chính sách chấm điểm (`ScoringPolicy`), giới hạn thời gian (15 phút, 45 phút, 90 phút), số lượt làm bài cho phép và chính sách công bố kết quả (`IMMEDIATE`, `AFTER_DEADLINE`, `MANUAL`).
+  3. **Sinh & Đóng băng Kỳ thi Chính thức (`exam_db`)**:
+     - Sinh các đề thi hoàn chỉnh từ Blueprint qua thuật toán Matrix Solver.
+     - Sinh các biến thể mã đề (Variants 101, 102, 103, 104) với xáo trộn có hạt giống (Seed-based PRNG) và khóa bất biến bằng hàm băm SHA-256 (`snapshotHash`).
+  4. **Kiểm thử Hiệu năng & Chịu tải (Load & Concurrency Performance Testing)**:
+     - **Autosave High-Write Test**: Kiểm thử mô phỏng 500-1.000 thí sinh gửi câu trả lời đồng thời tới Attempt Service, đo lường tỷ lệ p99 latency đạt `<25ms` và không bị race condition nhờ `sequenceNumber`.
+     - **Matrix Solver & Shuffle Benchmark**: Đánh giá tốc độ giải ma trận và sinh 10 bộ đề thi biến thể dưới 200ms.
+     - **Gateway Throughput & Connection Pool**: Kiểm tra khả năng chịu tải của Unified Gateway trên Port 3000 khi đồng thời proxy dữ liệu tới 4 services.
+  5. **Xác thực Luồng Nghiệp vụ Toàn vẹn (End-to-End Flow Verification)**:
+     - Thử nghiệm thông suốt từ khâu giáo viên tạo câu hỏi ➔ xây dựng ma trận ➔ duyệt sinh đề thi ➔ thí sinh đăng nhập làm bài ➔ tự động lưu nháp ➔ thu thập sự kiện chống gian lận ➔ nộp bài và chấm điểm tự động.
+
+---
+
+### 8.2. Chi tiết Giai đoạn 7: Loại bỏ Hoàn toàn Quiz Service Cũ (Full Decommission of Legacy Quiz Service)
+
+Mục tiêu của Giai đoạn 7 là dọn dẹp sạch sẽ (zero dead code), đưa hệ thống về trạng thái kiến trúc Microservices thuần khiết:
+
+1. **Chuyển dịch Gateway thành Pure API Gateway**:
+   - Tách rời mã nguồn của Gateway khỏi thư mục `services/quiz`.
+   - Cổng 3000 trở thành API Gateway chuyên biệt (hoặc Reverse Proxy nhẹ), chỉ đảm nhiệm vai trò:
+     - Xác thực JWT & phân quyền RBAC sơ bộ qua Auth Client.
+     - Routing / Reverse Proxy các request đến đúng cổng đích:
+       - `/v1/questions` ➔ Question Service (Port 3001)
+       - `/v1/assessments` & `/v1/blueprints` ➔ Assessment Service (Port 3002)
+       - `/v1/exams` ➔ Exam Service (Port 3003)
+       - `/v1/attempts` & `/v1/time` ➔ Attempt Service (Port 3004)
+     - Khám phá API (`/v1/api-discovery`) và Health Checks tổng thể hệ thống.
+2. **Xóa bỏ Toàn bộ Mã Nguồn Monolithic Cũ trong `services/quiz`**:
+   - Xóa các Domain Entities cũ (`Quiz`, `QuizVersion`, `QuizAttempt`, `QuizSession`).
+   - Xóa các Use Cases cũ (`CreateQuizUseCase`, `SubmitAttemptUseCase` cũ, v.v.).
+   - Xóa các Repositories cũ liên quan đến bảng `quizzes` và `quiz_attempts`.
+   - Loại bỏ toàn bộ các router cũ `/v1/quizzes/*` sau khi kiểm tra frontend web đã chuyển hướng 100% sang API mới.
+3. **Thu hồi Database `quiz_db` và Dọn dẹp Cấu hình**:
+   - Gỡ bỏ database `quiz_db` khỏi PostgreSQL cluster.
+   - Gỡ biến môi trường `QUIZ_DATABASE_URL` khỏi `.env`, `.env.example` và các file cấu hình Docker/CI-CD.
+   - Dọn dẹp các script npm và build configurations thừa.
+4. **Kiểm tra & Nghiệm thu Cuối cùng (Final Acceptance)**:
+   - Chạy toàn bộ test suites của 4 services mới (`question`, `assessment`, `exam`, `attempt`) và `api-client`.
+   - Biên dịch toàn bộ Monorepo (`compile_applet`) và kiểm tra tĩnh (`lint_applet`), xác nhận hệ thống hoàn toàn sạch mã rác, hiệu năng cao và sẵn sàng đưa vào vận hành sản phẩm thực tế.
 
 ---
 
 ## 9. KẾT LUẬN & GIÁ TRỊ MANG LẠI
 
-Việc phân tách `services/quiz` thành 4 microservices chuyên biệt (**Question**, **Assessment**, **Exam**, **Attempt**) mang lại những giá trị mang tính bước ngoặt cho hệ thống:
+Việc phân tách `services/quiz` thành 4 microservices chuyên biệt (**Question**, **Assessment**, **Exam**, **Attempt**) kết hợp với lộ trình dọn dẹp triệt để mang lại những giá trị mang tính bước ngoặt cho hệ thống:
 
 1. **Hiệu năng vượt trội (Peak Performance)**: Module làm bài (**Attempt Service**) được giải phóng hoàn toàn khỏi các tác vụ nặng về tính toán và phân tích nội dung, cho phép xử lý hàng chục nghìn lượt ghi nháp đồng thời với độ trễ dưới 25ms.
 2. **Khả năng mở rộng tối ưu (Elastic Scalability)**: Dễ dàng mở rộng tài nguyên tính toán (CPU) cho **Exam Service** trước giờ thi, và mở rộng tài nguyên I/O cho **Attempt Service** trong thời gian thi mà không gây lãng phí chi phí hạ tầng.
 3. **Bảo mật & Toàn vẹn học thuật (Academic Integrity & Anti-Cheat)**: Thuật toán xáo hạt giống tái lập được 100%, mã băm SHA-256 chống chỉnh sửa đề thi, kết hợp ranh giới khử trùng dữ liệu tuyệt đối ngăn ngừa triệt để rủi ro lộ đáp án.
-4. **Kiến trúc bền vững (Maintainability & Clean Architecture)**: Tuân thủ nghiêm ngặt **Hexagonal Architecture** và **DDD**, mã nguồn trong sáng, phân tách rõ ràng giữa Core Business Rules và External Adapters, bảo đảm khả năng mở rộng không giới hạn cho hệ thống trong tương lai.
+4. **Kiến trúc bền vững & Sạch bóng Nợ kỹ thuật (Pure Microservices & Zero Technical Debt)**: Tuân thủ nghiêm ngặt **Hexagonal Architecture** và **DDD**, xóa sạch mã monolithic cũ, bảo đảm mã nguồn trong sáng, phân tách rõ ràng giữa Core Business Rules và External Adapters, bảo đảm khả năng mở rộng không giới hạn cho hệ thống trong tương lai.
