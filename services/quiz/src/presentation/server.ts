@@ -419,9 +419,13 @@ function getExamRepository(): ExamRepositoryPort | null {
   return examRepoInstance;
 }
 
-function setExamRepository(repo: ExamRepositoryPort): void {
+function setExamRepository(
+  repo: ExamRepositoryPort,
+  questionClient?: any,
+  assessmentClient?: any
+): void {
   examRepoInstance = repo;
-  examRouterInstance = createExamRouter({ examRepo: repo });
+  examRouterInstance = createExamRouter({ examRepo: repo, questionClient, assessmentClient });
 }
 
 function getExamRouter(): express.Router {
@@ -448,11 +452,14 @@ function getAttemptRepository(): AttemptServiceRepositoryPort | null {
   return attemptRepoInstance;
 }
 
-function setAttemptRepository(repo: AttemptServiceRepositoryPort): void {
+function setAttemptRepository(
+  repo: AttemptServiceRepositoryPort,
+  examClient?: any
+): void {
   attemptRepoInstance = repo;
-  const examClient = new DirectExamClientAdapter();
-  attemptRouterInstance = createAttemptServiceRouter({ attemptRepo: repo, examClient });
-  attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, examClient);
+  const examClientInstance = examClient || new DirectExamClientAdapter();
+  attemptRouterInstance = createAttemptServiceRouter({ attemptRepo: repo, examClient: examClientInstance });
+  attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, examClientInstance);
 }
 
 function getAttemptRouter(): express.Router {

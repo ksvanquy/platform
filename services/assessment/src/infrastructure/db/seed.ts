@@ -4,7 +4,7 @@ import { getAssessmentDb, isAssessmentDbConfigured } from './connection.js';
 export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
   const db = dbInstance || getAssessmentDb();
 
-  console.log('🌱 [assessment_db] Seeding initial assessments & blueprints into PostgreSQL...');
+  console.log('🌱 [assessment_db] Seeding standardized assessments & blueprints into PostgreSQL...');
 
   const initialAssessments = [
     {
@@ -23,7 +23,7 @@ export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
         versionNumber: 1,
         durationMinutes: 45,
         passingPercentage: 50,
-        maxAttempts: 1,
+        maxAttempts: 2,
         criteria: [
           {
             topicNodeId: 'node_math_quad_eq',
@@ -52,6 +52,50 @@ export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
       },
     },
     {
+      id: 'asm_it_sql',
+      code: 'IT-SQL-QUIZ-2026',
+      title: 'Kiểm tra Cơ sở dữ liệu quan hệ & SQL',
+      description: 'Đánh giá kiến thức câu lệnh truy vấn SELECT, lọc dữ liệu và chuẩn hóa cơ sở dữ liệu quan hệ.',
+      ownerId: 'usr_instructor_01',
+      primaryTopicNodeId: 'node_topic_it_db',
+      gradeNodeId: 'node_grade_10',
+      status: 'APPROVED' as const,
+      currentBlueprintId: 'bp_it_sql_v1',
+      blueprint: {
+        id: 'bp_it_sql_v1',
+        assessmentId: 'asm_it_sql',
+        versionNumber: 1,
+        durationMinutes: 15,
+        passingPercentage: 60,
+        maxAttempts: 3,
+        criteria: [
+          {
+            topicNodeId: 'node_topic_it_db',
+            difficulty: 'REMEMBER' as const,
+            questionCount: 1,
+            pointsPerQuestion: 2,
+          },
+          {
+            topicNodeId: 'node_topic_it_db',
+            difficulty: 'UNDERSTAND' as const,
+            questionCount: 2,
+            pointsPerQuestion: 2,
+          },
+          {
+            topicNodeId: 'node_topic_it_db',
+            difficulty: 'APPLY' as const,
+            questionCount: 2,
+            pointsPerQuestion: 2,
+          },
+        ],
+        scoringPolicy: {
+          strategyType: 'PARTIAL' as const,
+          roundingDecimal: 2,
+        },
+        isLocked: true,
+      },
+    },
+    {
       id: 'asm_phys10_review',
       code: 'PHYS10-REV-001',
       title: 'Bài tập trắc nghiệm Động học chất điểm - Vật lý 10',
@@ -59,7 +103,7 @@ export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
       ownerId: 'usr_instructor_01',
       primaryTopicNodeId: 'node_phys_kinematics',
       gradeNodeId: 'node_grade_10',
-      status: 'DRAFT' as const,
+      status: 'APPROVED' as const,
       currentBlueprintId: 'bp_phys10_review_v1',
       blueprint: {
         id: 'bp_phys10_review_v1',
@@ -72,15 +116,15 @@ export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
           {
             topicNodeId: 'node_phys_kinematics',
             difficulty: 'UNDERSTAND' as const,
-            questionCount: 5,
-            pointsPerQuestion: 2,
+            questionCount: 1,
+            pointsPerQuestion: 5,
           },
         ],
         scoringPolicy: {
           strategyType: 'PARTIAL' as const,
           roundingDecimal: 1,
         },
-        isLocked: false,
+        isLocked: true,
       },
     },
   ];
@@ -96,6 +140,8 @@ export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
           code: assessmentData.code,
           title: assessmentData.title,
           description: assessmentData.description,
+          primaryTopicNodeId: assessmentData.primaryTopicNodeId,
+          gradeNodeId: assessmentData.gradeNodeId,
           status: assessmentData.status,
           currentBlueprintId: assessmentData.currentBlueprintId,
           updatedAt: new Date(),
@@ -119,7 +165,7 @@ export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
       });
   }
 
-  console.log(`✅ [assessment_db] Seed completed: ${initialAssessments.length} assessments seeded.`);
+  console.log(`✅ [assessment_db] Seed completed: ${initialAssessments.length} assessments & locked blueprints seeded.`);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('seed.ts')) {

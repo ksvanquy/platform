@@ -52,7 +52,8 @@
     "db:generate:attempt": "drizzle-kit generate --config=services/attempt/drizzle.config.ts",
     "db:migrate:attempt": "tsx services/attempt/src/infrastructure/db/migrate.ts",
     "db:push:attempt": "drizzle-kit push --config=services/attempt/drizzle.config.ts",
-    "db:seed:attempt": "tsx services/attempt/src/infrastructure/db/seed.ts"
+    "db:seed:attempt": "tsx services/attempt/src/infrastructure/db/seed.ts",
+    "seed:all": "tsx scripts/bootstrap-clean-data.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

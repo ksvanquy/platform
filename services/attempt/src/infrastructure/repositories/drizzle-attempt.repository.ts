@@ -10,8 +10,14 @@ import type {
 import type { AntiCheatEventType, AttemptStatus } from '@platform/contracts';
 
 export class DrizzleAttemptRepository implements AttemptRepositoryPort {
+  constructor(private customDb?: any) {}
+
+  private getDb() {
+    return this.customDb || getAttemptDb();
+  }
+
   async saveAttempt(attempt: Attempt): Promise<Attempt> {
-    const db = getAttemptDb();
+    const db = this.getDb();
 
     await db
       .insert(attempts)
@@ -48,14 +54,14 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
   }
 
   async findAttemptById(id: string): Promise<Attempt | null> {
-    const db = getAttemptDb();
+    const db = this.getDb();
     const rows = await db.select().from(attempts).where(eq(attempts.id, id)).limit(1);
     if (rows.length === 0) return null;
     return this.mapToAttemptEntity(rows[0]);
   }
 
   async findActiveAttempt(userId: string, examId: string): Promise<Attempt | null> {
-    const db = getAttemptDb();
+    const db = this.getDb();
     const rows = await db
       .select()
       .from(attempts)
@@ -74,7 +80,7 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
   }
 
   async listAttemptsByUser(userId: string, examId?: string): Promise<Attempt[]> {
-    const db = getAttemptDb();
+    const db = this.getDb();
     const conditions = [eq(attempts.userId, userId)];
     if (examId) {
       conditions.push(eq(attempts.examId, examId));
@@ -86,11 +92,11 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
       .where(and(...conditions))
       .orderBy(sql`${attempts.createdAt} DESC`);
 
-    return rows.map((r) => this.mapToAttemptEntity(r));
+    return (rows as any[]).map((r: any) => this.mapToAttemptEntity(r));
   }
 
   async listAttempts(filter: AttemptFilterQuery = {}): Promise<{ attempts: Attempt[]; total: number }> {
-    const db = getAttemptDb();
+    const db = this.getDb();
     const conditions = [];
 
     if (filter.userId) {
@@ -125,13 +131,13 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
     const total = totalCountRes[0]?.count || 0;
 
     return {
-      attempts: rows.map((r) => this.mapToAttemptEntity(r)),
+      attempts: (rows as any[]).map((r: any) => this.mapToAttemptEntity(r)),
       total,
     };
   }
 
   async findExpiredInProgressAttempts(now: Date, gracePeriodMs: number): Promise<Attempt[]> {
-    const db = getAttemptDb();
+    const db = this.getDb();
     const thresholdDate = new Date(now.getTime() - gracePeriodMs);
 
     const rows = await db
@@ -145,11 +151,11 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
         )
       );
 
-    return rows.map((r) => this.mapToAttemptEntity(r));
+    return (rows as any[]).map((r: any) => this.mapToAttemptEntity(r));
   }
 
   async saveEvent(event: AttemptEvent): Promise<AttemptEvent> {
-    const db = getAttemptDb();
+    const db = this.getDb();
 
     await db.insert(attemptEvents).values({
       id: event.id,
@@ -165,7 +171,7 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
   }
 
   async listEventsByAttemptId(attemptId: string): Promise<AttemptEvent[]> {
-    const db = getAttemptDb();
+    const db = this.getDb();
 
     const rows = await db
       .select()
@@ -173,7 +179,7 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
       .where(eq(attemptEvents.attemptId, attemptId))
       .orderBy(sql`${attemptEvents.serverTimestamp} ASC`);
 
-    return rows.map((r) => this.mapToEventEntity(r));
+    return (rows as any[]).map((r: any) => this.mapToEventEntity(r));
   }
 
   private mapToAttemptEntity(row: typeof attempts.$inferSelect): Attempt {

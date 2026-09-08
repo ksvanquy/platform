@@ -9,8 +9,14 @@ import type {
 import type { ExamStatus } from '@platform/contracts';
 
 export class DrizzleExamRepository implements ExamRepositoryPort {
+  constructor(private customDb?: any) {}
+
+  private getDb() {
+    return this.customDb || getExamDb();
+  }
+
   async saveExam(exam: Exam): Promise<Exam> {
-    const db = getExamDb();
+    const db = this.getDb();
     await db
       .insert(exams)
       .values({
@@ -42,21 +48,21 @@ export class DrizzleExamRepository implements ExamRepositoryPort {
   }
 
   async findExamById(id: string): Promise<Exam | null> {
-    const db = getExamDb();
+    const db = this.getDb();
     const rows = await db.select().from(exams).where(eq(exams.id, id)).limit(1);
     if (rows.length === 0) return null;
     return this.mapToExamEntity(rows[0]);
   }
 
   async findExamByCode(code: string): Promise<Exam | null> {
-    const db = getExamDb();
+    const db = this.getDb();
     const rows = await db.select().from(exams).where(eq(exams.code, code)).limit(1);
     if (rows.length === 0) return null;
     return this.mapToExamEntity(rows[0]);
   }
 
   async listExams(filter: ExamFilterQuery = {}): Promise<{ exams: Exam[]; total: number }> {
-    const db = getExamDb();
+    const db = this.getDb();
     const conditions = [];
 
     if (filter.assessmentId) {
@@ -94,19 +100,19 @@ export class DrizzleExamRepository implements ExamRepositoryPort {
     const total = totalCountRes[0]?.count || 0;
 
     return {
-      exams: rows.map((r) => this.mapToExamEntity(r)),
+      exams: (rows as any[]).map((r: any) => this.mapToExamEntity(r)),
       total,
     };
   }
 
   async deleteExam(id: string): Promise<boolean> {
-    const db = getExamDb();
+    const db = this.getDb();
     const res = await db.delete(exams).where(eq(exams.id, id));
     return (res as any).rowCount > 0;
   }
 
   async saveSnapshot(snapshot: ExamSnapshot): Promise<ExamSnapshot> {
-    const db = getExamDb();
+    const db = this.getDb();
     await db
       .insert(examSnapshots)
       .values({
@@ -131,14 +137,14 @@ export class DrizzleExamRepository implements ExamRepositoryPort {
   }
 
   async findSnapshotById(id: string): Promise<ExamSnapshot | null> {
-    const db = getExamDb();
+    const db = this.getDb();
     const rows = await db.select().from(examSnapshots).where(eq(examSnapshots.id, id)).limit(1);
     if (rows.length === 0) return null;
     return this.mapToSnapshotEntity(rows[0]);
   }
 
   async findSnapshotByExamAndVariant(examId: string, variantCode: string): Promise<ExamSnapshot | null> {
-    const db = getExamDb();
+    const db = this.getDb();
     const rows = await db
       .select()
       .from(examSnapshots)
@@ -149,17 +155,17 @@ export class DrizzleExamRepository implements ExamRepositoryPort {
   }
 
   async listSnapshotsByExamId(examId: string): Promise<ExamSnapshot[]> {
-    const db = getExamDb();
+    const db = this.getDb();
     const rows = await db
       .select()
       .from(examSnapshots)
       .where(eq(examSnapshots.examId, examId))
       .orderBy(examSnapshots.variantCode);
-    return rows.map((r) => this.mapToSnapshotEntity(r));
+    return (rows as any[]).map((r: any) => this.mapToSnapshotEntity(r));
   }
 
   async deleteSnapshotsByExamId(examId: string): Promise<number> {
-    const db = getExamDb();
+    const db = this.getDb();
     const res = await db.delete(examSnapshots).where(eq(examSnapshots.examId, examId));
     return (res as any).rowCount || 0;
   }
