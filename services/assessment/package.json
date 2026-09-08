@@ -1,8 +1,15 @@
 {
-  "name": "@platform/quiz-service",
+  "name": "@platform/assessment-service",
   "version": "1.0.0",
-  "description": "Deterministic, Secure, and Real-time Core Quiz Engine Service",
-  "main": "dist/presentation/server.js",
+  "description": "Autonomous Assessment Blueprint & Matrix Specification Service",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/presentation/server.ts",
@@ -16,15 +23,13 @@
   "dependencies": {
     "@platform/auth-service": "workspace:*",
     "@platform/contracts": "workspace:*",
-    "@platform/taxonomy-service": "workspace:*",
-    "@platform/question-service": "workspace:*",
-    "@platform/assessment-service": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@platform/api-client": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.1",
     "drizzle-kit": "^0.31.10",

@@ -1,0 +1,50 @@
+import express, { Express, Request, Response } from 'express';
+import { createQuestionRouter } from './routes/v1-questions.routes.js';
+import { loadEnvIfAvailable, isQuestionDbConfigured } from '../infrastructure/db/connection.js';
+import { runQuestionMigrations } from '../infrastructure/db/migrate.js';
+import { seedQuestionDatabase } from '../infrastructure/db/seed.js';
+
+loadEnvIfAvailable();
+
+export function createQuestionServer(): Express {
+  const app: Express = express();
+  app.use(express.json());
+
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, x-user-role');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+  });
+
+  app.get('/health', (_req: Request, res: Response) => {
+    res.status(200).json({ status: 'ok', service: 'Question Service', timestamp: new Date() });
+  });
+
+  app.use('/v1/questions', createQuestionRouter());
+
+  return app;
+}
+
+if (process.argv[1] && process.argv[1].endsWith('server.ts')) {
+  const PORT = Number(process.env.QUESTION_PORT) || 3003;
+  const app = createQuestionServer();
+
+  if (isQuestionDbConfigured()) {
+    runQuestionMigrations()
+      .then(() => seedQuestionDatabase())
+      .then(() => {
+        app.listen(PORT, () => {
+          console.log(`🚀 Question Service running on http://localhost:${PORT}`);
+        });
+      })
+      .catch((err) => {
+        console.error('Failed to initialize Question Service:', err);
+        process.exit(1);
+      });
+  } else {
+    console.error('❌ Question Service failed to start: QUESTION_DATABASE_URL not configured.');
+    process.exit(1);
+  }
+}

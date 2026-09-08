@@ -32,7 +32,17 @@
     "db:generate:taxonomy": "drizzle-kit generate --config=services/taxonomy/drizzle.config.ts",
     "db:migrate:taxonomy": "tsx services/taxonomy/src/infrastructure/db/migrate.ts",
     "db:push:taxonomy": "drizzle-kit push --config=services/taxonomy/drizzle.config.ts",
-    "db:seed:taxonomy": "tsx services/taxonomy/src/infrastructure/db/seed.ts"
+    "db:seed:taxonomy": "tsx services/taxonomy/src/infrastructure/db/seed.ts",
+    "dev:question": "tsx watch services/question/src/presentation/server.ts",
+    "db:generate:question": "drizzle-kit generate --config=services/question/drizzle.config.ts",
+    "db:migrate:question": "tsx services/question/src/infrastructure/db/migrate.ts",
+    "db:push:question": "drizzle-kit push --config=services/question/drizzle.config.ts",
+    "db:seed:question": "tsx services/question/src/infrastructure/db/seed.ts",
+    "dev:assessment": "tsx watch services/assessment/src/presentation/server.ts",
+    "db:generate:assessment": "drizzle-kit generate --config=services/assessment/drizzle.config.ts",
+    "db:migrate:assessment": "tsx services/assessment/src/infrastructure/db/migrate.ts",
+    "db:push:assessment": "drizzle-kit push --config=services/assessment/drizzle.config.ts",
+    "db:seed:assessment": "tsx services/assessment/src/infrastructure/db/seed.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

@@ -36,6 +36,22 @@ import {
   runTaxonomyMigrations,
   seedTaxonomyDatabase,
 } from '@platform/taxonomy-service';
+import {
+  createQuestionRouter,
+  QuestionRepositoryPort,
+  DrizzleQuestionRepository,
+  isQuestionDbConfigured,
+  runQuestionMigrations,
+  seedQuestionDatabase,
+} from '@platform/question-service';
+import {
+  createAssessmentRouter,
+  AssessmentRepositoryPort,
+  DrizzleAssessmentRepository,
+  isAssessmentDbConfigured,
+  runAssessmentMigrations,
+  seedAssessmentDatabase,
+} from '@platform/assessment-service';
 
 loadEnvIfAvailable();
 
@@ -247,6 +263,19 @@ const apiDiscovery = {
     { method: 'DELETE', path: '/v1/nodes/:id', description: 'Taxonomy: Soft delete node (ADMIN)' },
     { method: 'GET', path: '/v1/nodes/:id/descendant-ids', description: 'Taxonomy: Get recursive descendant IDs' },
     { method: 'GET', path: '/v1/nodes/:id/breadcrumbs', description: 'Taxonomy: Get breadcrumbs from root' },
+    { method: 'GET', path: '/v1/questions', description: 'Question: List and filter questions by taxonomy/Bloom' },
+    { method: 'POST', path: '/v1/questions', description: 'Question: Create question item with LaTeX/media (AUTHOR)' },
+    { method: 'GET', path: '/v1/questions/:idOrCode', description: 'Question: Get question details with revision' },
+    { method: 'PUT', path: '/v1/questions/:id', description: 'Question: Update question and auto-generate revision (AUTHOR)' },
+    { method: 'DELETE', path: '/v1/questions/:id', description: 'Question: Delete question (AUTHOR/ADMIN)' },
+    { method: 'GET', path: '/v1/questions/:id/revisions', description: 'Question: List historical revisions' },
+    { method: 'GET', path: '/v1/assessments', description: 'Assessment: List assessments and criteria' },
+    { method: 'POST', path: '/v1/assessments', description: 'Assessment: Create assessment blueprint (AUTHOR)' },
+    { method: 'GET', path: '/v1/assessments/:idOrCode', description: 'Assessment: Get assessment & blueprint details' },
+    { method: 'PUT', path: '/v1/assessments/:id', description: 'Assessment: Update assessment details (AUTHOR)' },
+    { method: 'PATCH', path: '/v1/assessments/:id/status', description: 'Assessment: Transition lifecycle status (AUTHOR)' },
+    { method: 'PUT', path: '/v1/assessments/:id/blueprint', description: 'Assessment: Update blueprint criteria matrix (AUTHOR)' },
+    { method: 'POST', path: '/v1/assessments/:id/blueprint/lock', description: 'Assessment: Lock blueprint against edits (AUTHOR)' },
   ],
 };
 
@@ -278,6 +307,62 @@ function getTaxonomyRouter(): express.Router {
   return taxonomyRouterInstance!;
 }
 
+// Question Service Dynamic Router Delegation (Unified Port 3000 Gateway)
+let questionRepoInstance: QuestionRepositoryPort | null = null;
+let questionRouterInstance: express.Router | null = null;
+
+function getQuestionRepository(): QuestionRepositoryPort | null {
+  if (!questionRepoInstance) {
+    try {
+      questionRepoInstance = new DrizzleQuestionRepository();
+    } catch (err: any) {
+      console.warn('⚠️ Could not initialize DrizzleQuestionRepository:', err?.message || err);
+    }
+  }
+  return questionRepoInstance;
+}
+
+export function setQuestionRepository(repo: QuestionRepositoryPort): void {
+  questionRepoInstance = repo;
+  questionRouterInstance = createQuestionRouter(repo);
+}
+
+function getQuestionRouter(): express.Router {
+  if (!questionRouterInstance) {
+    const repo = getQuestionRepository();
+    questionRouterInstance = createQuestionRouter(repo || undefined);
+  }
+  return questionRouterInstance!;
+}
+
+// Assessment Service Dynamic Router Delegation (Unified Port 3000 Gateway)
+let assessmentRepoInstance: AssessmentRepositoryPort | null = null;
+let assessmentRouterInstance: express.Router | null = null;
+
+function getAssessmentRepository(): AssessmentRepositoryPort | null {
+  if (!assessmentRepoInstance) {
+    try {
+      assessmentRepoInstance = new DrizzleAssessmentRepository();
+    } catch (err: any) {
+      console.warn('⚠️ Could not initialize DrizzleAssessmentRepository:', err?.message || err);
+    }
+  }
+  return assessmentRepoInstance;
+}
+
+export function setAssessmentRepository(repo: AssessmentRepositoryPort): void {
+  assessmentRepoInstance = repo;
+  assessmentRouterInstance = createAssessmentRouter(repo);
+}
+
+function getAssessmentRouter(): express.Router {
+  if (!assessmentRouterInstance) {
+    const repo = getAssessmentRepository();
+    assessmentRouterInstance = createAssessmentRouter(repo || undefined);
+  }
+  return assessmentRouterInstance!;
+}
+
 app.get('/api', (_req: Request, res: Response) => {
   res.status(200).json(apiDiscovery);
 });
@@ -294,6 +379,32 @@ app.get('/', (req: Request, res: Response) => {
 app.use('/v1/quizzes', createV1QuizzesRouter(authoringUseCases, () => getTaxonomyRepository()));
 app.use('/v1/attempts', createV1AttemptsRouter(deliveryUseCases));
 app.use('/v1/internal', createV1InternalRouter(sweeperService));
+
+// Mount Question Bank Routes (Unified Gateway on Port 3000)
+app.use('/v1/questions', (req: Request, res: Response, next: any) => {
+  try {
+    const router = getQuestionRouter();
+    return router(req, res, next);
+  } catch (err: any) {
+    return res.status(503).json({
+      success: false,
+      message: err?.message || 'Question service database not configured',
+    });
+  }
+});
+
+// Mount Assessment Blueprint Routes (Unified Gateway on Port 3000)
+app.use('/v1/assessments', (req: Request, res: Response, next: any) => {
+  try {
+    const router = getAssessmentRouter();
+    return router(req, res, next);
+  } catch (err: any) {
+    return res.status(503).json({
+      success: false,
+      message: err?.message || 'Assessment service database not configured',
+    });
+  }
+});
 
 // Mount Taxonomy Domain Routes (Unified Gateway on Port 3000)
 app.use('/v1', (req: Request, res: Response, next: any) => {
@@ -424,6 +535,30 @@ async function bootstrapDatabases(): Promise<void> {
       console.warn('⚠️ [taxonomy_db] Database bootstrap warning:', err?.message || err);
     }
   }
+
+  // 4. Question DB auto-migration and seeding
+  if (isQuestionDbConfigured()) {
+    try {
+      console.log('🔄 [question_db] Running schema migrations...');
+      await runQuestionMigrations();
+      await seedQuestionDatabase();
+      console.log('✅ [question_db] PostgreSQL database initialized successfully.');
+    } catch (err: any) {
+      console.warn('⚠️ [question_db] Database bootstrap warning:', err?.message || err);
+    }
+  }
+
+  // 5. Assessment DB auto-migration and seeding
+  if (isAssessmentDbConfigured()) {
+    try {
+      console.log('🔄 [assessment_db] Running schema migrations...');
+      await runAssessmentMigrations();
+      await seedAssessmentDatabase();
+      console.log('✅ [assessment_db] PostgreSQL database initialized successfully.');
+    } catch (err: any) {
+      console.warn('⚠️ [assessment_db] Database bootstrap warning:', err?.message || err);
+    }
+  }
 }
 
 bootstrapDatabases();
@@ -440,4 +575,6 @@ export {
   authUserRepository,
   authTokenService,
   setTaxonomyRepository,
+  setQuestionRepository,
+  setAssessmentRepository,
 };
