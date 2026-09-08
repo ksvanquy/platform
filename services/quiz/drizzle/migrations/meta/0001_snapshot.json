@@ -1,6 +1,6 @@
 {
-  "id": "ce021a8e-2976-4bf1-aab9-fa148d31524b",
-  "prevId": "7bdf805d-4d57-49bc-9eb9-4c44d7480bc1",
+  "id": "e6238025-7d7c-49e3-8def-62744f8ca563",
+  "prevId": "ce021a8e-2976-4bf1-aab9-fa148d31524b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -351,6 +351,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "grade_node_id": {
+          "name": "grade_node_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "is_public": {
           "name": "is_public",
           "type": "boolean",
@@ -422,6 +428,21 @@
           "columns": [
             {
               "expression": "primary_node_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_quizzes_grade_node": {
+          "name": "idx_quizzes_grade_node",
+          "columns": [
+            {
+              "expression": "grade_node_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

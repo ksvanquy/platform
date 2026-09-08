@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { getQuizDb, closeQuizDb, isQuizDbConfigured } from './connection.js';
 
@@ -16,6 +17,17 @@ export async function runQuizMigrations(): Promise<void> {
   console.log('🔄 Running Quiz Service PostgreSQL migrations...');
   const db = getQuizDb();
   await migrate(db, { migrationsFolder });
+
+  // Đảm bảo tuyệt đối cột grade_node_id và index tồn tại trên bảng quizzes
+  try {
+    await db.execute(sql`
+      ALTER TABLE "quizzes" ADD COLUMN IF NOT EXISTS "grade_node_id" varchar(64);
+      CREATE INDEX IF NOT EXISTS "idx_quizzes_grade_node" ON "quizzes" USING btree ("grade_node_id");
+    `);
+  } catch (err) {
+    console.warn('⚠️ Fallback column verification notice:', err);
+  }
+
   console.log('✅ Quiz Service PostgreSQL migrations completed successfully.');
 }
 

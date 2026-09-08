@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getQuizDb, closeQuizDb, isQuizDbConfigured } from './connection.js';
+import { runQuizMigrations } from './migrate.js';
 import { DrizzleAuthoringRepository } from '../repositories/drizzle-authoring.repository.js';
 import { Quiz } from '../../domain/authoring/quiz.entity.js';
 import { QuizVersion } from '../../domain/authoring/quiz-version.entity.js';
@@ -9,6 +10,11 @@ export async function seedQuizDatabase(customDb?: any): Promise<void> {
   if (!customDb && !isQuizDbConfigured()) {
     console.warn('⚠️ QUIZ_DATABASE_URL is not configured. Skipping Quiz Service seeding.');
     return;
+  }
+
+  // Tự động đảm bảo schema và các cột mới nhất (grade_node_id) được đồng bộ trước khi seed
+  if (!customDb) {
+    await runQuizMigrations();
   }
 
   console.log('🌱 [quiz_db] Seeding default quizzes and versions into PostgreSQL...');
