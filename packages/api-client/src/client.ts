@@ -41,6 +41,7 @@ export interface ApiClientConfig {
   timeoutMs?: number;
   headers?: Record<string, string>;
   fetchFn?: typeof fetch;
+  onUnauthorized?: (error: ApiClientError) => void;
 }
 
 export interface RequestOptions extends Omit<RequestInit, 'body'> {
@@ -65,6 +66,7 @@ export class ApiClient {
   private timeoutMs: number;
   private defaultHeaders: Record<string, string>;
   private fetchFn: typeof fetch;
+  private onUnauthorized?: (error: ApiClientError) => void;
 
   constructor(config: ApiClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
@@ -72,6 +74,7 @@ export class ApiClient {
     this.timeoutMs = config.timeoutMs ?? 30000;
     this.defaultHeaders = config.headers ?? {};
     this.fetchFn = config.fetchFn ?? (typeof fetch !== 'undefined' ? fetch.bind(globalThis) : (undefined as any));
+    this.onUnauthorized = config.onUnauthorized;
   }
 
   getBaseUrl(): string {
@@ -152,7 +155,15 @@ export class ApiClient {
           responseData?.message ||
           responseData?.error ||
           `Request failed with status ${response.status}: ${response.statusText}`;
-        throw new ApiClientError(errorMessage, response.status, responseData);
+        const clientError = new ApiClientError(errorMessage, response.status, responseData);
+        if (response.status === 401 && this.onUnauthorized) {
+          try {
+            this.onUnauthorized(clientError);
+          } catch {
+            // Ignore callback error
+          }
+        }
+        throw clientError;
       }
 
       return responseData as T;
