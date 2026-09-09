@@ -7,32 +7,6 @@
     <meta name="description" content="Nền tảng Khảo Thí & Thi Trắc Nghiệm - Kiến trúc Microservices (Question, Assessment, Exam, Attempt, Taxonomy, Auth) với API Gateway Port 3000" />
     <meta property="og:title" content="Quiz Core - Hệ Thống Thi Trắc Nghiệm" />
     <meta property="og:description" content="Nền tảng Khảo Thí & Thi Trắc Nghiệm - Kiến trúc Microservices (Question, Assessment, Exam, Attempt, Taxonomy, Auth) với API Gateway Port 3000" />
-    <script>
-      // Auto-validate and purge expired session tokens before React mounts
-      (function() {
-        try {
-          var key = 'platform_auth_session';
-          var raw = localStorage.getItem(key);
-          if (raw) {
-            var data = JSON.parse(raw);
-            var token = data && data.tokens && data.tokens.accessToken;
-            if (!token || typeof token !== 'string') {
-              localStorage.removeItem(key);
-            } else {
-              var parts = token.split('.');
-              if (parts.length === 3) {
-                var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-                if (payload && payload.exp && (Date.now() >= payload.exp * 1000 - 5000)) {
-                  localStorage.removeItem(key);
-                }
-              }
-            }
-          }
-        } catch (_) {
-          try { localStorage.removeItem('platform_auth_session'); } catch (_) {}
-        }
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>

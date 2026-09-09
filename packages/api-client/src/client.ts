@@ -156,24 +156,11 @@ export class ApiClient {
           responseData?.error ||
           `Request failed with status ${response.status}: ${response.statusText}`;
         const clientError = new ApiClientError(errorMessage, response.status, responseData);
-        if (response.status === 401) {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            try {
-              const hadSession = !!window.localStorage.getItem('platform_auth_session');
-              if (hadSession) {
-                window.localStorage.removeItem('platform_auth_session');
-                window.dispatchEvent(new CustomEvent('platform:unauthorized', { detail: clientError }));
-              }
-            } catch {
-              // Ignore browser storage error
-            }
-          }
-          if (this.onUnauthorized) {
-            try {
-              this.onUnauthorized(clientError);
-            } catch {
-              // Ignore callback error
-            }
+        if (response.status === 401 && this.onUnauthorized) {
+          try {
+            this.onUnauthorized(clientError);
+          } catch {
+            // Ignore callback error
           }
         }
         throw clientError;
