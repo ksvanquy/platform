@@ -20,6 +20,8 @@ interface QuizItem {
   description?: string;
   status: string;
   isPublic?: boolean;
+  durationMinutes?: number;
+  questionsCount?: number;
   primaryNodeId?: string | null;
   gradeNodeId?: string | null;
   currentPublishedVersionId?: string;
@@ -90,10 +92,10 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
   }, [quizzes, selectedQuizId]);
 
   const currentVersion = quizDetails?.currentVersion;
-  const durationMinutes = currentVersion?.durationMinutes || 15;
-  const passingScore = currentVersion?.passingScore || 5;
-  const totalQuestions = currentVersion?.questions?.length || 3;
-  const maxAttempts = currentVersion?.maxAttempts || 3;
+  const durationMinutes = quizDetails?.durationMinutes || selectedQuiz?.durationMinutes || currentVersion?.durationMinutes || 45;
+  const passingScore = quizDetails?.passingScore || currentVersion?.passingScore || 5;
+  const totalQuestions = quizDetails?.questionsCount || selectedQuiz?.questionsCount || currentVersion?.questions?.length || 10;
+  const maxAttempts = quizDetails?.maxAttempts || currentVersion?.maxAttempts || 3;
 
   const handleStartClick = () => {
     if (selectedQuiz) {

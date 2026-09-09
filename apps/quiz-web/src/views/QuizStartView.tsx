@@ -140,37 +140,39 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
     }
   };
 
-  // 2. Fetch all published quizzes and exams
+  // 2. Fetch all published exams
   const fetchQuizzes = useCallback(async () => {
     setLoadingQuizzes(true);
     try {
-      const [quizzes, exams] = await Promise.all([
-        quizApi.listQuizzes(),
-        quizApi.listExams(),
-      ]);
+      const exams = await quizApi.listExams();
 
       const formattedExams = (exams || []).map((e: any) => ({
         id: e.id,
         code: e.code,
-        title: `⚡ [Kỳ Thi] ${e.title}`,
+        title: e.title,
+        description: `Kỳ thi ${e.code} (${e.durationMinutes || 45} phút)`,
         durationMinutes: e.durationMinutes || 45,
         isExam: true,
+        isPublic: e.isPublished || e.status === 'READY' || e.status === 'ACTIVE',
+        questionsCount: e.variants?.[0]?.questionCount || 10,
         primaryNodeId: e.assessment?.primaryTopicNodeId,
         gradeNodeId: e.assessment?.gradeNodeId,
       }));
 
-      const combined = [...quizzes, ...formattedExams];
-      setAllQuizzes(combined);
-      if (combined.length > 0 && !selectedQuizId) {
-        setSelectedQuizId(combined[0].id);
+      setAllQuizzes(formattedExams);
+      if (formattedExams.length > 0) {
+        setSelectedQuizId((prev) => {
+          const exists = formattedExams.some((item) => item.id === prev);
+          return exists ? prev : formattedExams[0].id;
+        });
       }
     } catch (err) {
-      console.warn('Could not fetch quizzes or exams:', err);
+      console.warn('Could not fetch exams:', err);
       setAllQuizzes([]);
     } finally {
       setLoadingQuizzes(false);
     }
-  }, [selectedQuizId]);
+  }, []);
 
   // 3. Fetch details for selected quiz
   useEffect(() => {

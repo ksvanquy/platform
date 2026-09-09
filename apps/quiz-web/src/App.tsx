@@ -10,7 +10,13 @@ import type { UserProfile } from '@platform/auth-client';
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(() => authClient.getUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => authClient.isAuthenticated());
-  const [defaultQuizId] = useState<string>('quiz_demo');
+  const [defaultQuizId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('quizId') || params.get('examId') || '';
+    }
+    return '';
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
