@@ -211,7 +211,10 @@ export class ExamSnapshot {
     return {
       variantCode: this.variantCode,
       contentHash: this.contentHash,
-      questionCount: this.sanitizedManifest.totalQuestions,
+      questionCount:
+        this.sanitizedManifest?.totalQuestions ??
+        this.sanitizedManifest?.questions?.length ??
+        0,
     };
   }
 }

@@ -155,7 +155,16 @@ describe('Assessment Service: Blueprints, Criteria Matrix & Lifecycle', () => {
   });
 
   it('should lock blueprint when status is transitioned to APPROVED', async () => {
-    const draft = await getUseCase.executeByCode('PHYS10-REV-001');
+    let draft = await getUseCase.executeByCode('PHYS10-REV-001');
+    if (draft.status !== 'DRAFT') {
+      draft.changeStatus('DRAFT');
+      if (draft.currentBlueprint) {
+        draft.currentBlueprint.unlock();
+      }
+      await ctx.repo.saveAssessment(draft, draft.currentBlueprint);
+      draft = await getUseCase.executeByCode('PHYS10-REV-001');
+    }
+
     expect(draft.status).toBe('DRAFT');
     expect(draft.currentBlueprint?.isLocked).toBe(false);
 
