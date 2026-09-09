@@ -142,9 +142,10 @@ export class SessionManager {
           return { tokens: null, user: null, principal: null, expiresAt: null };
         }
 
-        // Nếu token đã hết hạn (kèm buffer 5 giây) -> tự động dọn sạch
+        // Nếu token đã hết hạn và không có refresh token -> tự động dọn sạch
         const expirationTime = parsed.expiresAt ?? (decoded.exp ? decoded.exp * 1000 : null);
-        if (expirationTime && Date.now() >= expirationTime - 5000) {
+        const hasRefreshToken = Boolean(parsed.tokens?.refreshToken);
+        if (expirationTime && Date.now() >= expirationTime - 5000 && !hasRefreshToken) {
           this.storage.removeItem(AUTH_STORAGE_KEY);
           return { tokens: null, user: null, principal: null, expiresAt: null };
         }
@@ -246,7 +247,11 @@ export class SessionManager {
   }
 
   isAuthenticated(): boolean {
-    return !!this.getAccessToken() && !this.isExpired();
+    if (this.getAccessToken() && !this.isExpired()) {
+      return true;
+    }
+    // Nếu Access Token hết hạn nhưng vẫn còn Refresh Token hợp lệ thì phiên vẫn còn hiệu lực (sẽ auto-refresh khi gọi API)
+    return Boolean(this.getRefreshToken());
   }
 
   isExpired(): boolean {

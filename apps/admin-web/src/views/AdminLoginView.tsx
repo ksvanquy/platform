@@ -72,12 +72,24 @@ export const AdminLoginView: React.FC<AdminLoginViewProps> = ({ onLoginSuccess }
           email: targetEmail.trim(),
           password: targetPassword.trim(),
         });
+        const isStaff = response.user?.roles?.some((r: string) => r === 'ADMIN' || r === 'INSTRUCTOR' || r === 'SUPER_ADMIN');
+        if (!isStaff) {
+          await authClient.logout();
+          setErrorMessage('Chỉ tài khoản Quản trị viên hoặc Giảng viên mới có quyền truy cập cổng này.');
+          return;
+        }
         onLoginSuccess(response.user);
       } else {
         const response = await authClient.login({
           email: targetEmail.trim(),
           password: targetPassword.trim(),
         });
+        const isStaff = response.user?.roles?.some((r: string) => r === 'ADMIN' || r === 'INSTRUCTOR' || r === 'SUPER_ADMIN');
+        if (!isStaff) {
+          await authClient.logout();
+          setErrorMessage('Chỉ tài khoản Quản trị viên hoặc Giảng viên mới có quyền truy cập cổng này.');
+          return;
+        }
         onLoginSuccess(response.user);
       }
     } catch (err: any) {

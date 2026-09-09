@@ -236,18 +236,16 @@ export class TokenService {
     const refreshToken = crypto.randomBytes(32).toString('hex');
     const refreshExpiresAt = new Date(Date.now() + refreshExpiresIn * 1000);
 
-    if (this.tokenStorage || isAuthDbConfigured()) {
-      try {
-        const storage = this.getTokenStorage();
-        const saveResult = storage.saveRefreshToken(refreshToken, payload.sub, refreshExpiresAt, familyId);
-        if (saveResult && typeof (saveResult as any).catch === 'function') {
-          (saveResult as Promise<void>).catch((err) => {
-            console.error('Failed to persist refresh token to storage:', err);
-          });
-        }
-      } catch (err) {
-        console.error('Failed to get token storage:', err);
+    try {
+      const storage = this.getTokenStorage();
+      const saveResult = storage.saveRefreshToken(refreshToken, payload.sub, refreshExpiresAt, familyId);
+      if (saveResult && typeof (saveResult as any).catch === 'function') {
+        (saveResult as Promise<void>).catch((err) => {
+          console.error('Failed to persist refresh token to storage:', err);
+        });
       }
+    } catch (err) {
+      console.error('Failed to persist refresh token to storage:', err);
     }
 
     return {

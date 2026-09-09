@@ -31,7 +31,9 @@ export const App: React.FC = () => {
     setUser(null);
   };
 
-  if (!isAuthenticated || !user) {
+  const isStaff = user?.roles?.some((r: string) => r === 'ADMIN' || r === 'INSTRUCTOR' || r === 'SUPER_ADMIN');
+
+  if (!isAuthenticated || !user || !isStaff) {
     return (
       <AdminLoginView
         onLoginSuccess={(loggedInUser) => {
