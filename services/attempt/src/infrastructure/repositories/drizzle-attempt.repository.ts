@@ -1,4 +1,4 @@
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, lte, isNotNull } from 'drizzle-orm';
 import { getAttemptDb } from '../db/connection.js';
 import { attempts, attemptEvents } from '../db/schema.js';
 import { Attempt } from '../../domain/entities/attempt.entity.js';
@@ -146,8 +146,8 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
       .where(
         and(
           eq(attempts.status, 'IN_PROGRESS'),
-          sql`${attempts.deadline} IS NOT NULL`,
-          sql`${attempts.deadline} <= ${thresholdDate}`
+          isNotNull(attempts.deadline),
+          lte(attempts.deadline, thresholdDate)
         )
       );
 
