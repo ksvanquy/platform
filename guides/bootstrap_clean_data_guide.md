@@ -39,7 +39,10 @@ Hệ thống Khảo thí trực tuyến đã được bóc tách toàn diện sa
    - **Question Bank Service**: Cung cấp ngân hàng câu hỏi chuẩn Bloom taxonomy gắn với các node chủ đề đã tạo.
    - **Assessment Service**: Xây dựng đề cương khảo thí (Blueprint) và ma trận tiêu chí phân bổ câu hỏi.
    - **Exam Engine Service**: Vận hành bộ giải ma trận `MatrixSolver`, tổng hợp câu hỏi từ Question Bank thành đề thi chính thức (`EXM_TOAN10_HK1`) kèm 4 mã đề hoán vị bất biến (101, 102, 103, 104).
-   - **Attempt Service**: Khởi tạo phiên làm bài mẫu (Demo Graded Attempt) gắn với đề thi thực tế để kiểm chứng luồng chấm điểm và nhật ký telemetry audit.
+3. **Tách Biệt Tuyệt Đối Giữa Runtime Dev và Seeding**:
+   - Khi chạy server phát triển (`pnpm run dev`, `pnpm run dev:gateway`, `pnpm start`), hệ thống **chỉ kiểm tra cấu trúc schema / chạy migration** để đảm bảo bảng tồn tại, **hoàn toàn KHÔNG tự động chạy seed**.
+   - Điều này ngăn ngừa việc vô tình ghi đè dữ liệu, xung đột bản ghi hoặc làm chậm quá trình khởi động server trong chu trình phát triển.
+   - Việc nạp dữ liệu mẫu sạch **CHỈ diễn ra duy nhất khi lập trình viên chủ động kích hoạt script `pnpm seed:all`** (`scripts/bootstrap-clean-data.ts`).
 
 ---
 

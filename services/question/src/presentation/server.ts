@@ -4,7 +4,6 @@ import express, { Express, Request, Response } from 'express';
 import { createQuestionRouter } from './routes/v1-questions.routes.js';
 import { loadEnvIfAvailable, isQuestionDbConfigured } from '../infrastructure/db/connection.js';
 import { runQuestionMigrations } from '../infrastructure/db/migrate.js';
-import { seedQuestionDatabase } from '../infrastructure/db/seed.js';
 
 loadEnvIfAvailable();
 
@@ -43,7 +42,6 @@ if (isDirectRun) {
 
   if (isQuestionDbConfigured()) {
     runQuestionMigrations()
-      .then(() => seedQuestionDatabase())
       .then(() => {
         app.listen(PORT, () => {
           console.log(`🚀 Question Service running on http://localhost:${PORT}`);

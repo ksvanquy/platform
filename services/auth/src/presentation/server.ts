@@ -88,11 +88,9 @@ if (isDirectRun) {
     if (isAuthDbConfigured()) {
       try {
         const { runAuthMigrations } = await import('../infrastructure/db/migrate.js');
-        const { seedAuthDb } = await import('../infrastructure/db/seed.js');
         console.log('🔄 [auth-service] Running schema migrations...');
         await runAuthMigrations();
-        await seedAuthDb();
-        console.log('✅ [auth-service] PostgreSQL database initialized & seeded.');
+        console.log('✅ [auth-service] PostgreSQL database schema verified.');
       } catch (err: any) {
         console.warn('⚠️ [auth-service] Auto-migration warning:', err?.message || err);
       }

@@ -4,7 +4,6 @@ import express, { Express, Request, Response } from 'express';
 import { createAssessmentRouter } from './routes/v1-assessments.routes.js';
 import { loadEnvIfAvailable, isAssessmentDbConfigured } from '../infrastructure/db/connection.js';
 import { runAssessmentMigrations } from '../infrastructure/db/migrate.js';
-import { seedAssessmentDatabase } from '../infrastructure/db/seed.js';
 
 loadEnvIfAvailable();
 
@@ -43,7 +42,6 @@ if (isDirectRun) {
 
   if (isAssessmentDbConfigured()) {
     runAssessmentMigrations()
-      .then(() => seedAssessmentDatabase())
       .then(() => {
         app.listen(PORT, () => {
           console.log(`🚀 Assessment Service running on http://localhost:${PORT}`);

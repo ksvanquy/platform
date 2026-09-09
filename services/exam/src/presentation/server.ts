@@ -4,7 +4,6 @@ import express, { Express, Request, Response } from 'express';
 import { createExamRouter } from './routes/v1-exams.routes.js';
 import { loadEnvIfAvailable, isExamDbConfigured } from '../infrastructure/db/connection.js';
 import { runExamMigrations } from '../infrastructure/db/migrate.js';
-import { seedExamDatabase } from '../infrastructure/db/seed.js';
 
 loadEnvIfAvailable();
 
@@ -43,7 +42,6 @@ if (isDirectRun) {
 
   if (isExamDbConfigured()) {
     runExamMigrations()
-      .then(() => seedExamDatabase())
       .then(() => {
         app.listen(PORT, () => {
           console.log(`🚀 Exam Service running on http://localhost:${PORT}`);

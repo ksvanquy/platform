@@ -8,7 +8,6 @@ import { DrizzleAttemptRepository } from '../infrastructure/repositories/drizzle
 import { DirectExamClientAdapter } from '../infrastructure/adapters/direct-exam-client.adapter.js';
 import { loadEnvIfAvailable, isAttemptDbConfigured } from '../infrastructure/db/connection.js';
 import { runAttemptMigrations } from '../infrastructure/db/migrate.js';
-import { seedAttemptDatabase } from '../infrastructure/db/seed.js';
 
 loadEnvIfAvailable();
 
@@ -71,7 +70,6 @@ if (isDirectRun) {
 
   if (isAttemptDbConfigured()) {
     runAttemptMigrations()
-      .then(() => seedAttemptDatabase())
       .then(() => {
         app.listen(PORT, () => {
           console.log(`🚀 Attempt Service running on http://localhost:${PORT}`);

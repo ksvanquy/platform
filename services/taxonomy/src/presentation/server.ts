@@ -153,11 +153,9 @@ if (isDirectRun) {
     if (isTaxonomyDbConfigured()) {
       try {
         const { runTaxonomyMigrations } = await import('../infrastructure/db/migrate.js');
-        const { seedTaxonomyDatabase } = await import('../infrastructure/db/seed.js');
         console.log('🔄 [taxonomy-service] Running schema migrations...');
         await runTaxonomyMigrations();
-        await seedTaxonomyDatabase();
-        console.log('✅ [taxonomy-service] PostgreSQL database initialized & seeded.');
+        console.log('✅ [taxonomy-service] PostgreSQL database schema verified.');
       } catch (err: any) {
         console.warn('⚠️ [taxonomy-service] Auto-migration warning:', err?.message || err);
       }

@@ -8,7 +8,6 @@ import {
   createAuthRouter,
   isAuthDbConfigured,
   runAuthMigrations,
-  seedAuthDb,
 } from '@platform/auth-service';
 import {
   createTaxonomyRouter,
@@ -16,7 +15,6 @@ import {
   DrizzleTaxonomyRepository,
   isTaxonomyDbConfigured,
   runTaxonomyMigrations,
-  seedTaxonomyDatabase,
 } from '@platform/taxonomy-service';
 import {
   createQuestionRouter,
@@ -24,7 +22,6 @@ import {
   DrizzleQuestionRepository,
   isQuestionDbConfigured,
   runQuestionMigrations,
-  seedQuestionDatabase,
 } from '@platform/question-service';
 import {
   createAssessmentRouter,
@@ -32,7 +29,6 @@ import {
   DrizzleAssessmentRepository,
   isAssessmentDbConfigured,
   runAssessmentMigrations,
-  seedAssessmentDatabase,
 } from '@platform/assessment-service';
 import {
   createExamRouter,
@@ -40,7 +36,6 @@ import {
   DrizzleExamRepository,
   isExamDbConfigured,
   runExamMigrations,
-  seedExamDatabase,
 } from '@platform/exam-service';
 import {
   createV1AttemptsRouter as createAttemptServiceRouter,
@@ -48,7 +43,6 @@ import {
   DrizzleAttemptRepository,
   isAttemptDbConfigured,
   runAttemptMigrations,
-  seedAttemptDatabase,
   AttemptExpirySweeperService as AttemptSweeperDaemon,
   createV1InternalRouter as createAttemptInternalRouter,
   DirectExamClientAdapter,
@@ -547,80 +541,74 @@ async function bootstrapDatabases(): Promise<void> {
     return;
   }
 
-  // 1. Auth DB auto-migration and seeding
+  // 1. Auth DB auto-migration
   if (isAuthDbConfigured()) {
     try {
       console.log('🔄 [auth_db] Running schema migrations...');
       await runAuthMigrations();
-      await seedAuthDb();
-      console.log('✅ [auth_db] PostgreSQL database initialized successfully.');
+      console.log('✅ [auth_db] PostgreSQL schema verified.');
     } catch (err: any) {
-      console.warn('⚠️ [auth_db] Database bootstrap warning:', err?.message || err);
+      console.warn('⚠️ [auth_db] Database migration warning:', err?.message || err);
     }
   }
 
-  // 2. Taxonomy DB auto-migration and seeding
+  // 2. Taxonomy DB auto-migration
   if (isTaxonomyDbConfigured()) {
     try {
       console.log('🔄 [taxonomy_db] Running schema migrations...');
       await runTaxonomyMigrations();
-      await seedTaxonomyDatabase();
-      console.log('✅ [taxonomy_db] PostgreSQL database initialized successfully.');
+      console.log('✅ [taxonomy_db] PostgreSQL schema verified.');
     } catch (err: any) {
-      console.warn('⚠️ [taxonomy_db] Database bootstrap warning:', err?.message || err);
+      console.warn('⚠️ [taxonomy_db] Database migration warning:', err?.message || err);
     }
   }
 
-  // 3. Question DB auto-migration and seeding
+  // 3. Question DB auto-migration
   if (isQuestionDbConfigured()) {
     try {
       console.log('🔄 [question_db] Running schema migrations...');
       await runQuestionMigrations();
-      await seedQuestionDatabase();
-      console.log('✅ [question_db] PostgreSQL database initialized successfully.');
+      console.log('✅ [question_db] PostgreSQL schema verified.');
     } catch (err: any) {
-      console.warn('⚠️ [question_db] Database bootstrap warning:', err?.message || err);
+      console.warn('⚠️ [question_db] Database migration warning:', err?.message || err);
     }
   }
 
-  // 4. Assessment DB auto-migration and seeding
+  // 4. Assessment DB auto-migration
   if (isAssessmentDbConfigured()) {
     try {
       console.log('🔄 [assessment_db] Running schema migrations...');
       await runAssessmentMigrations();
-      await seedAssessmentDatabase();
-      console.log('✅ [assessment_db] PostgreSQL database initialized successfully.');
+      console.log('✅ [assessment_db] PostgreSQL schema verified.');
     } catch (err: any) {
-      console.warn('⚠️ [assessment_db] Database bootstrap warning:', err?.message || err);
+      console.warn('⚠️ [assessment_db] Database migration warning:', err?.message || err);
     }
   }
 
-  // 5. Exam DB auto-migration and seeding
+  // 5. Exam DB auto-migration
   if (isExamDbConfigured()) {
     try {
       console.log('🔄 [exam_db] Running schema migrations...');
       await runExamMigrations();
-      await seedExamDatabase();
-      console.log('✅ [exam_db] PostgreSQL database initialized successfully.');
+      console.log('✅ [exam_db] PostgreSQL schema verified.');
     } catch (err: any) {
-      console.warn('⚠️ [exam_db] Database bootstrap warning:', err?.message || err);
+      console.warn('⚠️ [exam_db] Database migration warning:', err?.message || err);
     }
   }
 
-  // 6. Attempt DB auto-migration and seeding
+  // 6. Attempt DB auto-migration
   if (isAttemptDbConfigured()) {
     try {
       console.log('🔄 [attempt_db] Running schema migrations...');
       await runAttemptMigrations();
-      await seedAttemptDatabase();
-      console.log('✅ [attempt_db] PostgreSQL database initialized successfully.');
+      console.log('✅ [attempt_db] PostgreSQL schema verified.');
       const repo = getAttemptRepository();
       if (repo) {
         attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, new DirectExamClientAdapter());
         attemptSweeperDaemonInstance.start(30000);
       }
     } catch (err: any) {
-      console.warn('⚠️ [attempt_db] Database bootstrap warning:', err?.message || err);
+      console.warn('⚠️ [attempt_db] Database migration warning:', err?.message || err);
     }
   }
 }
