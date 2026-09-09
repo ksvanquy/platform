@@ -86,6 +86,14 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
     );
   }, [quizzes, searchTerm]);
 
+  // Identify the active educational stage root (Tiểu học, THCS, THPT) based on selectedGradeNodeId
+  const activeStageRoot = useMemo(() => {
+    if (!selectedGradeNodeId) return null;
+    const directRoot = gradeTree.find((r) => r.id === selectedGradeNodeId);
+    if (directRoot) return directRoot;
+    return gradeTree.find((r) => r.children?.some((c) => c.id === selectedGradeNodeId)) || null;
+  }, [gradeTree, selectedGradeNodeId]);
+
   // Find currently selected quiz
   const selectedQuiz = useMemo(() => {
     return quizzes.find((q) => q.id === selectedQuizId) || quizzes[0] || null;
@@ -195,8 +203,8 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
           )}
         </div>
 
-        {/* Grade Pills List */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-slate-800">
+        {/* Hàng 1 (Bên trên): [Tất cả khối] | [Tiểu học] [THCS] [THPT] */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-800">
           {/* All Grades Pill */}
           <button
             type="button"
@@ -210,9 +218,12 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
             <span>Tất cả khối lớp</span>
           </button>
 
+          {/* Divider */}
+          <div className="h-4 w-px bg-slate-700/70 shrink-0 mx-1" />
+
           {/* Education Stage Roots (Tiểu học, THCS, THPT) */}
           {gradeTree.map((root) => {
-            const isRootSelected = selectedGradeNodeId === root.id;
+            const isRootSelected = selectedGradeNodeId === root.id || activeStageRoot?.id === root.id;
             const count = gradeCounts[root.id] ?? 0;
             return (
               <button
@@ -240,44 +251,48 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
               </button>
             );
           })}
+        </div>
 
-          {/* Divider */}
-          <div className="h-4 w-px bg-slate-700 shrink-0 mx-1" />
+        {/* Hàng 2 (Hàng ngang bên dưới): Hiển thị [Lớp 10 (3)] [Lớp 11] [Lớp 12] các lớp tương ứng với khối */}
+        <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-1 scrollbar-thin scrollbar-thumb-slate-800 border-t border-slate-800/40">
+          <span className="text-[11px] font-semibold text-slate-400 shrink-0 mr-1">
+            {activeStageRoot ? `${activeStageRoot.name}:` : 'Khối lớp:'}
+          </span>
 
-          {/* Specific Grade Levels (Lớp 1..12) */}
-          {gradeTree
-            .flatMap((root) => root.children || [])
-            .map((gradeNode) => {
-              const isSelected = selectedGradeNodeId === gradeNode.id;
-              const count = gradeCounts[gradeNode.id] ?? 0;
-              return (
-                <button
-                  key={gradeNode.id}
-                  type="button"
-                  onClick={() => onSelectGradeNode && onSelectGradeNode(gradeNode.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center space-x-1 shrink-0 cursor-pointer ${
-                    isSelected
-                      ? 'bg-sky-500 text-slate-950 font-bold shadow-md shadow-sky-500/20 ring-1 ring-sky-400/50'
-                      : count > 0
-                      ? 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/50'
-                      : 'bg-slate-900/60 text-slate-500 hover:text-slate-300 border border-slate-800/80'
-                  }`}
-                >
-                  <span>{gradeNode.name}</span>
-                  {count > 0 && (
-                    <span
-                      className={`text-[10px] px-1 rounded font-mono font-bold leading-none ${
-                        isSelected
-                          ? 'bg-slate-950 text-sky-300'
-                          : 'bg-slate-700/80 text-slate-300'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {(activeStageRoot?.children && activeStageRoot.children.length > 0
+            ? activeStageRoot.children
+            : gradeTree.flatMap((root) => root.children || [])
+          ).map((gradeNode) => {
+            const isSelected = selectedGradeNodeId === gradeNode.id;
+            const count = gradeCounts[gradeNode.id] ?? 0;
+            return (
+              <button
+                key={gradeNode.id}
+                type="button"
+                onClick={() => onSelectGradeNode && onSelectGradeNode(gradeNode.id)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center space-x-1 shrink-0 cursor-pointer ${
+                  isSelected
+                    ? 'bg-sky-500 text-slate-950 font-bold shadow-md shadow-sky-500/20 ring-1 ring-sky-400/50'
+                    : count > 0
+                    ? 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/50'
+                    : 'bg-slate-900/60 text-slate-500 hover:text-slate-300 border border-slate-800/80'
+                }`}
+              >
+                <span>{gradeNode.name}</span>
+                {count > 0 && (
+                  <span
+                    className={`text-[10px] px-1 rounded font-mono font-bold leading-none ${
+                      isSelected
+                        ? 'bg-slate-950 text-sky-300'
+                        : 'bg-slate-700/80 text-slate-300'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Active 2D Filter Badges Bar (when either Topic or Grade is selected) */}

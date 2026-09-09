@@ -290,7 +290,9 @@ Tất cả API đều được truy cập hợp nhất qua **Port 3000** của A
 | `GET` | `/v1/questions/:idOrCode` | Public/AUTHOR | Xem chi tiết câu hỏi và phiên bản hiện hành |
 | `PUT` | `/v1/questions/:id` | INSTRUCTOR/ADMIN | Cập nhật nội dung câu hỏi (Tự động tạo Revision mới) |
 | `DELETE`| `/v1/questions/:id` | INSTRUCTOR/ADMIN | Xóa câu hỏi khỏi ngân hàng |
-| `GET` | `/v1/questions/:id/revisions` | INSTRUCTOR/ADMIN | Xem lịch sử các phiên bản sửa đổi của câu hỏi |
+| `GET` | `/v1/questions/:id/revisions` | INSTRUCTOR/ADMIN | Xem danh sách lịch sử các phiên bản sửa đổi của câu hỏi |
+| `GET` | `/v1/questions/:id/revisions/:revisionNumber` | INSTRUCTOR/ADMIN | Xem chi tiết một bản sửa đổi (revision) cụ thể của câu hỏi |
+| `POST` | `/v1/questions/:id/revisions` | INSTRUCTOR/ADMIN | Tạo thủ công một bản revision mới cho câu hỏi |
 
 ### 5. 📐 Assessment Blueprint APIs (`/v1/assessments`)
 | Method | Endpoint | Phân Quyền | Mô Tả |
@@ -331,7 +333,9 @@ Tất cả API đều được truy cập hợp nhất qua **Port 3000** của A
 | `GET` | `/v1/attempts/:id/events` | PROCTOR/ADMIN | Xem nhật ký kiểm toán chống gian lận của ca thi |
 | `POST` | `/v1/attempts/:id/submit` | Thí sinh | Nộp bài thi và kích hoạt động cơ chấm điểm tự động |
 | `GET` | `/v1/attempts/:id/result` | Thí sinh | Xem bảng điểm tổng hợp và giải thích chi tiết |
-| `POST` | `/v1/internal/attempts/sweep` | Internal Secret | Kích hoạt quét tức thì các ca thi quá hạn |
+| `GET` | `/v1/attempts/time` | Public | Lấy thời gian máy chủ dự phòng phục vụ thuật toán Cristian |
+| `POST` | `/v1/internal/attempts/sweep` | Internal / ADMIN | Kích hoạt quét tức thì các ca thi quá hạn nộp bài |
+| `GET` | `/v1/internal/attempts/sweeper-status` | Internal / ADMIN | Kiểm tra tình trạng hoạt động của Background Sweeper Daemon |
 
 ---
 
@@ -339,7 +343,7 @@ Tất cả API đều được truy cập hợp nhất qua **Port 3000** của A
 
 ### 1. Yêu Cầu Môi Trường
 - **Node.js**: >= 20.0.0
-- **npm** hoặc **pnpm** (Hỗ trợ đầy đủ cú pháp PNPM Workspace)
+- **pnpm**: >= 8.0.0 (hoặc pnpm 9+ / 10+), trình quản lý gói & PNPM Workspaces chính thức của toàn bộ dự án (`pnpm-workspace.yaml`)
 - **PostgreSQL**: Phiên bản >= 14 (Chạy cục bộ trên cổng `5432` hoặc trên Cloud)
 
 ### 2. Cấu Hình Biến Môi Trường (`.env`)
@@ -385,38 +389,45 @@ CREATE DATABASE exam_db;
 CREATE DATABASE attempt_db;
 ```
 
-### 4. Cài Đặt Dependencies & Khởi Tạo Dữ Liệu Sạch (Clean Bootstrap)
+### 4. Cài Đặt Dependencies & Khởi Tạo Dữ Liệu Sạch (Clean Bootstrap) Bằng PNPM
 ```bash
-# 1. Cài đặt toàn bộ dependencies
-npm install
+# 1. Cài đặt toàn bộ dependencies cho toàn bộ monorepo workspace
+pnpm install
 
 # 2. Khởi tạo toàn diện schema và nạp dữ liệu mẫu sạch qua Clean Bootstrap Script
-npm run seed:all
+pnpm seed:all
+# hoặc: pnpm run seed:all
 ```
 
-> **Lưu ý**: Lệnh `npm run seed:all` chạy script `scripts/bootstrap-clean-data.ts` theo đúng đường ống phụ thuộc nghiệp vụ:
+> **Lưu ý**: Lệnh `pnpm seed:all` chạy script `scripts/bootstrap-clean-data.ts` theo đúng đường ống phụ thuộc nghiệp vụ:
 > $$\text{Auth} \longrightarrow \text{Taxonomy} \longrightarrow \text{Question} \longrightarrow \text{Assessment} \longrightarrow \text{Exam} \longrightarrow \text{Attempt}$$
 > Nạp đầy đủ tài khoản người dùng, cây danh mục Toán/Khối 10, ngân hàng câu hỏi chuẩn Bloom, ma trận đề thi mẫu và phát sinh đề thi biến thể có sẵn để thí sinh trải nghiệm ngay lập tức.
 
-Nếu muốn chạy Migration hoặc Seed đơn lẻ cho từng dịch vụ:
+Nếu muốn chạy Migration hoặc Seed đơn lẻ cho từng dịch vụ bằng `pnpm`:
 ```bash
-npm run db:migrate:auth        && npm run db:seed:auth
-npm run db:migrate:taxonomy    && npm run db:seed:taxonomy
-npm run db:migrate:question    && npm run db:seed:question
-npm run db:migrate:assessment  && npm run db:seed:assessment
-npm run db:migrate:exam        && npm run db:seed:exam
-npm run db:migrate:attempt     && npm run db:seed:attempt
+pnpm db:migrate:auth        && pnpm db:seed:auth
+pnpm db:migrate:taxonomy    && pnpm db:seed:taxonomy
+pnpm db:migrate:question    && pnpm db:seed:question
+pnpm db:migrate:assessment  && pnpm db:seed:assessment
+pnpm db:migrate:exam        && pnpm db:seed:exam
+pnpm db:migrate:attempt     && pnpm db:seed:attempt
 ```
 
-### 5. Khởi Chạy Ứng Dụng
+> 💡 **Mẹo PNPM Filter**: Bạn cũng có thể thực thi lệnh trong một service cụ thể:
+> ```bash
+> pnpm --filter @platform/question-service db:migrate
+> pnpm --filter @platform/auth-service db:seed
+> ```
+
+### 5. Khởi Chạy Ứng Dụng Bằng PNPM
 
 #### 🌟 Chế Độ Unified Gateway (Khuyến nghị - Port 3000)
 Khởi chạy toàn bộ hệ thống (API Gateway, các Microservices và phục vụ 2 ứng dụng Frontend Web SPA) trên duy nhất cổng **3000**:
 
 ```bash
-npm run dev
+pnpm dev
 # hoặc
-npm start
+pnpm start
 ```
 
 Sau khi khởi chạy:
@@ -425,17 +436,44 @@ Sau khi khởi chạy:
 - 🩺 **Kiểm Tra Trạng Thái Hệ Thống (Health Check)**: `http://localhost:3000/health`
 - 📖 **Danh Mục API (Discovery)**: `http://localhost:3000/api`
 
-#### 🛠️ Chế Độ Standalone Dev (Phát triển từng dịch vụ riêng biệt)
+#### 🛠️ Chế Độ Standalone Dev (Phát triển từng dịch vụ riêng biệt với PNPM)
 ```bash
-npm run dev:gateway      # Khởi chạy API Gateway (Port 3000)
-npm run dev:auth         # Khởi chạy Auth Service độc lập (Port 3001)
-npm run dev:taxonomy     # Khởi chạy Taxonomy Service độc lập (Port 3002)
-npm run dev:question     # Khởi chạy Question Service độc lập (Port 3003)
-npm run dev:assessment   # Khởi chạy Assessment Service độc lập (Port 3004)
-npm run dev:exam         # Khởi chạy Exam Service độc lập (Port 3005)
-npm run dev:attempt      # Khởi chạy Attempt Service độc lập (Port 3006)
-npm run dev:web          # Khởi chạy Vite Dev Server cho Quiz Web
-npm run dev:admin        # Khởi chạy Vite Dev Server cho Admin Web
+pnpm dev:gateway      # Khởi chạy API Gateway (Port 3000)
+pnpm dev:auth         # Khởi chạy Auth Service độc lập (Port 3001)
+pnpm dev:taxonomy     # Khởi chạy Taxonomy Service độc lập (Port 3002)
+pnpm dev:question     # Khởi chạy Question Service độc lập (Port 3003)
+pnpm dev:assessment   # Khởi chạy Assessment Service độc lập (Port 3004)
+pnpm dev:exam         # Khởi chạy Exam Service độc lập (Port 3005)
+pnpm dev:attempt      # Khởi chạy Attempt Service độc lập (Port 3006)
+pnpm dev:web          # Khởi chạy Vite Dev Server cho Quiz Web
+pnpm dev:admin        # Khởi chạy Vite Dev Server cho Admin Web
+```
+
+#### 📦 Quản Lý Gói & Dependencies Trong PNPM Workspace
+```bash
+# Cài đặt package mới cho một service hoặc app cụ thể:
+pnpm --filter @platform/question-service add <package-name>
+
+# Cài đặt package mới cho toàn bộ root monorepo (devDependencies):
+pnpm add -w -D <package-name>
+
+# Biên dịch các shared packages nội bộ (contracts, auth-client, api-client):
+pnpm build:packages
+
+# Kiểm tra kiểu TypeScript & cú pháp toàn bộ hệ thống:
+pnpm lint
+
+# Biên dịch toàn bộ các packages và frontend apps cho Production:
+pnpm build
+```
+
+#### 🔄 Quản Lý Schema CSDL Với Drizzle ORM
+```bash
+# Tạo migration file khi thay đổi schema:
+pnpm db:generate:<service>  # ví dụ: pnpm db:generate:question
+
+# Đồng bộ trực tiếp cấu trúc bảng vào DB (Dành cho môi trường Dev):
+pnpm db:push:<service>      # ví dụ: pnpm db:push:attempt
 ```
 
 ---
@@ -445,7 +483,7 @@ npm run dev:admin        # Khởi chạy Vite Dev Server cho Admin Web
 Toàn bộ hệ thống được bảo vệ bởi hệ thống kiểm thử tự động toàn diện với **hơn 280+ bài kiểm thử (PASS 100%)** chạy trên nền **Vitest**:
 
 ```bash
-npm test
+pnpm test
 ```
 
 ### Danh Mục Các Bộ Kiểm Thử Chính:
@@ -472,13 +510,13 @@ npm test
 
 ## 👥 Tài Khoản Mẫu Mặc Định (Default Seed Accounts)
 
-Sau khi chạy `npm run seed:all` (hoặc nạp qua `npm run db:seed:auth`), các tài khoản sau sẵn sàng để đăng nhập và trải nghiệm:
+Sau khi chạy `pnpm seed:all` (hoặc nạp qua `pnpm db:seed:auth`), các tài khoản sau sẵn sàng để đăng nhập và trải nghiệm (mật khẩu được mã hóa an toàn bằng `scrypt`):
 
-| Vai Trò | Email | Mật Khẩu | Quyền Hạn & Chức Năng Khả Dụng |
+| Vai Trò (Role) | Email Đăng Nhập | Mật Khẩu | Quyền Hạn & Chức Năng Khả Dụng |
 |---|---|---|---|
-| **Quản Trị Viên (ADMIN)** | `admin@quiz.com` | `Admin@123456` | Toàn quyền quản trị hệ thống, quản lý Cây Tri Thức, quản lý RBAC, phân quyền và khóa tài khoản người dùng |
-| **Giảng Viên (INSTRUCTOR)** | `instructor@quiz.com` | `Instructor@123456` | Quản lý Ngân hàng câu hỏi (RichText/LaTeX), thiết lập Blueprint ma trận đề, sinh đề thi và quản lý biến thể mã đề |
-| **Thí Sinh (STUDENT)** | `student@quiz.com` | `Student@123456` | Duyệt danh mục môn học, tham gia làm bài thi trắc nghiệm trực tuyến, xem đồng hồ đếm ngược và kết quả chi tiết |
+| **Quản Trị Viên (ADMIN)** | `admin@quiz.com`<br>`admin@quiz.local` | `admin123` | Toàn quyền quản trị hệ thống, quản lý Cây Tri Thức, quản lý RBAC, phân quyền và khóa/kích hoạt tài khoản người dùng |
+| **Giảng Viên (INSTRUCTOR)** | `instructor@quiz.com`<br>`instructor@quiz.local` | `teacher123` | Soạn ngân hàng câu hỏi (RichText/LaTeX), thiết lập Blueprint ma trận đề, kích hoạt sinh đề thi và xuất bản đề thi |
+| **Thí Sinh (STUDENT)** | `student@quiz.com`<br>`student@quiz.local` | `student123` | Xem danh mục môn học, tham gia làm bài thi trắc nghiệm trực tuyến, xem đồng hồ đếm ngược và bảng điểm chi tiết |
 
 ---
 
