@@ -1,11 +1,9 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { resolvePermissionsForRoles } from '../../domain/role/role.js';
 import { ITokenStorage, TokenRecord } from '../../domain/token/token.storage.port.js';
 import { createTokenStorage } from '../persistence/token-storage.factory.js';
-import { isAuthDbConfigured } from '../db/connection.js';
 
 export interface TokenPayload {
   sub: string;

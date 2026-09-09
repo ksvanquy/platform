@@ -1,4 +1,4 @@
-export type AttemptStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'SUBMITTED' | 'EXPIRED';
+type AttemptStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'SUBMITTED' | 'EXPIRED';
 
 export interface QuizAttempt {
   id: string;

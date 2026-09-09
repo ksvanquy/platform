@@ -5,7 +5,7 @@ import { IUserRepository } from '../domain/user/user.repository.port.js';
 import { createUserRepository } from '../infrastructure/persistence/repository.factory.js';
 import { TokenService } from '../infrastructure/token/token.service.js';
 import { createAuthRouter } from './http/auth.router.js';
-import { isAuthDbConfigured, loadEnvIfAvailable } from '../infrastructure/db/connection.js';
+import { loadEnvIfAvailable } from '../infrastructure/db/connection.js';
 
 export interface AuthAppInstance {
   app: Express;

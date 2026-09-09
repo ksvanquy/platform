@@ -524,10 +524,9 @@ app.get('/', (req: Request, res: Response) => {
   res.status(200).json(apiDiscovery);
 });
 
-let server: any = null;
 if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   const PORT = Number(process.env.GATEWAY_PORT || process.env.PORT || 3000);
-  server = app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Platform API Gateway Server running on http://0.0.0.0:${PORT}`);
   });
 }

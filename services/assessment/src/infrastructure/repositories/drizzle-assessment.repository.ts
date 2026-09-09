@@ -1,4 +1,4 @@
-import { eq, and, sql, ilike, desc } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import type {
   AssessmentRepositoryPort,
   AssessmentFilterQuery,

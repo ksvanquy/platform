@@ -76,7 +76,7 @@ export function verifyJwtSignature(token: string, secret = JWT_SECRET, publicKey
   }
 }
 
-export function extractAuth(req: Request, _res: Response, next: NextFunction): void {
+export function extractAuth(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   let principal: Principal | undefined;
 
@@ -85,6 +85,15 @@ export function extractAuth(req: Request, _res: Response, next: NextFunction): v
     const payload = verifyJwtSignature(token);
 
     if (payload) {
+      if (payload.isActive === false) {
+        res.status(403).json({
+          success: false,
+          message: 'Account is deactivated. Access denied.',
+          errorCode: 'FORBIDDEN',
+        });
+        return;
+      }
+
       const roles = Array.isArray(payload.roles) ? payload.roles : ['STUDENT'];
       const domainPermissions = resolvePermissionsForRoles(roles);
       const tokenPermissions = Array.isArray(payload.permissions) ? payload.permissions : [];

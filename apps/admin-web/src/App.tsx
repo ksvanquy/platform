@@ -4,7 +4,7 @@ import { AdminLoginView } from './views/AdminLoginView.js';
 import { AdminDashboardView } from './views/AdminDashboardView.js';
 import type { UserProfile } from '@platform/auth-client';
 
-export const App: React.FC = () => {
+const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(() => authClient.getUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => authClient.isAuthenticated());
 

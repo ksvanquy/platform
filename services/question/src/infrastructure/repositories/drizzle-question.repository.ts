@@ -260,7 +260,7 @@ export class DrizzleQuestionRepository implements QuestionRepositoryPort {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = await this.db.delete(questions).where(eq(questions.id, id));
+    await this.db.delete(questions).where(eq(questions.id, id));
     return true;
   }
 }

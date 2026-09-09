@@ -6,7 +6,7 @@ export type QuestionType =
   | 'ORDERING'
   | 'NUMERIC';
 
-export interface QuestionOption {
+interface QuestionOption {
   readonly id: string;
   readonly content: string;
 }
@@ -22,7 +22,7 @@ export interface OrderItem {
   readonly content: string;
 }
 
-export interface QuestionMetadata {
+interface QuestionMetadata {
   readonly options?: readonly QuestionOption[];
   readonly pairs?: readonly MatchingPair[];
   readonly itemsToOrder?: readonly OrderItem[];
@@ -37,7 +37,7 @@ export interface QuestionDTO {
   readonly metadata?: QuestionMetadata;
 }
 
-export type SessionStatus =
+type SessionStatus =
   | 'NOT_STARTED'
   | 'IN_PROGRESS'
   | 'PAUSED'

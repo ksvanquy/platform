@@ -12,6 +12,7 @@
     "@platform/contracts": "workspace:*",
     "@platform/auth-client": "workspace:*",
     "@platform/api-client": "workspace:*",
+    "katex": "^0.16.21",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

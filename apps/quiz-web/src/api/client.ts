@@ -20,5 +20,3 @@ export const apiClient: ApiClient = createApiClient({
   baseUrl: (import.meta as any).env?.VITE_QUIZ_API_URL || '',
   getToken: () => authClient.getAccessToken(),
 });
-
-export { authClient as auth, apiClient as api };

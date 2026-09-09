@@ -30,7 +30,6 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
-    "@platform/api-client": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.1",
     "@types/supertest": "^7.2.1",

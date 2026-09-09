@@ -7,7 +7,7 @@ import { OrderingQuestion } from './OrderingQuestion.js';
 import { NumericQuestion } from './NumericQuestion.js';
 import { QuestionType } from '../../types/quiz.types.js';
 
-export const QUESTION_COMPONENTS: Record<QuestionType, React.FC<QuestionProps>> = {
+const QUESTION_COMPONENTS: Record<QuestionType, React.FC<QuestionProps>> = {
   SINGLE: SingleChoiceQuestion,
   MULTIPLE: MultipleChoiceQuestion,
   FILL_IN: FillInQuestion,

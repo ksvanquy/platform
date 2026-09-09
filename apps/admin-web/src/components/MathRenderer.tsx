@@ -14,9 +14,6 @@ export const MathRenderer: React.FC<MathRendererProps> = ({ content, className =
     // First, process $$ ... $$ (display mode)
     // Then process $ ... $ (inline mode)
     try {
-      const parts: { text: string; isMath: boolean; display: boolean }[] = [];
-      let remainder = content;
-
       // Find $$ ... $$
       const displayRegex = /\$\$([\s\S]+?)\$\$/g;
       let lastIndex = 0;
