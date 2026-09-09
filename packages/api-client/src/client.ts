@@ -159,8 +159,11 @@ export class ApiClient {
         if (response.status === 401) {
           if (typeof window !== 'undefined' && window.localStorage) {
             try {
-              window.localStorage.removeItem('platform_auth_session');
-              window.dispatchEvent(new CustomEvent('platform:unauthorized', { detail: clientError }));
+              const hadSession = !!window.localStorage.getItem('platform_auth_session');
+              if (hadSession) {
+                window.localStorage.removeItem('platform_auth_session');
+                window.dispatchEvent(new CustomEvent('platform:unauthorized', { detail: clientError }));
+              }
             } catch {
               // Ignore browser storage error
             }

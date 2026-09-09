@@ -4,39 +4,61 @@ import { AdminLoginView } from './views/AdminLoginView.js';
 import { AdminDashboardView } from './views/AdminDashboardView.js';
 import type { UserProfile } from '@platform/auth-client';
 
+type AuthState = 'INITIALIZING' | 'AUTHENTICATED' | 'UNAUTHENTICATED';
+
 export const App: React.FC = () => {
-  const [user, setUser] = useState<UserProfile | null>(() => authClient.getUser());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => authClient.isAuthenticated());
+  const [authState, setAuthState] = useState<AuthState>('INITIALIZING');
+  const [user, setUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    // Lắng nghe thay đổi trạng thái xác thực từ authClient
+    let isCancelled = false;
+
+    // 1. Lắng nghe thay đổi trạng thái xác thực từ authClient
     const unsubscribe = authClient.onAuthStateChange((isAuthed) => {
-      setIsAuthenticated(isAuthed);
-      setUser(authClient.getUser());
+      if (isCancelled) return;
+      if (isAuthed) {
+        setUser(authClient.getUser());
+        setAuthState('AUTHENTICATED');
+      } else {
+        setUser(null);
+        setAuthState('UNAUTHENTICATED');
+      }
     });
 
+    // 2. Lắng nghe sự kiện 401 Unauthorized toàn cục
     const handleUnauthorized = () => {
+      if (isCancelled) return;
       authClient.logout();
-      setIsAuthenticated(false);
       setUser(null);
+      setAuthState('UNAUTHENTICATED');
     };
     window.addEventListener('platform:unauthorized', handleUnauthorized);
 
-    // Nếu đã có token lưu trong session nhưng chưa có thông tin profile, gọi /me
-    if (authClient.isAuthenticated()) {
-      authClient
-        .me()
-        .then((profile) => {
-          setUser(profile);
-        })
-        .catch(() => {
-          authClient.logout();
-          setIsAuthenticated(false);
-          setUser(null);
-        });
+    // 3. Bootstrapping: Xác minh phiên đăng nhập TRƯỚC KHI mount dashboard
+    const token = authClient.getAccessToken();
+    if (!token) {
+      setAuthState('UNAUTHENTICATED');
+      return;
     }
 
+    authClient
+      .me()
+      .then((profile) => {
+        if (!isCancelled) {
+          setUser(profile);
+          setAuthState('AUTHENTICATED');
+        }
+      })
+      .catch(() => {
+        authClient.logout();
+        if (!isCancelled) {
+          setUser(null);
+          setAuthState('UNAUTHENTICATED');
+        }
+      });
+
     return () => {
+      isCancelled = true;
       unsubscribe();
       window.removeEventListener('platform:unauthorized', handleUnauthorized);
     };
@@ -47,23 +69,37 @@ export const App: React.FC = () => {
       const profile = await authClient.me();
       setUser(profile);
     } catch {
-      setIsAuthenticated(false);
+      authClient.logout();
       setUser(null);
+      setAuthState('UNAUTHENTICATED');
     }
   };
 
   const handleLogout = async () => {
     await authClient.logout();
-    setIsAuthenticated(false);
     setUser(null);
+    setAuthState('UNAUTHENTICATED');
   };
 
-  if (!isAuthenticated || !user) {
+  if (authState === 'INITIALIZING') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+          <p className="text-slate-400 text-xs tracking-wider uppercase font-semibold">
+            Đang xác thực quyền Quản trị...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === 'UNAUTHENTICATED' || !user) {
     return (
       <AdminLoginView
         onLoginSuccess={(loggedInUser) => {
           setUser(loggedInUser);
-          setIsAuthenticated(true);
+          setAuthState('AUTHENTICATED');
         }}
       />
     );
