@@ -1,5 +1,6 @@
 import { assessments, blueprints } from './schema.js';
 import { getAssessmentDb, isAssessmentDbConfigured } from './connection.js';
+export { isAssessmentDbConfigured };
 
 export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
   const db = dbInstance || getAssessmentDb();

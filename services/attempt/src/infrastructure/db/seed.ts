@@ -1,4 +1,5 @@
 import { getAttemptDb, isAttemptDbConfigured } from './connection.js';
+export { isAttemptDbConfigured };
 import { attempts, attemptEvents } from './schema.js';
 import { DirectExamClientAdapter } from '../adapters/direct-exam-client.adapter.js';
 

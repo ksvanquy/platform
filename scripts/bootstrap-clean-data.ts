@@ -4,12 +4,23 @@
  * Thứ tự khởi tạo: Auth -> Taxonomy -> Question -> Assessment -> Exam -> Attempt
  */
 
-import { seedAuthDb, isAuthDbConfigured } from '../services/auth/src/infrastructure/db/seed.js';
-import { seedTaxonomyDatabase, isTaxonomyDbConfigured } from '../services/taxonomy/src/infrastructure/db/seed.js';
-import { seedQuestionDatabase, isQuestionDbConfigured } from '../services/question/src/infrastructure/db/seed.js';
-import { seedAssessmentDatabase, isAssessmentDbConfigured } from '../services/assessment/src/infrastructure/db/seed.js';
-import { seedExamDatabase, isExamDbConfigured } from '../services/exam/src/infrastructure/db/seed.js';
-import { seedAttemptDatabase, isAttemptDbConfigured } from '../services/attempt/src/infrastructure/db/seed.js';
+import { seedAuthDb } from '../services/auth/src/infrastructure/db/seed.js';
+import { isAuthDbConfigured } from '../services/auth/src/infrastructure/db/connection.js';
+
+import { seedTaxonomyDatabase } from '../services/taxonomy/src/infrastructure/db/seed.js';
+import { isTaxonomyDbConfigured } from '../services/taxonomy/src/infrastructure/db/connection.js';
+
+import { seedQuestionDatabase } from '../services/question/src/infrastructure/db/seed.js';
+import { isQuestionDbConfigured } from '../services/question/src/infrastructure/db/connection.js';
+
+import { seedAssessmentDatabase } from '../services/assessment/src/infrastructure/db/seed.js';
+import { isAssessmentDbConfigured } from '../services/assessment/src/infrastructure/db/connection.js';
+
+import { seedExamDatabase } from '../services/exam/src/infrastructure/db/seed.js';
+import { isExamDbConfigured } from '../services/exam/src/infrastructure/db/connection.js';
+
+import { seedAttemptDatabase } from '../services/attempt/src/infrastructure/db/seed.js';
+import { isAttemptDbConfigured } from '../services/attempt/src/infrastructure/db/connection.js';
 
 async function bootstrapAllServices(): Promise<void> {
   console.log('================================================================');

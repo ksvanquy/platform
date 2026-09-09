@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getTaxonomyDb, closeTaxonomyDb, isTaxonomyDbConfigured } from './connection.js';
+export { isTaxonomyDbConfigured };
 import { taxonomies, taxonomyNodes, type NewTaxonomyRow, type NewTaxonomyNodeRow } from './schema.js';
 
 export const SEED_TAXONOMIES: NewTaxonomyRow[] = [

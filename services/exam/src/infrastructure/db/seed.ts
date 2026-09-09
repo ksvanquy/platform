@@ -1,4 +1,5 @@
 import { getExamDb, isExamDbConfigured } from './connection.js';
+export { isExamDbConfigured };
 import { exams } from './schema.js';
 import { DrizzleExamRepository } from '../repositories/drizzle-exam.repository.js';
 import { DirectQuestionClientAdapter } from '../adapters/direct-question-client.adapter.js';

@@ -1,5 +1,6 @@
 import { questions, questionRevisions } from './schema.js';
 import { getQuestionDb, isQuestionDbConfigured } from './connection.js';
+export { isQuestionDbConfigured };
 
 export async function seedQuestionDatabase(dbInstance?: any): Promise<void> {
   const db = dbInstance || getQuestionDb();

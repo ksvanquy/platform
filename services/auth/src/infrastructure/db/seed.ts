@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getAuthDb, closeAuthDb, isAuthDbConfigured } from './connection.js';
+export { isAuthDbConfigured };
 import { users, roles, permissions, rolePermissions, userRoles } from './schema.js';
 import { hashPassword } from '../crypto/password.js';
 import { DEFAULT_PERMISSIONS_DATA } from '../../domain/role/default-rbac.data.js';
