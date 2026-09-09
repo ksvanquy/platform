@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 import express, { Express, Request, Response } from 'express';
 import { createAssessmentRouter } from './routes/v1-assessments.routes.js';
 import { loadEnvIfAvailable, isAssessmentDbConfigured } from '../infrastructure/db/connection.js';
-import { runAssessmentMigrations } from '../infrastructure/db/migrate.js';
 
 loadEnvIfAvailable();
 
@@ -41,16 +40,9 @@ if (isDirectRun) {
   const app = createAssessmentServer();
 
   if (isAssessmentDbConfigured()) {
-    runAssessmentMigrations()
-      .then(() => {
-        app.listen(PORT, () => {
-          console.log(`🚀 Assessment Service running on http://localhost:${PORT}`);
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to initialize Assessment Service:', err);
-        process.exit(1);
-      });
+    app.listen(PORT, () => {
+      console.log(`🚀 Assessment Service running on http://localhost:${PORT}`);
+    });
   } else {
     console.error('❌ Assessment Service failed to start: ASSESSMENT_DATABASE_URL not configured.');
     process.exit(1);

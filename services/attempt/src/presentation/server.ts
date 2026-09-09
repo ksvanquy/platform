@@ -7,7 +7,6 @@ import { AttemptExpirySweeperService } from '../domain/services/attempt-expiry-s
 import { DrizzleAttemptRepository } from '../infrastructure/repositories/drizzle-attempt.repository.js';
 import { DirectExamClientAdapter } from '../infrastructure/adapters/direct-exam-client.adapter.js';
 import { loadEnvIfAvailable, isAttemptDbConfigured } from '../infrastructure/db/connection.js';
-import { runAttemptMigrations } from '../infrastructure/db/migrate.js';
 
 loadEnvIfAvailable();
 
@@ -69,16 +68,9 @@ if (isDirectRun) {
   const app = createAttemptServer();
 
   if (isAttemptDbConfigured()) {
-    runAttemptMigrations()
-      .then(() => {
-        app.listen(PORT, () => {
-          console.log(`🚀 Attempt Service running on http://localhost:${PORT}`);
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to initialize Attempt Service:', err);
-        process.exit(1);
-      });
+    app.listen(PORT, () => {
+      console.log(`🚀 Attempt Service running on http://localhost:${PORT}`);
+    });
   } else {
     console.error('❌ Attempt Service failed to start: ATTEMPT_DATABASE_URL not configured.');
     process.exit(1);

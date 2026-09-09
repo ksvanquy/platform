@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 import express, { Express, Request, Response } from 'express';
 import { createExamRouter } from './routes/v1-exams.routes.js';
 import { loadEnvIfAvailable, isExamDbConfigured } from '../infrastructure/db/connection.js';
-import { runExamMigrations } from '../infrastructure/db/migrate.js';
 
 loadEnvIfAvailable();
 
@@ -41,16 +40,9 @@ if (isDirectRun) {
   const app = createExamServer();
 
   if (isExamDbConfigured()) {
-    runExamMigrations()
-      .then(() => {
-        app.listen(PORT, () => {
-          console.log(`🚀 Exam Service running on http://localhost:${PORT}`);
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to initialize Exam Service:', err);
-        process.exit(1);
-      });
+    app.listen(PORT, () => {
+      console.log(`🚀 Exam Service running on http://localhost:${PORT}`);
+    });
   } else {
     console.error('❌ Exam Service failed to start: EXAM_DATABASE_URL not configured.');
     process.exit(1);

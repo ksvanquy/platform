@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 import express, { Express, Request, Response } from 'express';
 import { createQuestionRouter } from './routes/v1-questions.routes.js';
 import { loadEnvIfAvailable, isQuestionDbConfigured } from '../infrastructure/db/connection.js';
-import { runQuestionMigrations } from '../infrastructure/db/migrate.js';
 
 loadEnvIfAvailable();
 
@@ -41,16 +40,9 @@ if (isDirectRun) {
   const app = createQuestionServer();
 
   if (isQuestionDbConfigured()) {
-    runQuestionMigrations()
-      .then(() => {
-        app.listen(PORT, () => {
-          console.log(`🚀 Question Service running on http://localhost:${PORT}`);
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to initialize Question Service:', err);
-        process.exit(1);
-      });
+    app.listen(PORT, () => {
+      console.log(`🚀 Question Service running on http://localhost:${PORT}`);
+    });
   } else {
     console.error('❌ Question Service failed to start: QUESTION_DATABASE_URL not configured.');
     process.exit(1);

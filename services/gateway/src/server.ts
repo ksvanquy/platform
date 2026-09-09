@@ -7,42 +7,36 @@ import {
   TokenService,
   createAuthRouter,
   isAuthDbConfigured,
-  runAuthMigrations,
 } from '@platform/auth-service';
 import {
   createTaxonomyRouter,
   TaxonomyRepositoryPort,
   DrizzleTaxonomyRepository,
   isTaxonomyDbConfigured,
-  runTaxonomyMigrations,
 } from '@platform/taxonomy-service';
 import {
   createQuestionRouter,
   QuestionRepositoryPort,
   DrizzleQuestionRepository,
   isQuestionDbConfigured,
-  runQuestionMigrations,
 } from '@platform/question-service';
 import {
   createAssessmentRouter,
   AssessmentRepositoryPort,
   DrizzleAssessmentRepository,
   isAssessmentDbConfigured,
-  runAssessmentMigrations,
 } from '@platform/assessment-service';
 import {
   createExamRouter,
   ExamRepositoryPort,
   DrizzleExamRepository,
   isExamDbConfigured,
-  runExamMigrations,
 } from '@platform/exam-service';
 import {
   createV1AttemptsRouter as createAttemptServiceRouter,
   AttemptRepositoryPort as AttemptServiceRepositoryPort,
   DrizzleAttemptRepository,
   isAttemptDbConfigured,
-  runAttemptMigrations,
   AttemptExpirySweeperService as AttemptSweeperDaemon,
   createV1InternalRouter as createAttemptInternalRouter,
   DirectExamClientAdapter,
@@ -535,85 +529,18 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   });
 }
 
-// Auto-bootstrap PostgreSQL microservice databases when configured
-async function bootstrapDatabases(): Promise<void> {
-  if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
-    return;
-  }
-
-  // 1. Auth DB auto-migration
-  if (isAuthDbConfigured()) {
-    try {
-      console.log('🔄 [auth_db] Running schema migrations...');
-      await runAuthMigrations();
-      console.log('✅ [auth_db] PostgreSQL schema verified.');
-    } catch (err: any) {
-      console.warn('⚠️ [auth_db] Database migration warning:', err?.message || err);
+// Initialize attempt sweeper daemon if attempt DB is configured
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && isAttemptDbConfigured()) {
+  try {
+    const repo = getAttemptRepository();
+    if (repo) {
+      attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, new DirectExamClientAdapter());
+      attemptSweeperDaemonInstance.start(30000);
     }
-  }
-
-  // 2. Taxonomy DB auto-migration
-  if (isTaxonomyDbConfigured()) {
-    try {
-      console.log('🔄 [taxonomy_db] Running schema migrations...');
-      await runTaxonomyMigrations();
-      console.log('✅ [taxonomy_db] PostgreSQL schema verified.');
-    } catch (err: any) {
-      console.warn('⚠️ [taxonomy_db] Database migration warning:', err?.message || err);
-    }
-  }
-
-  // 3. Question DB auto-migration
-  if (isQuestionDbConfigured()) {
-    try {
-      console.log('🔄 [question_db] Running schema migrations...');
-      await runQuestionMigrations();
-      console.log('✅ [question_db] PostgreSQL schema verified.');
-    } catch (err: any) {
-      console.warn('⚠️ [question_db] Database migration warning:', err?.message || err);
-    }
-  }
-
-  // 4. Assessment DB auto-migration
-  if (isAssessmentDbConfigured()) {
-    try {
-      console.log('🔄 [assessment_db] Running schema migrations...');
-      await runAssessmentMigrations();
-      console.log('✅ [assessment_db] PostgreSQL schema verified.');
-    } catch (err: any) {
-      console.warn('⚠️ [assessment_db] Database migration warning:', err?.message || err);
-    }
-  }
-
-  // 5. Exam DB auto-migration
-  if (isExamDbConfigured()) {
-    try {
-      console.log('🔄 [exam_db] Running schema migrations...');
-      await runExamMigrations();
-      console.log('✅ [exam_db] PostgreSQL schema verified.');
-    } catch (err: any) {
-      console.warn('⚠️ [exam_db] Database migration warning:', err?.message || err);
-    }
-  }
-
-  // 6. Attempt DB auto-migration
-  if (isAttemptDbConfigured()) {
-    try {
-      console.log('🔄 [attempt_db] Running schema migrations...');
-      await runAttemptMigrations();
-      console.log('✅ [attempt_db] PostgreSQL schema verified.');
-      const repo = getAttemptRepository();
-      if (repo) {
-        attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, new DirectExamClientAdapter());
-        attemptSweeperDaemonInstance.start(30000);
-      }
-    } catch (err: any) {
-      console.warn('⚠️ [attempt_db] Database migration warning:', err?.message || err);
-    }
+  } catch (err: any) {
+    console.warn('⚠️ [attempt_db] Could not initialize sweeper daemon:', err?.message || err);
   }
 }
-
-bootstrapDatabases();
 
 export {
   app,

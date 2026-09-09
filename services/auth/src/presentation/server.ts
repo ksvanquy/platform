@@ -76,7 +76,7 @@ if (isDirectRun) {
   }
   const PORT = Number(rawAuthPort);
   const { app } = createAuthApp();
-  app.listen(PORT, '0.0.0.0', async () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`🔐 Auth Service is running on http://localhost:${PORT}`);
     console.log(`🔑 Endpoints:`);
     console.log(`  - POST /v1/auth/login`);
@@ -84,16 +84,5 @@ if (isDirectRun) {
     console.log(`  - POST /v1/auth/logout`);
     console.log(`  - GET  /v1/auth/me`);
     console.log(`  - GET  /.well-known/jwks.json`);
-
-    if (isAuthDbConfigured()) {
-      try {
-        const { runAuthMigrations } = await import('../infrastructure/db/migrate.js');
-        console.log('🔄 [auth-service] Running schema migrations...');
-        await runAuthMigrations();
-        console.log('✅ [auth-service] PostgreSQL database schema verified.');
-      } catch (err: any) {
-        console.warn('⚠️ [auth-service] Auto-migration warning:', err?.message || err);
-      }
-    }
   });
 }

@@ -145,21 +145,10 @@ if (isDirectRun) {
   }
   const port = Number(rawTaxonomyPort);
   const app = createTaxonomyServer(undefined, port);
-  app.listen(port, '0.0.0.0', async () => {
+  app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 [taxonomy-service] Standalone Server running on http://0.0.0.0:${port}`);
     console.log(`   Healthcheck: http://localhost:${port}/health`);
     console.log(`   Taxonomies API: http://localhost:${port}/v1/taxonomies`);
-
-    if (isTaxonomyDbConfigured()) {
-      try {
-        const { runTaxonomyMigrations } = await import('../infrastructure/db/migrate.js');
-        console.log('🔄 [taxonomy-service] Running schema migrations...');
-        await runTaxonomyMigrations();
-        console.log('✅ [taxonomy-service] PostgreSQL database schema verified.');
-      } catch (err: any) {
-        console.warn('⚠️ [taxonomy-service] Auto-migration warning:', err?.message || err);
-      }
-    }
   });
 }
 
