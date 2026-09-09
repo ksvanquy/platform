@@ -10,6 +10,8 @@ import type { UserProfile } from '@platform/auth-client';
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(() => authClient.getUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => authClient.isAuthenticated());
+  const [showLoginView, setShowLoginView] = useState<boolean>(false);
+  const [pendingQuizId, setPendingQuizId] = useState<string | null>(null);
   const [defaultQuizId] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -38,12 +40,23 @@ const App: React.FC = () => {
     start,
     setAnswer,
     submit,
-  } = useQuizSession(user?.id || 'candidate_01');
+  } = useQuizSession(user?.id || 'candidate_guest');
 
+  /**
+   * Bắt đầu ca thi:
+   * - Nếu chưa đăng nhập: Ghi nhớ pendingQuizId, mở màn hình đăng nhập
+   * - Nếu đã đăng nhập: Gọi start(quizId) và vào thẳng phòng thi
+   */
   const handleStart = async (quizId: string) => {
+    if (!isAuthenticated || !user) {
+      setPendingQuizId(quizId);
+      setShowLoginView(true);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await start(quizId, user?.id);
+      await start(quizId, user.id);
     } catch {
       // Error handled in hook
     } finally {
@@ -51,29 +64,43 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * Xử lý đăng nhập thành công:
+   * - Cập nhật thông tin user và trạng thái authenticated
+   * - Nếu có pendingQuizId (người dùng bấm thi trước đó), tự động kích hoạt ca thi ngay
+   */
+  const handleLoginSuccess = async (loggedInUser: UserProfile) => {
+    setUser(loggedInUser);
+    setIsAuthenticated(true);
+    setShowLoginView(false);
+
+    if (pendingQuizId) {
+      const targetQuizId = pendingQuizId;
+      setPendingQuizId(null);
+      setIsLoading(true);
+      try {
+        await start(targetQuizId, loggedInUser.id);
+      } catch {
+        // Error handled in hook
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   const handleLogout = async () => {
     await authClient.logout();
     setIsAuthenticated(false);
     setUser(null);
+    setShowLoginView(false);
+    setPendingQuizId(null);
   };
 
   const handleRestart = () => {
     window.location.reload();
   };
 
-  // 1. Chưa đăng nhập: Hiển thị màn hình Login
-  if (!isAuthenticated) {
-    return (
-      <LoginView
-        onLoginSuccess={(loggedInUser) => {
-          setUser(loggedInUser);
-          setIsAuthenticated(true);
-        }}
-      />
-    );
-  }
-
-  // 2. Màn hình kết quả sau khi nộp
+  // 1. Màn hình kết quả sau khi nộp
   if (result) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center">
@@ -86,7 +113,7 @@ const App: React.FC = () => {
     );
   }
 
-  // 3. Màn hình làm bài trực tiếp
+  // 2. Màn hình làm bài trực tiếp trong phòng thi
   if (session && session.status === 'IN_PROGRESS' && questions.length > 0) {
     return (
       <QuizActiveView
@@ -101,7 +128,25 @@ const App: React.FC = () => {
     );
   }
 
-  // 4. Màn hình khởi động / chọn bài thi sau khi đã đăng nhập
+  // 3. Màn hình Đăng nhập (khi người dùng chủ động bấm Đăng nhập hoặc khi bấm Bắt đầu thi mà chưa login)
+  if (showLoginView) {
+    return (
+      <LoginView
+        onLoginSuccess={handleLoginSuccess}
+        onCancel={() => {
+          setShowLoginView(false);
+          setPendingQuizId(null);
+        }}
+        bannerMessage={
+          pendingQuizId
+            ? 'Vui lòng đăng nhập để bắt đầu ca thi bạn đã chọn'
+            : null
+        }
+      />
+    );
+  }
+
+  // 4. Màn hình Khám phá & Chọn đề thi (Mặc định cho cả Khách vãng lai và Học viên đã đăng nhập)
   return (
     <QuizStartView
       quizId={defaultQuizId}
@@ -110,6 +155,7 @@ const App: React.FC = () => {
       errorMessage={errorMessage}
       onStart={handleStart}
       onLogout={handleLogout}
+      onLoginRequest={() => setShowLoginView(true)}
     />
   );
 };

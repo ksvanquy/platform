@@ -203,7 +203,7 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
           )}
         </div>
 
-        {/* Hàng 1 (Bên trên): [Tất cả khối] | [Tiểu học] [THCS] [THPT] */}
+        {/* Cấp học gốc: [Tất cả khối lớp] | [Tiểu học] [THCS] [THPT] */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-800">
           {/* All Grades Pill */}
           <button
@@ -253,12 +253,8 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
           })}
         </div>
 
-        {/* Hàng 2 (Hàng ngang bên dưới): Hiển thị [Lớp 10 (3)] [Lớp 11] [Lớp 12] các lớp tương ứng với khối */}
+        {/* Khối lớp con tương ứng (hiển thị trực tiếp các nút lớp, không in nhãn chữ thừa) */}
         <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-1 scrollbar-thin scrollbar-thumb-slate-800 border-t border-slate-800/40">
-          <span className="text-[11px] font-semibold text-slate-400 shrink-0 mr-1">
-            {activeStageRoot ? `${activeStageRoot.name}:` : 'Khối lớp:'}
-          </span>
-
           {(activeStageRoot?.children && activeStageRoot.children.length > 0
             ? activeStageRoot.children
             : gradeTree.flatMap((root) => root.children || [])
@@ -295,11 +291,9 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
           })}
         </div>
 
-        {/* Active 2D Filter Badges Bar (when either Topic or Grade is selected) */}
+        {/* Active Filter Chips Bar (Hiển thị trực quan các chip đang lọc, không cần nhãn thừa) */}
         {((selectedNodeName && selectedNodeName !== 'Tất cả bài thi') || selectedGradeNodeId) && (
           <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 flex-wrap text-xs">
-            <span className="text-slate-500 text-[11px] font-medium">Đang lọc theo:</span>
-
             {selectedNodeName && selectedNodeName !== 'Tất cả bài thi' && (
               <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-medium text-[11px]">
                 <TagIcon size={11} />
@@ -462,17 +456,22 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
                         </div>
                       </div>
 
-                      {/* Select Action Button */}
-                      <div className="shrink-0 flex flex-col items-end space-y-2">
+                      {/* Action Buttons: 1-Click Start + Select Info */}
+                      <div className="shrink-0 flex flex-col sm:flex-row items-end sm:items-center gap-2">
                         <button
                           type="button"
-                          className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
-                            isSelected
-                              ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
-                              : 'bg-slate-800 text-slate-300 group-hover:bg-slate-700 group-hover:text-slate-100 border border-slate-700/60'
-                          }`}
+                          id={`btn-start-quiz-${quiz.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectQuiz(quiz.id);
+                            onStartQuiz(quiz.id);
+                          }}
+                          disabled={isLoading}
+                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-slate-950 font-black text-xs shadow-md shadow-sky-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                          title="Bắt đầu ca thi ngay lập tức"
                         >
-                          {isSelected ? '✓ Đang chọn' : 'Chọn đề'}
+                          <PlayIcon size={12} className="text-slate-950 fill-slate-950" />
+                          <span>Bắt đầu ca thi</span>
                         </button>
                       </div>
                     </div>
@@ -542,13 +541,17 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
                   <div>
                     <span className="text-slate-500 block text-[11px]">Họ tên học viên:</span>
                     <span className="font-bold text-slate-200 text-xs">
-                      {user?.name || user?.email || 'Thí sinh'}
+                      {user ? (
+                        user.name || user.email || 'Thí sinh'
+                      ) : (
+                        <span className="text-amber-400/90 font-medium">Chưa đăng nhập (Khách)</span>
+                      )}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[11px]">Mã định danh:</span>
                     <span className="font-mono text-indigo-300 text-[11px] truncate block">
-                      {user?.id || 'candidate_01'}
+                      {user?.id || 'Khách vãng lai'}
                     </span>
                   </div>
                 </div>
@@ -648,7 +651,7 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
                 ) : (
                   <>
                     <PlayIcon size={16} className="text-slate-950 fill-slate-950" />
-                    <span>BẮT ĐẦU VÀO CA THI</span>
+                    <span>{user ? 'BẮT ĐẦU VÀO CA THI' : 'ĐĂNG NHẬP & BẮT ĐẦU THI'}</span>
                   </>
                 )}
               </button>

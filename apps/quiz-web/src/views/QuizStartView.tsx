@@ -15,6 +15,7 @@ interface QuizStartViewProps {
   errorMessage: string | null;
   onStart: (quizId: string) => void;
   onLogout: () => void;
+  onLoginRequest?: () => void;
 }
 
 export const QuizStartView: React.FC<QuizStartViewProps> = ({
@@ -24,6 +25,7 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   errorMessage,
   onStart,
   onLogout,
+  onLoginRequest,
 }) => {
   const [selectedQuizId, setSelectedQuizId] = useState<string>(quizId || '');
   const [allQuizzes, setAllQuizzes] = useState<any[]>([]);
@@ -337,6 +339,7 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
         user={user}
         onOpenProfile={() => setIsProfileOpen(true)}
         onLogout={onLogout}
+        onLoginRequest={onLoginRequest}
       />
 
       {/* Mobile Sidebar Toggle Button for small screens */}

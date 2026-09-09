@@ -11,9 +11,10 @@ interface TopBarProps {
   user: UserProfile | null;
   onOpenProfile: () => void;
   onLogout: () => void;
+  onLoginRequest?: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ user, onOpenProfile, onLogout }) => {
+export const TopBar: React.FC<TopBarProps> = ({ user, onOpenProfile, onLogout, onLoginRequest }) => {
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -78,110 +79,122 @@ export const TopBar: React.FC<TopBarProps> = ({ user, onOpenProfile, onLogout })
         </div>
       </div>
 
-      {/* Bên phải: Avatar nhỏ + Tên học viên + Badge STUDENT + Dropdown menu */}
+      {/* Bên phải: Nút Đăng nhập (nếu là Khách) HOẶC Avatar + Menu (nếu đã Đăng nhập) */}
       <div id="top-bar-right" className="flex items-center space-x-3" ref={dropdownRef}>
-        <div className="relative">
+        {!user ? (
           <button
-            id="user-menu-button"
+            id="btn-guest-login"
             type="button"
-            onClick={() => setDropdownOpen((prev) => !prev)}
-            aria-expanded={dropdownOpen}
-            aria-haspopup="true"
-            className="flex items-center space-x-2.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-800 border border-slate-700/60 hover:border-slate-600 transition-all text-left group focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+            onClick={onLoginRequest}
+            className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-slate-950 font-bold text-xs tracking-wide transition-all shadow-md shadow-sky-500/20 active:scale-95 cursor-pointer"
           >
-            {/* Avatar nhỏ */}
-            <div
-              id="student-avatar-small"
-              className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 text-white text-xs font-black flex items-center justify-center shadow-sm shrink-0"
-            >
-              {initials}
-            </div>
-
-            {/* Tên học viên & Badge */}
-            <div className="hidden md:flex flex-col">
-              <span id="student-name" className="text-xs font-bold text-slate-100 leading-tight truncate max-w-[140px]">
-                {studentName}
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono leading-tight truncate max-w-[140px]">
-                {user?.email || 'student@platform.local'}
-              </span>
-            </div>
-
-            {/* Badge STUDENT */}
-            <span
-              id="student-badge"
-              className="text-[10px] font-black tracking-wider px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/30 uppercase shrink-0"
-            >
-              STUDENT
-            </span>
-
-            {/* Dropdown indicator */}
-            <ChevronDownIcon
-              size={14}
-              className={`text-slate-400 group-hover:text-slate-200 transition-transform duration-200 ${
-                dropdownOpen ? 'rotate-180 text-sky-400' : ''
-              }`}
-            />
+            <span>🔐</span>
+            <span>Đăng nhập</span>
           </button>
-
-          {/* Dropdown menu */}
-          {dropdownOpen && (
-            <div
-              id="user-dropdown-menu"
-              className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
-              role="menu"
-              aria-orientation="vertical"
+        ) : (
+          <div className="relative">
+            <button
+              id="user-menu-button"
+              type="button"
+              onClick={() => setDropdownOpen((prev) => !prev)}
+              aria-expanded={dropdownOpen}
+              aria-haspopup="true"
+              className="flex items-center space-x-2.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-800 border border-slate-700/60 hover:border-slate-600 transition-all text-left group focus:outline-none focus:ring-2 focus:ring-sky-500/50"
             >
-              <div className="px-3 py-2.5 border-b border-slate-800/80 mb-1">
-                <div className="text-[11px] text-slate-400 font-medium">Đang đăng nhập với tư cách:</div>
-                <div className="font-bold text-slate-200 truncate mt-0.5">{studentName}</div>
-                <div className="text-[10px] text-slate-500 font-mono truncate">{user?.id}</div>
+              {/* Avatar nhỏ */}
+              <div
+                id="student-avatar-small"
+                className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 text-white text-xs font-black flex items-center justify-center shadow-sm shrink-0"
+              >
+                {initials}
               </div>
 
-              {/* Menu Item: Hồ sơ */}
-              <button
-                id="menu-item-profile"
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setDropdownOpen(false);
-                  onOpenProfile();
-                }}
-                className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-slate-100 hover:bg-slate-800/80 transition-colors text-left"
-              >
-                <div className="w-6 h-6 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0">
-                  <UserIcon size={14} />
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-slate-200">Hồ sơ</div>
-                  <div className="text-[10px] text-slate-400">Xem thông tin cá nhân & định danh</div>
-                </div>
-              </button>
+              {/* Tên học viên & Badge */}
+              <div className="hidden md:flex flex-col">
+                <span id="student-name" className="text-xs font-bold text-slate-100 leading-tight truncate max-w-[140px]">
+                  {studentName}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono leading-tight truncate max-w-[140px]">
+                  {user?.email || 'student@platform.local'}
+                </span>
+              </div>
 
-              <div className="my-1 border-t border-slate-800/80" />
-
-              {/* Menu Item: Đăng xuất */}
-              <button
-                id="menu-item-logout"
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setDropdownOpen(false);
-                  onLogout();
-                }}
-                className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors text-left"
+              {/* Badge STUDENT */}
+              <span
+                id="student-badge"
+                className="text-[10px] font-black tracking-wider px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/30 uppercase shrink-0"
               >
-                <div className="w-6 h-6 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center shrink-0">
-                  <LogOutIcon size={14} />
+                STUDENT
+              </span>
+
+              {/* Dropdown indicator */}
+              <ChevronDownIcon
+                size={14}
+                className={`text-slate-400 group-hover:text-slate-200 transition-transform duration-200 ${
+                  dropdownOpen ? 'rotate-180 text-sky-400' : ''
+                }`}
+              />
+            </button>
+
+            {/* Dropdown menu */}
+            {dropdownOpen && (
+              <div
+                id="user-dropdown-menu"
+                className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
+                role="menu"
+                aria-orientation="vertical"
+              >
+                <div className="px-3 py-2.5 border-b border-slate-800/80 mb-1">
+                  <div className="text-[11px] text-slate-400 font-medium">Đang đăng nhập với tư cách:</div>
+                  <div className="font-bold text-slate-200 truncate mt-0.5">{studentName}</div>
+                  <div className="text-[10px] text-slate-500 font-mono truncate">{user?.id}</div>
                 </div>
-                <div className="flex-1">
-                  <div className="font-semibold">Đăng xuất</div>
-                  <div className="text-[10px] text-rose-400/80">Thoát phiên đăng nhập</div>
-                </div>
-              </button>
-            </div>
-          )}
-        </div>
+
+                {/* Menu Item: Hồ sơ */}
+                <button
+                  id="menu-item-profile"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    onOpenProfile();
+                  }}
+                  className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-slate-100 hover:bg-slate-800/80 transition-colors text-left"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0">
+                    <UserIcon size={14} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-slate-200">Hồ sơ</div>
+                    <div className="text-[10px] text-slate-400">Xem thông tin cá nhân & định danh</div>
+                  </div>
+                </button>
+
+                <div className="my-1 border-t border-slate-800/80" />
+
+                {/* Menu Item: Đăng xuất */}
+                <button
+                  id="menu-item-logout"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors text-left"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center shrink-0">
+                    <LogOutIcon size={14} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold">Đăng xuất</div>
+                    <div className="text-[10px] text-rose-400/80">Thoát phiên đăng nhập</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

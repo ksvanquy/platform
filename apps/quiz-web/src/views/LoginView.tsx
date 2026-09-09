@@ -4,6 +4,8 @@ import type { UserProfile } from '@platform/auth-client';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserProfile) => void;
+  onCancel?: () => void;
+  bannerMessage?: string | null;
 }
 
 const DEMO_ACCOUNTS = [
@@ -30,7 +32,7 @@ const DEMO_ACCOUNTS = [
   },
 ];
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel, bannerMessage }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('student@quiz.local');
@@ -91,6 +93,29 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+        {/* Optional Back to Exploration Button */}
+        {onCancel && (
+          <div className="flex items-center justify-between -mt-2 -mb-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-xs text-slate-400 hover:text-sky-300 flex items-center space-x-1.5 transition-colors cursor-pointer"
+            >
+              <span>←</span>
+              <span>Quay lại khám phá đề thi</span>
+            </button>
+            <span className="text-[10px] text-slate-500 font-medium">Khách vãng lai</span>
+          </div>
+        )}
+
+        {/* Banner notification for Auth-on-start flow */}
+        {bannerMessage && (
+          <div className="p-3.5 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-sky-200 text-xs flex items-center space-x-2.5 animate-in fade-in duration-200">
+            <span className="text-base shrink-0">🚀</span>
+            <span className="font-semibold leading-relaxed">{bannerMessage}</span>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-sky-400 flex items-center justify-center mx-auto text-2xl font-bold shadow-lg shadow-sky-500/10">
