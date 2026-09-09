@@ -1,8 +1,8 @@
-# 🚀 Quiz Core: Assessment, Examination & Knowledge Taxonomy Platform
+# 🚀 Quiz Core: Microservices Assessment, Examination & Knowledge Taxonomy Platform
 
-Hệ thống khảo thí, đánh giá năng lực trực tuyến và phân loại đề thi theo **Cây Tri Thức (Knowledge Taxonomy)** thế hệ mới. Toàn bộ nền tảng được xây dựng theo chuẩn **Monorepo PNPM**, áp dụng kiến trúc **Hexagonal Architecture (Ports & Adapters)** kết hợp **Domain-Driven Design (DDD)** trên nền tảng **TypeScript**, cơ sở dữ liệu **PostgreSQL** với **Drizzle ORM** và frontend hiện đại với **React 19** + **Tailwind CSS**.
+Hệ thống Khảo thí Trực tuyến, Đánh giá Năng lực và Phân loại Đề thi theo **Cây Tri Thức (Knowledge Taxonomy)** thế hệ mới. Nền tảng được xây dựng theo chuẩn **Monorepo PNPM Workspace**, áp dụng triệt để kiến trúc **Hexagonal Architecture (Ports & Adapters)** kết hợp **Domain-Driven Design (DDD)** trên nền tảng **TypeScript**, cơ sở dữ liệu **PostgreSQL** với **Drizzle ORM** (mô hình **Database-per-Service** với 6 CSDL độc lập) và giao diện người dùng hiện đại với **React 19** + **Tailwind CSS**.
 
-Hệ thống được thiết kế theo mô hình **Unified HTTP Gateway (Port 3000)** tối ưu cho môi trường container/Cloud Run (chỉ duy nhất port 3000 được exposed ra bên ngoài), đồng thời từng dịch vụ lõi vẫn giữ nguyên tính tự chủ (autonomous microservices) có khả năng chạy độc lập trên các cổng riêng biệt.
+Sau khi hoàn tất kế hoạch phân rã nghiệp vụ khảo thí (**Quiz Decomposition Plan**), hệ thống đã bóc tách toàn diện khối xử lý nguyên khối cũ thành **6 Microservices độc lập**, vận hành thông qua tầng **API Gateway & Reverse Proxy (Port 3000)** thống nhất, tối ưu hóa tuyệt đối cho môi trường container và Cloud Run.
 
 ---
 
@@ -11,61 +11,97 @@ Hệ thống được thiết kế theo mô hình **Unified HTTP Gateway (Port 3
 ```text
 .
 ├── services/
-│   ├── quiz/                         # 🧠 Core Assessment & Delivery Engine (Port 3000 Unified Gateway)
-│   │   ├── drizzle/                  # Drizzle ORM Migrations & SQL DDL (Quizzes, Versions, Attempts)
+│   ├── gateway/                      # 🚪 API Gateway & Unified Reverse Proxy (Port 3000)
 │   │   ├── src/
-│   │   │   ├── domain/               # Pure Business Logic (Framework-Agnostic)
-│   │   │   │   ├── authoring/        # Sub-domain Quản lý & Soạn thảo đề thi (Quiz, Version, Policies)
-│   │   │   │   ├── delivery/         # Sub-domain Tổ chức thi (Attempt, Manifest, Sanitizer)
-│   │   │   │   ├── question-engine/  # Question Registry & Handlers (Single, Multi, True/False...)
-│   │   │   │   ├── scoring/          # Chiến lược chấm điểm (Exact, Partial, Negative)
-│   │   │   │   └── ports/            # Repository Interfaces & Secondary Ports
-│   │   │   ├── application/          # Use Cases (AuthoringUseCases, DeliveryUseCases, SweeperService)
-│   │   │   ├── infrastructure/       # Drizzle PostgreSQL Repositories & In-Process DI Factories
-│   │   │   └── presentation/         # RESTful Routes (/v1/quizzes, /v1/attempts, /v1/internal, /v1/time)
-│   │   └── tests/                    # 144+ Automated Tests (Domain, Security, Delivery, Timing, Sweeper)
+│   │   │   ├── middlewares/          # Auth Context & Normalized RBAC Middlewares
+│   │   │   ├── server.ts             # Gateway Entrypoint, Dynamic Routers & Static SPA Hosting
+│   │   │   └── index.ts
+│   │   └── tests/                    # 17+ Gateway Integration & Discovery Tests
+│   │
+│   ├── question/                     # 📚 Autonomous Question Bank Service (Port 3003)
+│   │   ├── drizzle/                  # Migrations (questions, question_revisions)
+│   │   ├── src/
+│   │   │   ├── domain/               # Question Entity, Revisions, Bloom Taxonomy, Ports
+│   │   │   ├── application/          # Use Cases (Create, Update, Revision, List, Filter)
+│   │   │   ├── infrastructure/       # Drizzle Repositories (PostgreSQL question_db)
+│   │   │   └── presentation/         # RESTful Routes (/v1/questions) & Standalone Server
+│   │   └── tests/                    # Tests CRUD, Bloom Difficulty Filter, KaTeX/Media
+│   │
+│   ├── assessment/                   # 📐 Autonomous Assessment Blueprint Service (Port 3004)
+│   │   ├── drizzle/                  # Migrations (assessments, blueprints)
+│   │   ├── src/
+│   │   │   ├── domain/               # Assessment Entity, Blueprint Matrix, Scoring Policies
+│   │   │   ├── application/          # Use Cases (Create, Blueprint Matrix, Lock, Lifecycle)
+│   │   │   ├── infrastructure/       # Drizzle Repositories (PostgreSQL assessment_db)
+│   │   │   └── presentation/         # RESTful Routes (/v1/assessments) & Standalone Server
+│   │   └── tests/                    # Tests Blueprint Matrix, Policy Validation, Persistence
+│   │
+│   ├── exam/                         # ⚙️ Autonomous Exam Engine Service (Port 3005)
+│   │   ├── drizzle/                  # Migrations (exams, exam_snapshots)
+│   │   ├── src/
+│   │   │   ├── domain/               # Exam Aggregate, MatrixSolver, PRNG Shuffler, Ports
+│   │   │   ├── application/          # Use Cases (GenerateExam, VariantGenerator, Snapshots)
+│   │   │   ├── infrastructure/       # Drizzle Repositories (PostgreSQL exam_db), Adapters
+│   │   │   └── presentation/         # RESTful Routes (/v1/exams) & Standalone Server
+│   │   └── tests/                    # Tests Matrix Solver, Mulberry32 PRNG, SHA-256 Freeze
+│   │
+│   ├── attempt/                      # ⏱️ Autonomous Candidate Attempt Engine (Port 3006)
+│   │   ├── drizzle/                  # Migrations (attempts, attempt_events)
+│   │   ├── src/
+│   │   │   ├── domain/               # Attempt Aggregate, FSM, Scoring Engine, Sweeper
+│   │   │   ├── application/          # Use Cases (Start, Autosave, Submit, AntiCheat Telemetry)
+│   │   │   ├── infrastructure/       # Drizzle Repositories (PostgreSQL attempt_db), Direct Adapters
+│   │   │   └── presentation/         # RESTful Routes (/v1/attempts, /v1/internal) & Server
+│   │   └── tests/                    # Tests Autosave (<25ms), FSM, Sweeper, Auto-Grading
 │   │
 │   ├── auth/                         # 🔐 Generic Identity Provider (IdP) Service (Port 3001)
-│   │   ├── drizzle/                  # Drizzle ORM Migrations (Normalized RBAC & Token Storage)
+│   │   ├── drizzle/                  # Migrations (Normalized RBAC: users, roles, permissions)
 │   │   ├── src/
-│   │   │   ├── domain/               # User Entity (Zero-Tenant Clean-Cut) & Role/Permission Aggregates
-│   │   │   ├── application/          # Use Cases (Register, Login, Profile, Refresh, Logout, RBAC Admin)
-│   │   │   ├── infrastructure/       # Drizzle PostgreSQL Repositories, RS256/HS256 JWKS Token Service
-│   │   │   └── presentation/         # RESTful Routes (/v1/auth, /v1/admin/rbac, /.well-known/jwks.json)
-│   │   └── tests/                    # 49 Automated Tests (Core Auth, RBAC, RS256 JWKS, Persistence)
+│   │   │   ├── domain/               # User Entity (Zero-Tenant), Role & Permission Aggregates
+│   │   │   ├── application/          # Use Cases (Register, Login, Profile, Refresh, Logout, RBAC)
+│   │   │   ├── infrastructure/       # Drizzle Repositories (PostgreSQL auth_db), RS256 JWKS
+│   │   │   └── presentation/         # RESTful Routes (/v1/auth, /.well-known/jwks.json)
+│   │   └── tests/                    # Tests Core Auth, RBAC Admin, RS256 JWKS, Persistence
 │   │
 │   └── taxonomy/                     # 🌳 Autonomous Knowledge Catalog & Cây Tri Thức (Port 3002)
-│       ├── drizzle/                  # Drizzle ORM Migrations (Taxonomies, Taxonomy Nodes)
+│       ├── drizzle/                  # Migrations (taxonomies, taxonomy_nodes)
 │       ├── src/
 │       │   ├── domain/               # Taxonomy & Node Entities, Cycle Prevention Errors, Ports
-│       │   ├── application/          # Use Cases (GetTaxonomyTree, ManageNode, ManageTaxonomy, List)
-│       │   ├── infrastructure/       # Drizzle Repositories (Adjacency List + Recursive CTEs)
-│       │   └── presentation/         # RESTful Routes (/v1/taxonomies, /v1/nodes) & Standalone Server
-│       └── tests/                    # 47 Automated Tests (Tree Hierarchy, Cycle Prevention, API)
+│       │   ├── application/          # Use Cases (GetTaxonomyTree, ManageNode, ManageTaxonomy)
+│       │   ├── infrastructure/       # Drizzle Repositories (PostgreSQL taxonomy_db, Recursive CTE)
+│       │   └── presentation/         # RESTful Routes (/v1/taxonomies, /v1/nodes) & Server
+│       └── tests/                    # Tests Tree Hierarchy O(N), Cycle Prevention, Grade Taxonomies
 │
 ├── packages/
-│   ├── contracts/                    # 📦 Universal DTOs, Enums, ApiResponse<T>, Principal & Contracts
-│   ├── api-client/                   # 📦 Unified Type-Safe SDK cho Quiz, Attempt & Taxonomy APIs
-│   ├── auth-client/                  # 📦 Auth SDK quản lý phiên đăng nhập, JWT tokens & User Session
-│   └── ui/                           # 📦 Shared Component Library & Theme Definitions
+│   ├── contracts/                    # 📦 Universal TypeScript DTOs, Enums, API Interfaces
+│   ├── api-client/                   # 📦 Type-Safe Client SDK cho toàn bộ Microservices
+│   ├── auth-client/                  # 📦 Auth SDK quản lý phiên đăng nhập, JWT tokens & Cookies
+│   └── ui/                           # 📦 Shared UI Component Library & Themes
 │
 ├── apps/
 │   ├── quiz-web/                     # 🎓 Web App Khảo thí cho Thí sinh (React 19 + Tailwind CSS + Vite)
 │   │   └── src/
 │   │       ├── components/dashboard/ # TaxonomyTreeSidebar, QuizContentArea, StudentProfileModal
 │   │       ├── components/runner/    # QuizHeader, QuizFooter, QuizTimer, QuestionPalette
-│   │       ├── components/questions/ # 6 dạng câu hỏi (Single, Multi, FillIn, Matching, Numeric, Ordering)
+│   │       ├── components/questions/ # 6 dạng thức câu hỏi (Single, Multi, FillIn, Matching, Numeric, Ordering)
 │   │       ├── components/results/   # ScoreSummaryCard, QuestionFeedbackList
 │   │       └── utils/                # TimeSyncManager (Cristian's Algorithm Server Drift Correction)
 │   │
-│   └── admin-web/                    # 🛠️ Web App Quản trị & Soạn thảo đề thi (React 19 + Tailwind CSS + Vite)
-│       └── src/views/                # TaxonomyManagementSection, QuizManagementSection, Dashboard
+│   └── admin-web/                    # 🛠️ Web App Quản trị & Khảo thí Giảng viên (React 19 + Tailwind CSS)
+│       └── src/views/                # QuestionManagement, AssessmentManagement, ExamManagement, TaxonomyManagement
 │
+├── scripts/
+│   └── bootstrap-clean-data.ts       # 🚀 Master Clean Bootstrap Script (Khởi tạo dữ liệu sạch 6 services)
 ├── guides/                           # 📖 Tài liệu hướng dẫn thiết lập & kết nối CSDL
 │   ├── auth_postgres_setup_guide.md
-│   └── quiz_postgres_setup_guide.md
+│   └── bootstrap_clean_data_guide.md
 ├── plan/                             # 📋 Kế hoạch kỹ thuật & Kiến trúc chuyên sâu
-│   └── taxonomy_services_plan.md
+│   ├── quiz_decomposition_plan.md    # Kế hoạch phân tách Quiz Service thành 4 Microservices (Hoàn thành)
+│   ├── grade_taxonomy_plan.md        # Kế hoạch tích hợp Khối Lớp vào Cây Tri Thức
+│   └── taxonomy_services_plan.md     # Kế hoạch kiến trúc Taxonomy Service
+├── tests/                            # 🧪 Kiểm thử Tích hợp Toàn diện (E2E & Load Concurrency)
+│   ├── e2e-quiz-decomposition.spec.ts# Toàn trình Authoring -> Exam -> Attempt -> Autosave -> Grading
+│   └── load-and-concurrency.spec.ts  # Kiểm thử tải cao autosave đồng thời & sequence anti-tamper
 ├── metadata.json                     # ⚙️ Metadata cấu hình ứng dụng AI Studio Build
 └── README.md
 ```
@@ -74,7 +110,7 @@ Hệ thống được thiết kế theo mô hình **Unified HTTP Gateway (Port 3
 
 ## 🌐 Mô Hình Kiến Trúc Hợp Nhất (Port 3000 Unified Gateway)
 
-Hệ thống được thiết kế theo kiến trúc **Unified HTTP Gateway** tại `services/quiz/src/presentation/server.ts` chạy trên **Port 3000**, thỏa mãn hoàn hảo ràng buộc cổng duy nhất của Google Cloud Run / Container:
+Hệ thống được thiết kế theo kiến trúc **Unified HTTP Gateway** tại `services/gateway/src/server.ts` lắng nghe trên **Port 3000** (cổng duy nhất được công khai trong môi trường Cloud Run / Container). Gateway đóng vai trò Reverse Proxy, đồng bộ đồng hồ máy chủ, bóc tách Auth Context và điều phối request trực tiếp tới các dịch vụ:
 
 ```text
                                   ┌──────────────────────────────────────────────────────────┐
@@ -85,241 +121,369 @@ Hệ thống được thiết kế theo kiến trúc **Unified HTTP Gateway** t�
                      │                                                                                     │
          [API Requests: /v1/*]                                                                    [Web SPA Static Hosting]
                      │                                                                                     │
-    ┌────────────────┴────────────────────────┐                                            ┌───────────────┴───────────────┐
-    │                                         │                                            │                               │
-    ▼                                         ▼                                            ▼                               ▼
-┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐    ┌───────────────────┐   ┌───────────────────┐
-│     AUTH ROUTER       │ │   TAXONOMY ROUTER     │ │  QUIZ & ATTEMPT CORE  │    │  ADMIN WEB SPA    │   │  QUIZ WEB SPA     │
-│  /v1/auth/*           │ │  /v1/taxonomies/*     │ │  /v1/quizzes/*        │    │  Route: /admin/*  │   │  Route: /*        │
-│  /.well-known/jwks    │ │  /v1/nodes/*          │ │  /v1/attempts/*       │    │  (apps/admin-web) │   │  (apps/quiz-web)  │
-│  (services/auth)      │ │  (services/taxonomy)  │ │  /v1/internal/*       │    └───────────────────┘   └───────────────────┘
-│                       │ │                       │ │  /v1/time             │
-│  Database: auth_db    │ │  Database: taxonomy_db│ │  Database: quiz_db    │
-│  (AUTH_DATABASE_URL)  │ │  (TAXONOMY_DB_URL)    │ │  (QUIZ_DATABASE_URL)  │
-└───────────────────────┘ └───────────────────────┘ └───────────────────────┘
+    ┌────────────────┴──────────────────────────────────────────────────────┐                      ┌───────────────┴───────────────┐
+    │                                                                       │                      │                               │
+    ▼                                                                       ▼                      ▼                               ▼
+┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────┐┌───────────────────┐ ┌───────────────────┐
+│     AUTH ROUTER       │ │   TAXONOMY ROUTER     │ │   QUESTION ROUTER     │ │ ASSESSMENT ROUTER ││  ADMIN WEB SPA    │ │  QUIZ WEB SPA     │
+│  /v1/auth/*           │ │  /v1/taxonomies/*     │ │  /v1/questions/*      │ │ /v1/assessments/* ││  Route: /admin/*  │ │  Route: /*        │
+│  /.well-known/jwks    │ │  /v1/nodes/*          │ │  (services/question)  │ │ (services/assess.)││  (apps/admin-web) │ │  (apps/quiz-web)  │
+│  (services/auth)      │ │  (services/taxonomy)  │ │  Database:            │ │ Database:         │└───────────────────┘ └───────────────────┘
+│  Database: auth_db    │ │  Database: taxonomy_db│ │    question_db        │ │   assessment_db   │
+└───────────────────────┘ └───────────────────────┘ └───────────────────────┘ └───────────────────┘
+    │                                                                       │
+    ▼                                                                       ▼
+┌───────────────────────┐ ┌───────────────────────┐ ┌─────────────────────────────────────────────┐
+│      EXAM ROUTER      │ │    ATTEMPT ROUTER     │ │   PRECISION CLOCK & HEALTHCHECK ROUTER      │
+│  /v1/exams/*          │ │  /v1/attempts/*       │ │   /v1/time (Cristian's Algorithm Target)    │
+│  (services/exam)      │ │  /v1/internal/*       │ │   /health  (6 Microservices DB Status)      │
+│  Database: exam_db    │ │  (services/attempt)   │ │   /api     (Discovery OpenAPI Contract)     │
+│                       │ │  Database: attempt_db │ │                                             │
+└───────────────────────┘ └───────────────────────┘ └─────────────────────────────────────────────┘
 ```
 
-> **Tính Tự Chủ (Autonomy)**: Mỗi dịch vụ (`services/auth` cổng 3001, `services/taxonomy` cổng 3002) đều sở hữu mã nguồn khởi chạy `startServer()` độc lập, schema Drizzle riêng biệt và bộ kiểm thử khép kín, sẵn sàng tách thành microservices độc lập khi scale hệ thống.
+> **Tính Tự Chủ (Service Autonomy)**: Từng microservice (`auth` 3001, `taxonomy` 3002, `question` 3003, `assessment` 3004, `exam` 3005, `attempt` 3006) đều sở hữu mã nguồn khởi chạy `server.ts` độc lập, schema Drizzle riêng biệt, connection pool tối ưu riêng và bộ kiểm thử khép kín, sẵn sàng chạy phân tán trên các container/cluster độc lập.
 
 ---
 
-## 🌟 Tính Năng & Điểm Nhấn Kỹ Thuật (Core Capabilities)
+## 🌟 Đặc Tả 6 Microservices Chuyên Biệt
 
-### 1. 🌳 Autonomous Knowledge Catalog & Cây Tri Thức (`services/taxonomy`)
-- **Phân loại đa cấp không giới hạn**: Hỗ trợ phân loại cây phân cấp (Topic, Subject, Grade...) và phân loại phẳng (Difficulty, Tag) trên chuẩn **Adjacency List**.
-- **PostgreSQL Recursive CTE**: Truy vấn toàn bộ cấu trúc cây lồng nhau (`nested tree`) hoặc lấy danh sách toàn bộ node con cháu (`descendant-ids`) với độ phức tạp tối ưu $O(N)$ trong 1 round-trip truy vấn.
-- **Thuật toán Chống Chu Trình (Cycle Prevention)**: Khi di chuyển vị trí node (`moveNode`), hệ thống kiểm tra và chặn tuyệt đối việc biến một node thành con của chính nó hoặc con của các node hậu duệ trong nhánh của nó.
-- **Breadcrumbs Navigation**: Tự động dựng đường dẫn từ root đến node hiện tại phục vụ hiển thị breadcrumb cho bài thi.
-- **Liên kết trực tiếp với đề thi**: Bảng `quizzes` lưu `primary_node_id`, cho phép thí sinh duyệt đề theo cây phân mục và lọc đề theo node cha (tự động bao gồm đề thuộc tất cả node con).
+### 1. 📊 Bảng So Sánh Đặc Tính Kỹ Thuật
 
-### 2. 🧠 Assessment & Delivery Core (`services/quiz`)
-- **Tách biệt Authoring và Delivery**:
-  - **Authoring Sub-domain**: Quản lý vòng đời bài thi `DRAFT` ➜ `REVIEW` ➜ `PUBLISHED` ➜ `ARCHIVED`. Mỗi lần xuất bản tạo một `QuizVersion` Snapshot bất biến, chống sai lệch kết quả khi sửa đề.
-  - **Delivery Sub-domain**: Khảo thí qua Aggregate Root `Attempt`. Cơ chế **AttemptManifest** đóng băng trật tự câu hỏi và thứ tự các đáp án đã xáo trộn riêng biệt cho từng thí sinh (reload trình duyệt không bị đổi đề).
-- **Zero-Trust Timing Defense (Thuật toán Cristian's Algorithm)**:
+| Microservice | Vai Trò Nghiệp Vụ Cốt Lõi | Đặc Tính Tải (Workload) | R/W Ratio | SLA / Latency | CSDL Độc Lập |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Auth Service** | Quản trị tài khoản, phát hành RS256 JWKS Token, phân quyền RBAC đa cấp | Bảo mật cao / Read-Mostly (Verify) | 90% Đọc / 10% Ghi | p95 < 50ms | `auth_db` |
+| **Taxonomy Service** | Cây tri thức đa cấp, Recursive CTE, chống chu trình (Cycle Prevention) | Read-Heavy (Duyệt cây, lọc bài) | 95% Đọc / 5% Ghi | p95 < 40ms | `taxonomy_db` |
+| **Question Bank** | Ngân hàng câu hỏi, KaTeX/LaTeX, Revisions, phân loại Bloom & Topic | Read-Heavy (Soạn thảo, tra cứu) | 85% Đọc / 15% Ghi | p95 < 80ms | `question_db` |
+| **Assessment Service**| Khung đề thi (Blueprint), ma trận tiêu chí Bloom, chính sách chấm điểm | Business Logic / Low-Write | 95% Đọc / 5% Ghi | p95 < 60ms | `assessment_db` |
+| **Exam Engine** | Sinh đề qua `MatrixSolver`, xáo trộn hạt giống (PRNG), đóng băng SHA-256 | **CPU-Bound / Heavy Compute** | 40% Đọc / 50% Tính / 10% Ghi | p95 < 300ms | `exam_db` |
+| **Attempt Engine** | Quản lý ca thi, autosave lũy tiến, telemetry chống gian lận, auto-grading | **Ultra High-Write & Low Latency** | 80% Ghi / 20% Đọc | **p99 < 25ms** | `attempt_db` |
+
+---
+
+### 2. Chi Tiết Tính Năng Từng Dịch Vụ
+
+#### 📚 Question Service (`@platform/question-service` - Port 3003)
+- **Item Bank Độc Lập**: Quản lý câu hỏi tập trung không phụ thuộc vào bất kỳ đề thi cụ thể nào.
+- **Đa Dạng Loại Câu Hỏi**: Single Choice, Multiple Choice, Fill-in-the-blank, Matching (Ghép đôi), Numeric (Số học), Ordering (Sắp xếp).
+- **Rich Content & Toán Học**: Hỗ trợ đầy đủ cú pháp KaTeX/LaTeX ($$...$$), định dạng Markdown, nhúng hình ảnh/video/audio assets.
+- **Lịch Sử Phiên Bản (Question Revisions)**: Mỗi lần cập nhật nội dung sẽ tự động tạo `question_revisions` mới với số hiệu tăng dần, đảm bảo các kỳ thi đã diễn ra trong quá khứ không bị sai lệch dữ liệu.
+- **Gắn Nhãn Đa Chiều**: Phân loại theo Khối lớp (`gradeNodeId`), Chủ đề (`topicNodeId`), và Thang đo tư duy Bloom (`REMEMBER`, `UNDERSTAND`, `APPLY`, `ANALYZE`).
+
+#### 📐 Assessment Service (`@platform/assessment-service` - Port 3004)
+- **Đặc Tả Ma Trận Đề Thi (Blueprint Matrix)**: Định nghĩa cấu trúc chuẩn cho đề thi (ví dụ: cần 20 câu Nhận biết, 15 câu Thông hiểu, 10 câu Vận dụng, 5 câu Vận dụng cao theo từng Node chuyên môn).
+- **Chính Sách Điểm Số Linh Hoạt (Scoring Policies)**:
+  - `STANDARD`: Đúng câu nào ăn trọn điểm câu đó.
+  - `PARTIAL`: Cho điểm từng phần đối với câu nhiều đáp án hoặc ghép đôi.
+  - `NEGATIVE`: Trừ điểm phạt khi chọn sai nhằm triệt tiêu hành vi đoán mò.
+- **Chính Sách Khảo Thí (Attempt Policies)**: Cấu hình thời lượng làm bài (`durationMinutes`), điểm chuẩn đạt (`passingPercentage`), số lần làm bài tối đa (`maxAttempts`).
+- **Khóa Bản Cương (Blueprint Locking)**: Cơ chế khóa ma trận sau khi phê duyệt để ngăn chặn sửa đổi ngoài ý muốn.
+
+#### ⚙️ Exam Service (`@platform/exam-service` - Port 3005)
+- **Động Cơ Giải Ma Trận Ràng Buộc (Matrix Constraint Solver)**: Đọc Blueprint từ Assessment Service, truy vấn ngân hàng từ Question Service và áp dụng thuật toán chọn lọc ngẫu nhiên có trọng số nhằm tạo nên đề thi hoàn chỉnh.
+- **Thuật Toán Xáo Trộn Hạt Giống (Deterministic PRNG Shuffle - Mulberry32)**:
+  - Sử dụng thuật toán Fisher-Yates kết hợp Pseudo-Random Number Generator.
+  - Với cùng một `seed` (hoặc `studentId + examCode`), trật tự câu hỏi và phương án được xáo trộn ngẫu nhiên nhưng có thể **tái lập chính xác 100%** khi phúc khảo hoặc chấm thi.
+- **Đóng Băng Bất Biến (Immutable Exam Snapshot Freeze & SHA-256)**:
+  - Toàn bộ nội dung câu hỏi, phương án, điểm số được đóng gói thành Snapshot bất biến, băm mã định danh SHA-256.
+  - Sau khi Snapshot được sinh, mọi sửa đổi trong Question Bank sẽ **không bao giờ** làm thay đổi nội dung của kỳ thi đã phát hành.
+- **Sinh Biến Thể Mã Đề (Variant Generator)**: Tự động phát sinh các mã đề khác nhau (Mã 101, 102, 103, 104...) cho cùng một bài thi.
+- **Khử Khuẩn Dữ Liệu Phát Đề (Sanitized Manifest)**: Loại bỏ hoàn toàn cờ `isCorrect`, lời giải chi tiết và barem điểm trước khi truyền tới giao diện thí sinh.
+
+#### ⏱️ Attempt Service (`@platform/attempt-service` - Port 3006)
+- **Máy Trạng Thái Ca Thi (FSM)**: Quản lý vòng đời chặt chẽ: `CREATED` ➔ `IN_PROGRESS` ➔ `PAUSED` ➔ `SUBMITTED` ➔ `EVALUATED` / `EXPIRED`.
+- **Lưu Nháp Siêu Tốc (Ultra Low-Latency Autosave < 25ms)**:
+  - Tiếp nhận câu trả lời từng câu với số thứ tự tăng dần (`sequenceNumber`) và timestamp máy chủ.
+  - Phòng vệ chống ghi đè do trễ mạng (Outdated Sequence Defense).
+- **Đồng Bộ Thời Gian Chuẩn Xác (Cristian's Algorithm)**:
   - Máy chủ là nguồn thời gian duy nhất (`Server-Authoritative Clock`).
-  - Endpoint `/v1/time` và HTTP headers `X-Server-Time`, `X-Server-Timestamp`.
-  - Frontend `TimeSyncManager` và hook `useServerCountdown` tự động bù trừ độ trễ mạng (RTT) và độ lệch đồng hồ máy khách (clock drift), ngăn chặn 100% hành vi hack đồng hồ hệ điều hành để gian lận thời gian làm bài.
-- **Background Attempt Expiry Sweeper Daemon**:
-  - `AttemptExpirySweeperService` chạy ngầm định kỳ (mỗi 30s) trên máy chủ, tự động quét, khóa bài và chấm điểm các ca thi quá hạn nộp bài kèm thời gian ân hạn (`gracePeriodMs = 15000ms`).
-- **Question Engine Registry (Open-Closed Principle)**:
-  - Hỗ trợ đa dạng 6 dạng thức câu hỏi: **Single Choice**, **Multiple Choice**, **True/False**, **Fill-in-the-blank**, **Matching**, **Numeric**.
-- **Chiến lược chấm điểm linh hoạt**:
-  - `ExactMatchScoringStrategy`: Đúng tuyệt đối được trọn điểm.
-  - `PartialCreditScoringStrategy`: Cho điểm từng phần có trừ điểm khi chọn sai.
-  - `NegativeMarkingScoringStrategy`: Phạt điểm khi đoán mò không chắc chắn.
-- **DeliverySanitizer**: Bóc tách 100% đáp án đúng, barem điểm và giải thích chi tiết ngay tại ranh giới máy chủ trước khi truyền tới thí sinh.
+  - Bù trừ độ trễ mạng $RTT / 2$ và độ lệch đồng hồ máy khách (clock drift), ngăn chặn hoàn toàn gian lận bằng cách chỉnh giờ máy tính.
+- **Audit Log Chống Gian Lận (Anti-Cheat Telemetry Ingestion)**:
+  - Ghi nhận liên tục chuỗi sự kiện `tab-switch`, `window-blur`, `fullscreen-exit`, `paste-detected` vào bảng `attempt_events`.
+- **Background Expiry Sweeper Daemon**:
+  - Tiến trình ngầm định kỳ quét và cưỡng chế nộp bài các ca thi quá hạn nộp bài kèm thời gian ân hạn (`gracePeriodMs = 15000ms`).
+- **Động Cơ Chấm Điểm Tự Động (Auto-Grading Execution)**:
+  - Chấm điểm ngay lập tức sau khi nộp bài dựa trên Frozen Snapshot từ Exam Service.
+  - Tính toán điểm tổng, tỷ lệ phần trăm, trạng thái Đạt/Không đạt và bảng điểm chi tiết từng câu.
 
-### 3. 🔐 Generic Identity Provider (Zero-Tenant IdP) (`services/auth`)
-- **Identity-Only Context**: Tách biệt hoàn toàn khỏi domain Quiz (không chứa `tenant_id`, hỗ trợ `metadata` JSONB lưu trữ avatar, preferences).
-- **Mã Hóa Chuẩn RFC 7517 (JWKS RS256)**:
-  - Cung cấp Public Keys tại `/.well-known/jwks.json` giúp Resource Servers xác thực token không đối xứng mà không cần gọi ngược về IdP.
-  - Hỗ trợ cơ chế xoay vòng khóa (Key Rotation) và tương thích ngược với HS256.
+#### 🔐 Auth Service (`@platform/auth-service` - Port 3001)
+- **Generic Zero-Tenant IdP**: Quản lý danh tính độc lập, hỗ trợ `metadata` JSONB mở rộng.
+- **Chuẩn Mã Hóa RFC 7517 (JWKS RS256)**: Public Keys tại `/.well-known/jwks.json` cho phép các microservices xác thực chữ ký token mà không cần gọi ngược về IdP.
 - **Normalized RBAC**: 5 bảng chuẩn hóa (`users`, `roles`, `permissions`, `user_roles`, `role_permissions`).
-- **Bảo Mật Tối Đa**: Chống brute-force rate limit (5 lần thử/phút), phát hiện tái sử dụng Refresh Token và thu hồi phiên tức thì.
 
-### 4. 🗄️ Lưu Trữ PostgreSQL Bền Vững & Kiểm Thử Siêu Tốc
-- **3 Cơ sở dữ liệu PostgreSQL độc lập**:
-  - `auth_db`: Quản lý người dùng, RBAC, refresh tokens.
-  - `quiz_db`: Quản lý đề thi, phiên bản, câu hỏi, ca thi, kết quả.
-  - `taxonomy_db`: Quản lý phân loại tri thức, cây danh mục đa cấp.
-- **Auto-Migration & Seeding**: Tự động chạy migration và nạp dữ liệu mẫu (quizzes, categories, admin/instructor/student accounts) ngay khi khởi động máy chủ nếu DB được cấu hình.
-- **PGlite WebAssembly Testing**: Sử dụng `@electric-sql/pglite` chạy PostgreSQL trực tiếp trong tiến trình test — **100% kiểm thử tích hợp không cần Docker**, tốc độ vượt trội.
+#### 🌳 Taxonomy Service (`@platform/taxonomy-service` - Port 3002)
+- **Phân Loại Đa Cấp Không Giới Hạn**: Quản lý chủ đề, môn học, khối lớp theo cấu trúc **Adjacency List**.
+- **PostgreSQL Recursive CTE**: Dựng toàn bộ cây danh mục $O(N)$ và truy vấn toàn bộ con cháu trong 1 round-trip.
+- **Thuật Toán Chống Chu Trình (Cycle Prevention)**: Ngăn chặn tuyệt đối việc di chuyển một node thành con của chính nó hoặc hậu duệ của nó.
+
+---
+
+## 🗄️ Thiết Kế Cơ Sở Dữ Liệu PostgreSQL Độc Lập (Database-per-Service)
+
+### 1. Nguyên Tắc Thiết Kế CSDL
+1. **100% PostgreSQL Thật (psql)**: Tuyệt đối không dùng in-memory mocks hay sqlite giả lập.
+2. **Fail-Fast Connection**: Dịch vụ dừng ngay lập tức nếu thiếu biến môi trường kết nối database tương ứng.
+3. **URL Sanitization**: Tự động lọc bỏ tham số không hợp lệ `?schema=public` trong PostgreSQL StartupMessage.
+4. **Zero Cross-Database Foreign Keys**: Không tạo khóa ngoại vật lý giữa các database khác nhau; liên kết logic thông qua Prefixed String IDs:
+   - `usr_...`: Tài khoản người dùng (Auth)
+   - `tax_...`, `node_...`: Danh mục & Node cây tri thức (Taxonomy)
+   - `q_...`, `qrev_...`: Câu hỏi & Phiên bản câu hỏi (Question Bank)
+   - `asm_...`, `bp_...`: Bài đánh giá & Khung ma trận đề (Assessment)
+   - `exm_...`, `exv_...`, `snp_...`: Đề thi, Biến thể đề & Snapshot đóng băng (Exam)
+   - `att_...`, `evt_...`: Ca thi & Sự kiện telemetry chống gian lận (Attempt)
+
+### 2. Danh Mục 6 Cơ Sở Dữ Liệu
+
+| Service | Database PostgreSQL | Biến Môi Trường (.env) | Nội Dung Quản Lý |
+|---|---|---|---|
+| **Auth** | `auth_db` | `AUTH_DATABASE_URL` | Bảng `users`, `roles`, `permissions`, `user_roles`, `role_permissions` |
+| **Taxonomy** | `taxonomy_db` | `TAXONOMY_DATABASE_URL` | Bảng `taxonomies`, `taxonomy_nodes` |
+| **Question** | `question_db` | `QUESTION_DATABASE_URL` | Bảng `questions`, `question_revisions` |
+| **Assessment** | `assessment_db` | `ASSESSMENT_DATABASE_URL` | Bảng `assessments`, `blueprints` |
+| **Exam** | `exam_db` | `EXAM_DATABASE_URL` | Bảng `exams`, `exam_snapshots` |
+| **Attempt** | `attempt_db` | `ATTEMPT_DATABASE_URL` | Bảng `attempts`, `attempt_events` |
 
 ---
 
 ## 🔌 Danh Mục RESTful API v1 (API Reference)
 
-### 🌳 1. Taxonomy & Knowledge Tree APIs (`/v1/taxonomies`, `/v1/nodes`)
-| Phương thức | Đường dẫn | Phân quyền | Mô tả |
-|---|---|---|---|
-| `GET` | `/v1/taxonomies` | Public | Lấy danh sách tất cả loại phân loại (Topic, Difficulty, Tag...) |
-| `GET` | `/v1/taxonomies/:codeOrId` | Public | Lấy thông tin chi tiết một taxonomy |
-| `GET` | `/v1/taxonomies/:codeOrId/tree` | Public | Lấy toàn bộ cây phân cấp lồng nhau (Hỗ trợ ETag caching) |
-| `POST` | `/v1/taxonomies` | ADMIN | Tạo mới một taxonomy |
-| `PUT` | `/v1/taxonomies/:codeOrId` | ADMIN | Cập nhật thông tin taxonomy |
-| `POST` | `/v1/taxonomies/:codeOrId/nodes` | ADMIN | Thêm node mới vào cây (root hoặc node con) |
-| `GET` | `/v1/nodes/:id` | Public | Lấy chi tiết thông tin node |
-| `PUT` | `/v1/nodes/:id` | ADMIN | Cập nhật metadata, tên, mô tả node |
-| `POST` | `/v1/nodes/:id/move` | ADMIN | Di chuyển vị trí nhánh node (có thuật toán chống chu trình) |
-| `DELETE` | `/v1/nodes/:id` | ADMIN | Xóa mềm (soft delete) node |
-| `GET` | `/v1/nodes/:id/descendant-ids` | Public | Lấy danh sách ID toàn bộ node con cháu (dùng lọc đề thi) |
-| `GET` | `/v1/nodes/:id/breadcrumbs` | Public | Lấy đường dẫn từ root đến node hiện tại |
+Tất cả API đều được truy cập hợp nhất qua **Port 3000** của API Gateway:
 
-### 📋 2. Quiz Authoring & Catalog APIs (`/v1/quizzes`)
-| Phương thức | Đường dẫn | Phân quyền | Mô tả |
+### 1. 🚪 Gateway Core & Discovery Endpoints
+| Method | Endpoint | Auth | Mô Tả |
 |---|---|---|---|
-| `GET` | `/v1/quizzes` | Public | Lấy danh sách đề thi đã xuất bản (hỗ trợ lọc theo `primaryNodeId`) |
-| `POST` | `/v1/quizzes` | INSTRUCTOR/ADMIN | Tạo mới đề thi ở trạng thái bản nháp (`DRAFT`) |
-| `GET` | `/v1/quizzes/:id` | Public | Xem chi tiết thông tin và các phiên bản của đề thi |
-| `POST` | `/v1/quizzes/:id/versions` | INSTRUCTOR/ADMIN | Tạo phiên bản mới (`QuizVersion`) cho đề thi |
-| `POST` | `/v1/quizzes/:id/publish` | INSTRUCTOR/ADMIN | Xuất bản đề thi theo phiên bản chỉ định |
-
-### 🎯 3. Quiz Delivery APIs (`/v1/attempts`)
-| Phương thức | Đường dẫn | Phân quyền | Mô tả |
-|---|---|---|---|
-| `POST` | `/v1/attempts` | Thí sinh | Tạo mới hoặc khôi phục ca thi của thí sinh |
-| `POST` | `/v1/attempts/:id/start` | Thí sinh | Bắt đầu tính giờ & nhận đề thi đã khử khuẩn (`Sanitized Manifest`) |
-| `GET` | `/v1/attempts/:id` | Thí sinh | Xem tiến độ ca thi hiện tại |
-| `PUT` | `/v1/attempts/:id/answers/:questionId` | Thí sinh | Lưu câu trả lời từng câu (kèm timestamp kiểm soát tính lũy tiến) |
-| `POST` | `/v1/attempts/:id/submit` | Thí sinh | Khóa bài thi, tính điểm chính thức và trả về kết quả |
-
-### ⏱️ 4. Server Timing & Internal Daemon APIs
-| Phương thức | Đường dẫn | Header/Phân quyền | Mô tả |
-|---|---|---|---|
+| `GET` | `/health` | Public | Kiểm tra trạng thái sức khỏe Gateway và kết nối CSDL của cả 6 Microservices |
+| `GET` | `/api` | Public | Danh mục đặc tả các API endpoints (OpenAPI Discovery) |
 | `GET` | `/v1/time` | Public | Lấy thời gian chuẩn máy chủ phục vụ đồng bộ Cristian's Algorithm |
-| `POST` | `/v1/internal/attempts/sweep` | `x-internal-secret` | Kích hoạt quét tức thì các ca thi hết hạn |
-| `GET` | `/v1/internal/attempts/sweeper-status`| `x-internal-secret` | Kiểm tra trạng thái hoạt động của daemon sweeper |
+| `GET` | `/.well-known/jwks.json` | Public | Public Keys xác thực JWT RS256 theo chuẩn RFC 7517 |
 
-### 🔐 5. Authentication & Identity APIs (`/v1/auth`)
-| Phương thức | Đường dẫn | Phân quyền | Mô tả |
+### 2. 🔐 Authentication & Identity APIs (`/v1/auth`)
+| Method | Endpoint | Phân Quyền | Mô Tả |
 |---|---|---|---|
 | `POST` | `/v1/auth/register` | Public | Đăng ký tài khoản người dùng mới |
-| `POST` | `/v1/auth/login` | Public | Đăng nhập (bảo vệ chống brute-force 5 lần/phút) |
-| `GET` | `/v1/auth/me` | Logged In | Lấy thông tin hồ sơ và quyền hạn người dùng hiện tại |
-| `POST` | `/v1/auth/refresh` | Logged In | Làm mới Access Token với tính năng xoay vòng Refresh Token |
+| `POST` | `/v1/auth/login` | Public | Đăng nhập hệ thống (Bảo vệ chống brute-force) |
+| `POST` | `/v1/auth/refresh` | Logged In | Xoay vòng Refresh Token lấy Access Token mới |
 | `POST` | `/v1/auth/logout` | Logged In | Đăng xuất và thu hồi Refresh Token |
-| `GET` | `/.well-known/jwks.json` | Public | Khám phá Public Keys ký JWT theo chuẩn RFC 7517 JWKS |
+| `GET` | `/v1/auth/me` | Logged In | Lấy thông tin hồ sơ và danh sách quyền hạn người dùng |
+| `GET` | `/v1/auth/admin/users` | ADMIN | Danh sách người dùng hệ thống |
+| `PATCH`| `/v1/auth/admin/users/:id/status` | ADMIN | Khóa hoặc kích hoạt tài khoản người dùng |
+
+### 3. 🌳 Taxonomy & Cây Tri Thức APIs (`/v1/taxonomies`, `/v1/nodes`)
+| Method | Endpoint | Phân Quyền | Mô Tả |
+|---|---|---|---|
+| `GET` | `/v1/taxonomies` | Public | Danh sách các loại phân loại (Topic, Grade, Skill...) |
+| `POST` | `/v1/taxonomies` | ADMIN | Tạo mới một taxonomy |
+| `GET` | `/v1/taxonomies/:code/tree` | Public | Lấy toàn bộ cây phân cấp lồng nhau (Nested Tree) |
+| `POST` | `/v1/taxonomies/:code/nodes` | ADMIN | Thêm node mới vào cây tri thức |
+| `GET` | `/v1/nodes/:id` | Public | Lấy thông tin chi tiết một node |
+| `PUT` | `/v1/nodes/:id` | ADMIN | Cập nhật thông tin node |
+| `POST` | `/v1/nodes/:id/move` | ADMIN | Di chuyển vị trí nhánh node (Chống chu trình) |
+| `DELETE`| `/v1/nodes/:id` | ADMIN | Xóa mềm node khỏi cây tri thức |
+| `GET` | `/v1/nodes/:id/descendant-ids` | Public | Lấy danh sách ID toàn bộ node con cháu |
+| `GET` | `/v1/nodes/:id/breadcrumbs` | Public | Lấy đường dẫn phân cấp từ root đến node hiện tại |
+
+### 4. 📚 Question Bank APIs (`/v1/questions`)
+| Method | Endpoint | Phân Quyền | Mô Tả |
+|---|---|---|---|
+| `GET` | `/v1/questions` | Public/AUTHOR | Danh sách câu hỏi, hỗ trợ lọc theo Topic, Grade, Bloom, Loại câu |
+| `POST` | `/v1/questions` | INSTRUCTOR/ADMIN | Tạo mới câu hỏi kèm nội dung RichText/LaTeX và các phương án |
+| `GET` | `/v1/questions/:idOrCode` | Public/AUTHOR | Xem chi tiết câu hỏi và phiên bản hiện hành |
+| `PUT` | `/v1/questions/:id` | INSTRUCTOR/ADMIN | Cập nhật nội dung câu hỏi (Tự động tạo Revision mới) |
+| `DELETE`| `/v1/questions/:id` | INSTRUCTOR/ADMIN | Xóa câu hỏi khỏi ngân hàng |
+| `GET` | `/v1/questions/:id/revisions` | INSTRUCTOR/ADMIN | Xem lịch sử các phiên bản sửa đổi của câu hỏi |
+
+### 5. 📐 Assessment Blueprint APIs (`/v1/assessments`)
+| Method | Endpoint | Phân Quyền | Mô Tả |
+|---|---|---|---|
+| `GET` | `/v1/assessments` | Public/AUTHOR | Danh sách bài đánh giá và khung đề thi |
+| `POST` | `/v1/assessments` | INSTRUCTOR/ADMIN | Tạo mới bài đánh giá kèm Blueprint ban đầu |
+| `GET` | `/v1/assessments/:idOrCode` | Public/AUTHOR | Xem chi tiết bài đánh giá và ma trận tiêu chí phân bổ |
+| `PUT` | `/v1/assessments/:id` | INSTRUCTOR/ADMIN | Cập nhật thông tin bài đánh giá |
+| `PATCH`| `/v1/assessments/:id/status` | INSTRUCTOR/ADMIN | Chuyển đổi trạng thái vòng đời (`DRAFT`, `REVIEW`, `APPROVED`) |
+| `PUT` | `/v1/assessments/:id/blueprint` | INSTRUCTOR/ADMIN | Cập nhật ma trận tiêu chí chọn câu hỏi & chính sách tính điểm |
+| `POST` | `/v1/assessments/:id/blueprint/lock` | INSTRUCTOR/ADMIN | Khóa ma trận đề thi chống chỉnh sửa |
+
+### 6. ⚙️ Exam Engine APIs (`/v1/exams`)
+| Method | Endpoint | Phân Quyền | Mô Tả |
+|---|---|---|---|
+| `GET` | `/v1/exams` | Public/AUTHOR | Danh sách đề thi đã phát hành hoặc đang chuẩn bị |
+| `POST` | `/v1/exams` | INSTRUCTOR/ADMIN | Kích hoạt `MatrixSolver` sinh đề thi từ Blueprint |
+| `GET` | `/v1/exams/:idOrCode` | Public/AUTHOR | Xem chi tiết đề thi và danh sách các mã đề biến thể |
+| `PUT` | `/v1/exams/:id` | INSTRUCTOR/ADMIN | Cập nhật metadata đề thi |
+| `PATCH`| `/v1/exams/:id/status` | INSTRUCTOR/ADMIN | Cập nhật trạng thái đề thi (`READY`, `ACTIVE`, `CLOSED`) |
+| `POST` | `/v1/exams/:id/publish` | INSTRUCTOR/ADMIN | Xuất bản đề thi chính thức |
+| `POST` | `/v1/exams/:id/unpublish` | INSTRUCTOR/ADMIN | Hủy xuất bản đề thi |
+| `DELETE`| `/v1/exams/:id` | INSTRUCTOR/ADMIN | Xóa đề thi và các snapshots liên quan |
+| `GET` | `/v1/exams/:idOrCode/manifest` | Thí sinh | Lấy đề thi đã khử khuẩn (`Sanitized Manifest`) cho mã mặc định |
+| `GET` | `/v1/exams/:idOrCode/variants/:code/manifest` | Thí sinh | Lấy đề thi đã khử khuẩn theo mã đề biến thể cụ thể |
+| `GET` | `/v1/exams/:idOrCode/variants/:code/frozen` | INSTRUCTOR/ADMIN | Lấy Snapshot đóng băng gốc đầy đủ đáp án phục vụ thanh tra |
+| `POST` | `/v1/exams/:idOrCode/generate-variants` | INSTRUCTOR/ADMIN | Phát sinh thêm các biến thể mã đề mới (101, 102, 103...) |
+
+### 7. ⏱️ Candidate Attempt APIs (`/v1/attempts`, `/v1/internal`)
+| Method | Endpoint | Phân Quyền | Mô Tả |
+|---|---|---|---|
+| `POST` | `/v1/attempts` | Thí sinh | Khởi tạo hoặc khôi phục ca thi của thí sinh |
+| `GET` | `/v1/attempts/:id` | Thí sinh | Lấy thông tin ca thi và đề thi đã khử khuẩn |
+| `POST` | `/v1/attempts/:id/start` | Thí sinh | Bắt đầu tính giờ làm bài và nhận đề thi |
+| `PUT` | `/v1/attempts/:id/answers/:questionId` | Thí sinh | Lưu nháp câu trả lời từng câu siêu tốc (<25ms) kèm sequence |
+| `POST` | `/v1/attempts/:id/answers` | Thí sinh | Lưu nháp câu trả lời (Endpoint thay thế) |
+| `POST` | `/v1/attempts/:id/events` | Thí sinh | Ghi nhận telemetry chống gian lận (`tab-switch`, `blur`...) |
+| `GET` | `/v1/attempts/:id/events` | PROCTOR/ADMIN | Xem nhật ký kiểm toán chống gian lận của ca thi |
+| `POST` | `/v1/attempts/:id/submit` | Thí sinh | Nộp bài thi và kích hoạt động cơ chấm điểm tự động |
+| `GET` | `/v1/attempts/:id/result` | Thí sinh | Xem bảng điểm tổng hợp và giải thích chi tiết |
+| `POST` | `/v1/internal/attempts/sweep` | Internal Secret | Kích hoạt quét tức thì các ca thi quá hạn |
 
 ---
 
 ## 🛠️ Hướng Dẫn Cài Đặt & Khởi Chạy (Getting Started)
 
-### 1. Yêu cầu môi trường
-- **Node.js**: >= 18.0.0 (khuyến nghị Node 20+)
-- **npm** hoặc **pnpm**
-- **PostgreSQL**: Phiên bản >= 14 (cho môi trường production hoặc staging)
+### 1. Yêu Cầu Môi Trường
+- **Node.js**: >= 20.0.0
+- **npm** hoặc **pnpm** (Hỗ trợ đầy đủ cú pháp PNPM Workspace)
+- **PostgreSQL**: Phiên bản >= 14 (Chạy cục bộ trên cổng `5432` hoặc trên Cloud)
 
-### 2. Cấu hình biến môi trường (`.env`)
-Hệ thống **tuân thủ nghiêm ngặt cấu hình tập trung từ `.env` (Single Source of Truth, loại bỏ hoàn toàn cơ chế hardcoded fallback ngầm)**. Sao chép từ `.env.example` và cấu hình:
+### 2. Cấu Hình Biến Môi Trường (`.env`)
+Tạo file `.env` tại thư mục gốc dự án dựa theo `.env.example`:
+
 ```env
-# Cơ sở dữ liệu PostgreSQL cho từng dịch vụ
+# ============================================================================
+# CƠ SỞ DỮ LIỆU POSTGRESQL THẬT (DATABASE-PER-SERVICE)
+# ============================================================================
 AUTH_DATABASE_URL=postgres://postgres:root@localhost:5432/auth_db
-QUIZ_DATABASE_URL=postgres://postgres:root@localhost:5432/quiz_db
 TAXONOMY_DATABASE_URL=postgres://postgres:root@localhost:5432/taxonomy_db
+QUESTION_DATABASE_URL=postgres://postgres:root@localhost:5432/question_db
+ASSESSMENT_DATABASE_URL=postgres://postgres:root@localhost:5432/assessment_db
+EXAM_DATABASE_URL=postgres://postgres:root@localhost:5432/exam_db
+ATTEMPT_DATABASE_URL=postgres://postgres:root@localhost:5432/attempt_db
 
-# Bảo mật JWT (Khóa bí mật hoặc cặp khóa RS256)
+# ============================================================================
+# BẢO MẬT XÁC THỰC (JWT RS256 / SECRETS)
+# ============================================================================
 JWT_SECRET=super_secret_jwt_key_at_least_32_characters_long_for_security
 
-# Cổng khởi chạy dịch vụ (Bắt buộc cấu hình trong .env)
-QUIZ_PORT=3000
+# ============================================================================
+# CỔNG GIAO TIẾP DỊCH VỤ (SERVICE PORTS)
+# ============================================================================
+GATEWAY_PORT=3000
 AUTH_PORT=3001
 TAXONOMY_PORT=3002
+QUESTION_PORT=3003
+ASSESSMENT_PORT=3004
+EXAM_PORT=3005
+ATTEMPT_PORT=3006
 ```
 
-### 3. Cài đặt dependencies
+### 3. Khởi Tạo Nhanh 6 Database PostgreSQL
+Nếu đang sử dụng PostgreSQL cục bộ, mở Terminal `psql`:
+
+```sql
+CREATE DATABASE auth_db;
+CREATE DATABASE taxonomy_db;
+CREATE DATABASE question_db;
+CREATE DATABASE assessment_db;
+CREATE DATABASE exam_db;
+CREATE DATABASE attempt_db;
+```
+
+### 4. Cài Đặt Dependencies & Khởi Tạo Dữ Liệu Sạch (Clean Bootstrap)
 ```bash
+# 1. Cài đặt toàn bộ dependencies
 npm install
+
+# 2. Khởi tạo toàn diện schema và nạp dữ liệu mẫu sạch qua Clean Bootstrap Script
+npm run seed:all
 ```
 
-### 4. Quản lý Cơ sở dữ liệu (Migrations & Seeding)
-Hệ thống hỗ trợ Drizzle CLI migration và file seed chuyên biệt cho từng dịch vụ:
+> **Lưu ý**: Lệnh `npm run seed:all` chạy script `scripts/bootstrap-clean-data.ts` theo đúng đường ống phụ thuộc nghiệp vụ:
+> $$\text{Auth} \longrightarrow \text{Taxonomy} \longrightarrow \text{Question} \longrightarrow \text{Assessment} \longrightarrow \text{Exam} \longrightarrow \text{Attempt}$$
+> Nạp đầy đủ tài khoản người dùng, cây danh mục Toán/Khối 10, ngân hàng câu hỏi chuẩn Bloom, ma trận đề thi mẫu và phát sinh đề thi biến thể có sẵn để thí sinh trải nghiệm ngay lập tức.
+
+Nếu muốn chạy Migration hoặc Seed đơn lẻ cho từng dịch vụ:
 ```bash
-# Auth Service DB
-npm run db:migrate:auth       # Chạy migration bảng users, roles, permissions
-npm run db:seed:auth          # Nạp tài khoản mẫu (admin@quiz.com, instructor@quiz.com, student@quiz.com)
-
-# Quiz Service DB
-npm run db:migrate:quiz       # Chạy migration bảng quizzes, quiz_versions, attempts
-npm run db:seed:quiz          # Nạp 7 đề thi mẫu đa dạng các chủ đề Toán, Tin học, Tiếng Anh
-
-# Taxonomy Service DB
-npm run db:migrate:taxonomy   # Chạy migration bảng taxonomies, taxonomy_nodes
-npm run db:seed:taxonomy      # Nạp cây tri thức phân cấp mẫu
+npm run db:migrate:auth        && npm run db:seed:auth
+npm run db:migrate:taxonomy    && npm run db:seed:taxonomy
+npm run db:migrate:question    && npm run db:seed:question
+npm run db:migrate:assessment  && npm run db:seed:assessment
+npm run db:migrate:exam        && npm run db:seed:exam
+npm run db:migrate:attempt     && npm run db:seed:attempt
 ```
 
-### 5. Khởi chạy ứng dụng
+### 5. Khởi Chạy Ứng Dụng
 
-#### 🌟 Chế độ Unified Gateway (Khuyến nghị - Chuẩn Cloud Run cổng 3000)
-Khởi chạy toàn bộ hệ thống (APIs, Backend Services và Frontend SPAs) trên cổng **3000**:
+#### 🌟 Chế Độ Unified Gateway (Khuyến nghị - Port 3000)
+Khởi chạy toàn bộ hệ thống (API Gateway, các Microservices và phục vụ 2 ứng dụng Frontend Web SPA) trên duy nhất cổng **3000**:
+
 ```bash
 npm run dev
 # hoặc
 npm start
 ```
-Sau khi khởi chạy:
-- **Giao diện làm bài cho Thí sinh (Quiz Web)**: `http://localhost:3000/`
-- **Giao diện Quản trị & Soạn thảo (Admin Web)**: `http://localhost:3000/admin/`
-- **Discovery API & Healthcheck**: `http://localhost:3000/api` và `http://localhost:3000/health`
 
-#### 🛠️ Chế độ Phát triển từng thành phần (Standalone Dev)
+Sau khi khởi chạy:
+- 🎓 **Cổng Thí Sinh Làm Bài (Quiz Web SPA)**: `http://localhost:3000/`
+- 🛠️ **Cổng Quản Trị & Khảo Thí (Admin Web SPA)**: `http://localhost:3000/admin/`
+- 🩺 **Kiểm Tra Trạng Thái Hệ Thống (Health Check)**: `http://localhost:3000/health`
+- 📖 **Danh Mục API (Discovery)**: `http://localhost:3000/api`
+
+#### 🛠️ Chế Độ Standalone Dev (Phát triển từng dịch vụ riêng biệt)
 ```bash
-npm run dev:quiz       # Khởi chạy Quiz Core Gateway (Port 3000)
-npm run dev:auth       # Khởi chạy Auth Service riêng lẻ (Port 3001)
-npm run dev:taxonomy   # Khởi chạy Taxonomy Service riêng lẻ (Port 3002)
-npm run dev:web        # Khởi chạy Vite dev server cho Quiz Web
-npm run dev:admin      # Khởi chạy Vite dev server cho Admin Web
+npm run dev:gateway      # Khởi chạy API Gateway (Port 3000)
+npm run dev:auth         # Khởi chạy Auth Service độc lập (Port 3001)
+npm run dev:taxonomy     # Khởi chạy Taxonomy Service độc lập (Port 3002)
+npm run dev:question     # Khởi chạy Question Service độc lập (Port 3003)
+npm run dev:assessment   # Khởi chạy Assessment Service độc lập (Port 3004)
+npm run dev:exam         # Khởi chạy Exam Service độc lập (Port 3005)
+npm run dev:attempt      # Khởi chạy Attempt Service độc lập (Port 3006)
+npm run dev:web          # Khởi chạy Vite Dev Server cho Quiz Web
+npm run dev:admin        # Khởi chạy Vite Dev Server cho Admin Web
 ```
 
 ---
 
-## 🧪 Kết Quả Kiểm Thử Tự Động (Automated Test Suites)
+## 🧪 Kết Quả Kiểm Thử Tự Động (Automated Testing)
 
-Toàn bộ **hơn 260 tests** trên toàn bộ các services, packages và frontend đều đạt trạng thái **PASS 100%**:
+Toàn bộ hệ thống được bảo vệ bởi hệ thống kiểm thử tự động toàn diện với **hơn 280+ bài kiểm thử (PASS 100%)** chạy trên nền **Vitest**:
 
 ```bash
 npm test
 ```
 
-### 1. 🌳 Taxonomy Service Tests (`services/taxonomy/tests`) — 47 tests
-- `taxonomy.spec.ts`: Kiểm tra tạo taxonomy, gán node, dựng cây $O(N)$ và truy vấn hậu duệ qua Recursive CTE.
-- `api.spec.ts`: Kiểm tra toàn bộ RESTful endpoints, CORS, ETag caching và SDK integration.
-- `cycle-prevention.spec.ts`: Kiểm tra cơ chế chặn tự tham chiếu và chặn chuyển node vào cây con của chính nó.
-- `tree-structure.spec.ts`: Kiểm tra tính toàn vẹn cấu trúc cây, thứ tự sắp xếp (`sort_order`) và breadcrumbs.
-
-### 2. 🧠 Quiz Service Tests (`services/quiz/tests`) — 144+ tests
-- `domain/authoring/quiz.spec.ts`: Vòng đời bài thi và snapshot phiên bản bất biến.
-- `domain/authoring/quiz-primary-node.spec.ts`: Phân loại đề thi vào node Cây tri thức (`primaryNodeId`).
-- `domain/delivery/attempt-state-machine.spec.ts`: FSM trạng thái ca thi và kiểm soát chuyển trạng thái.
-- `domain/delivery/attempt-manifest.spec.ts`: Bất biến xáo trộn câu hỏi và đáp án cho thí sinh.
-- `domain/delivery/server-timing-invariants.spec.ts`: Độ chính xác đồng hồ máy chủ và tính toán thời gian hết hạn.
-- `scoring/scoring.spec.ts`: Các chiến lược tính điểm (Exact, Partial, Negative).
-- `security/sanitization-boundary.spec.ts`: Khử khuẩn ranh giới máy chủ, bảo vệ đáp án đúng.
-- `security/principal-context.spec.ts` & `ownership-policy.spec.ts`: Kiểm soát quyền truy cập đề thi và ca thi (ABAC).
-- `delivery/attempt-expiry-sweeper.spec.ts` & `presentation/sweeper-api.spec.ts`: Quét ngầm và tự động đóng ca thi quá hạn.
-- `delivery/drizzle-assessment-persistence.spec.ts`: Lưu trữ bền vững trên PostgreSQL với Drizzle ORM.
-- `presentation/assessment-api.spec.ts` & `presentation/server-timing-api.spec.ts`: RESTful endpoints và Cristian's sync.
-
-### 3. 🔐 Auth Service Tests (`services/auth/tests`) — 49 tests
-- `auth.spec.ts`: Đăng ký, Đăng nhập, Profile, Refresh Token rotation, Logout, Rate Limit và JWKS.
-- `rbac-admin-api.spec.ts`: Endpoints quản trị RBAC (CRUD Roles, Permissions, gán quyền User).
-- `drizzle-persistence.spec.ts`: Lưu trữ PostgreSQL và trường Metadata JSONB (Zero-Tenant IdP).
-- `ownership.spec.ts` & `refresh-token-reuse.spec.ts`: Kiểm tra thu hồi token khi bị phát hiện tái sử dụng.
-
-### 4. 📦 Packages & Web Apps Tests
-- `packages/api-client/tests/api-client.spec.ts`: Type-safe SDK client gọi Quiz và Taxonomy APIs.
-- `packages/auth-client/tests/auth-client.spec.ts`: Auth Client SDK quản lý phiên và cookie.
-- `apps/quiz-web/tests/`: Kiểm tra thuật toán đồng bộ thời gian máy chủ (`time-sync.spec.ts`), đếm ngược (`countdown.spec.ts`), và tính đồng thời API (`quiz-api-concurrency.spec.ts`).
+### Danh Mục Các Bộ Kiểm Thử Chính:
+1. **Kiểm Thử Toàn Trình Sau Phân Rã (`tests/e2e-quiz-decomposition.spec.ts`)**:
+   - Kiểm tra chu trình khép kín: Đăng nhập Giảng viên ➔ Tạo Cây tri thức ➔ Soạn câu hỏi Bloom ➔ Tạo Blueprint ma trận ➔ Kích hoạt `MatrixSolver` sinh đề ➔ Đóng băng Snapshot SHA-256 ➔ Thí sinh nhận đề đã khử khuẩn ➔ Autosave đáp án ➔ Bấm nộp bài ➔ Chấm điểm tự động chuẩn xác.
+2. **Kiểm Thử Tải Cao & Đồng Thời (`tests/load-and-concurrency.spec.ts`)**:
+   - Thử nghiệm lưu nháp đồng thời hàng trăm requests/giây đảm bảo p99 < 25ms.
+   - Kiểm tra cơ chế chống ghi đè phiên bản cũ (Outdated Sequence Defense).
+3. **Gateway Service Tests (`services/gateway/tests/gateway.spec.ts`)**:
+   - Kiểm tra định tuyến liên dịch vụ, xác thực JWT Context, đồng bộ thời gian `/v1/time` và cơ chế Fail-Safe khi CSDL chưa sẵn sàng.
+4. **Microservices Tests (`services/*/tests`)**:
+   - `services/question/tests`: Kiểm tra CRUD câu hỏi, bộ lọc độ khó Bloom, lưu trữ Revisions.
+   - `services/assessment/tests`: Kiểm tra cấu hình ma trận tiêu chí, khóa Blueprint, chính sách điểm.
+   - `services/exam/tests`: Kiểm tra giải ma trận `matrix-solver.spec.ts`, tính tất định của PRNG `prng.spec.ts`, đóng băng Snapshot.
+   - `services/attempt/tests`: Kiểm tra FSM ca thi, lưu nháp, sweeper daemon, thuật toán chấm điểm.
+   - `services/auth/tests`: Kiểm tra JWKS RS256, xoay vòng Refresh Token, phát hiện dùng lại token, RBAC Admin.
+   - `services/taxonomy/tests`: Kiểm tra Recursive CTE $O(N)$, thuật toán chống chu trình `cycle-prevention.spec.ts`, cấu trúc cây học tập.
+5. **Packages & Frontend Tests**:
+   - `packages/api-client/tests`: Type-safe SDK calls.
+   - `packages/auth-client/tests`: Cookie & Session persistence.
+   - `apps/quiz-web/tests`: Kiểm tra đồng bộ đồng hồ Cristian's Algorithm (`time-sync.spec.ts`) và đếm ngược an toàn (`countdown.spec.ts`).
 
 ---
 
 ## 👥 Tài Khoản Mẫu Mặc Định (Default Seed Accounts)
 
-Sau khi chạy `npm run db:seed:auth` hoặc khi hệ thống auto-seed, các tài khoản sau sẵn sàng sử dụng:
+Sau khi chạy `npm run seed:all` (hoặc nạp qua `npm run db:seed:auth`), các tài khoản sau sẵn sàng để đăng nhập và trải nghiệm:
 
-| Vai trò (Role) | Email | Mật khẩu | Quyền hạn |
+| Vai Trò | Email | Mật Khẩu | Quyền Hạn & Chức Năng Khả Dụng |
 |---|---|---|---|
-| **Quản Trị Viên (ADMIN)** | `admin@quiz.com` | `Admin@123456` | Quản trị toàn hệ thống, quản lý Cây Tri Thức, quản lý RBAC |
-| **Giảng Viên (INSTRUCTOR)** | `instructor@quiz.com` | `Instructor@123456` | Soạn thảo, quản lý và xuất bản đề thi của mình |
-| **Thí Sinh (STUDENT)** | `student@quiz.com` | `Student@123456` | Khảo thí trực tuyến, làm bài thi và xem kết quả điểm số |
+| **Quản Trị Viên (ADMIN)** | `admin@quiz.com` | `Admin@123456` | Toàn quyền quản trị hệ thống, quản lý Cây Tri Thức, quản lý RBAC, phân quyền và khóa tài khoản người dùng |
+| **Giảng Viên (INSTRUCTOR)** | `instructor@quiz.com` | `Instructor@123456` | Quản lý Ngân hàng câu hỏi (RichText/LaTeX), thiết lập Blueprint ma trận đề, sinh đề thi và quản lý biến thể mã đề |
+| **Thí Sinh (STUDENT)** | `student@quiz.com` | `Student@123456` | Duyệt danh mục môn học, tham gia làm bài thi trắc nghiệm trực tuyến, xem đồng hồ đếm ngược và kết quả chi tiết |
+
+---
+
+## 📄 Bản Quyền & Giấy Phép (License)
+
+Dự án được phát triển theo chuẩn kiến trúc hướng dịch vụ doanh nghiệp (Enterprise Microservices). Giữ toàn quyền sở hữu trí tuệ thuộc về nhóm phát triển nền tảng Quiz Core.
+
 
