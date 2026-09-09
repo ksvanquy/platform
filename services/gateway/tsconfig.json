@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": false,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@platform/contracts": ["../../packages/contracts/src/index.ts"],
+      "@platform/contracts/*": ["../../packages/contracts/src/*"],
+      "@platform/auth-service": ["../../services/auth/src/index.ts"],
+      "@platform/auth-service/*": ["../../services/auth/src/*"],
+      "@platform/taxonomy-service": ["../../services/taxonomy/src/index.ts"],
+      "@platform/taxonomy-service/*": ["../../services/taxonomy/src/*"],
+      "@platform/question-service": ["../../services/question/src/index.ts"],
+      "@platform/question-service/*": ["../../services/question/src/*"],
+      "@platform/assessment-service": ["../../services/assessment/src/index.ts"],
+      "@platform/assessment-service/*": ["../../services/assessment/src/*"],
+      "@platform/exam-service": ["../../services/exam/src/index.ts"],
+      "@platform/exam-service/*": ["../../services/exam/src/*"],
+      "@platform/attempt-service": ["../../services/attempt/src/index.ts"],
+      "@platform/attempt-service/*": ["../../services/attempt/src/*"]
+    },
+    "types": ["node"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.spec.ts", "tests", "dist"]
+}

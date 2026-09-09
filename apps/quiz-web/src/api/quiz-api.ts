@@ -14,20 +14,44 @@ import { TimeSyncManager } from '../utils/TimeSyncManager.js';
 
 export const quizApi = {
   /**
-   * Lấy danh sách các đề thi đã xuất bản từ RESTful API (/v1/quizzes)
+   * Lấy danh sách các đề thi/kỳ thi đã xuất bản (Exam Service qua Gateway)
    */
-  async listQuizzes(params?: { nodeId?: string; gradeNodeId?: string }): Promise<any[]> {
-    const response = await apiClient.quizzes.list(params);
-    return response.data || [];
+  async listQuizzes(_params?: { nodeId?: string; gradeNodeId?: string }): Promise<any[]> {
+    try {
+      const response = await apiClient.exams.list();
+      return (response.data || []).map((exam) => ({
+        id: exam.id,
+        code: exam.code,
+        title: exam.title,
+        description: `Kỳ thi ${exam.code} (${exam.durationMinutes} phút)`,
+        isPublic: exam.isPublished || exam.status === 'READY' || exam.status === 'ACTIVE',
+        questionsCount: exam.variants?.[0]?.questionCount || 10,
+        durationMinutes: exam.durationMinutes || 45,
+        totalPoints: 10,
+      }));
+    } catch {
+      return [];
+    }
   },
 
   /**
-   * Lấy chi tiết đề thi và phiên bản xuất bản hiện tại
+   * Lấy chi tiết đề thi/kỳ thi và phiên bản xuất bản hiện tại
    */
   async getQuizDetails(quizId: string) {
     try {
-      const response = await apiClient.quizzes.get(quizId);
-      return response.data;
+      const response = await apiClient.exams.get(quizId);
+      const exam = response.data;
+      if (!exam) return null;
+      return {
+        id: exam.id,
+        code: exam.code,
+        title: exam.title,
+        description: `Kỳ thi ${exam.code} (${exam.durationMinutes} phút)`,
+        durationMinutes: exam.durationMinutes || 45,
+        totalPoints: 10,
+        isPublic: exam.isPublished || exam.status === 'READY' || exam.status === 'ACTIVE',
+        questionsCount: exam.variants?.[0]?.questionCount || 10,
+      };
     } catch {
       return null;
     }

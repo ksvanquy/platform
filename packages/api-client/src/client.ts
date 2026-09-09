@@ -194,56 +194,6 @@ export class ApiClient {
   }
 
   /**
-   * Quizzes API Domain Resource (RESTful v1 Authoring / Catalog)
-   */
-  readonly quizzes = {
-    list: async (params?: { nodeId?: string; gradeNodeId?: string }): Promise<ApiResponse<any[]>> => {
-      return this.get<ApiResponse<any[]>>('/v1/quizzes', params);
-    },
-
-    get: async (quizId: string): Promise<ApiResponse<any>> => {
-      return this.get<ApiResponse<any>>(`/v1/quizzes/${quizId}`);
-    },
-
-    create: async (payload: {
-      code: string;
-      title: string;
-      description?: string;
-      isPublic?: boolean;
-      primaryNodeId?: string | null;
-      gradeNodeId?: string | null;
-    }): Promise<ApiResponse<any>> => {
-      return this.post<ApiResponse<any>>('/v1/quizzes', payload);
-    },
-
-    update: async (
-      quizId: string,
-      payload: {
-        title: string;
-        description?: string;
-        isPublic?: boolean;
-        primaryNodeId?: string | null;
-        gradeNodeId?: string | null;
-      }
-    ): Promise<ApiResponse<any>> => {
-      return this.put<ApiResponse<any>>(`/v1/quizzes/${quizId}`, payload);
-    },
-
-    addVersion: async (quizId: string, payload: any): Promise<ApiResponse<any>> => {
-      return this.post<ApiResponse<any>>(`/v1/quizzes/${quizId}/versions`, payload);
-    },
-
-    publish: async (quizId: string, versionId: string): Promise<ApiResponse<any>> => {
-      return this.post<ApiResponse<any>>(`/v1/quizzes/${quizId}/publish`, { versionId });
-    },
-  };
-
-  /**
-   * Alias for v1Quizzes
-   */
-  readonly v1Quizzes = this.quizzes;
-
-  /**
    * Attempts API Domain Resource (RESTful v1 Delivery & High-Write Runtime Engine)
    */
   readonly attempts = {

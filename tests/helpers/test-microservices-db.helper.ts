@@ -17,7 +17,7 @@ import {
   setAssessmentRepository,
   setExamRepository,
   setAttemptRepository,
-} from '../../services/quiz/src/presentation/server.js';
+} from '../../services/gateway/src/server.js';
 
 export interface FullMicroservicesContext {
   taxonomyCtx: TestTaxonomyContext;

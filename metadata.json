@@ -1,6 +1,6 @@
 {
   "name": "Quiz Core",
-  "description": "Hệ Thống Thi Trắc Nghiệm - Khảo thí trực tuyến và phân loại đề thi theo Cây Tri Thức",
+  "description": "Nền tảng Khảo Thí & Thi Trắc Nghiệm - Kiến trúc Microservices (Question, Assessment, Exam, Attempt, Taxonomy, Auth) với API Gateway Port 3000",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

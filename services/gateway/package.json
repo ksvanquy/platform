@@ -1,0 +1,29 @@
+{
+  "name": "@platform/gateway-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Unified API Gateway and Reverse Proxy for Assessment Platform Microservices",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@platform/assessment-service": "workspace:*",
+    "@platform/attempt-service": "workspace:*",
+    "@platform/auth-service": "workspace:*",
+    "@platform/contracts": "workspace:*",
+    "@platform/exam-service": "workspace:*",
+    "@platform/question-service": "workspace:*",
+    "@platform/taxonomy-service": "workspace:*",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

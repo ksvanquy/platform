@@ -10,6 +10,7 @@ export * from './application/logout/logout.use-case.js';
 export * from './infrastructure/token/token.service.js';
 export * from './infrastructure/crypto/password.js';
 export * from './infrastructure/persistence/drizzle-user.repository.js';
+export * from './infrastructure/persistence/in-memory-user.repository.js';
 export * from './infrastructure/persistence/repository.factory.js';
 export * from './infrastructure/persistence/token-storage.factory.js';
 export * from './infrastructure/db/connection.js';

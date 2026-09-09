@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
-import { app } from '../services/quiz/src/presentation/server.js';
+import { app } from '../services/gateway/src/server.js';
 import { Attempt } from '../services/attempt/src/domain/entities/attempt.entity.js';
 import { OutdatedAnswerSequenceError } from '../services/attempt/src/domain/errors/attempt-domain.errors.js';
 import { MatrixSolverService } from '../services/exam/src/domain/services/matrix-solver.service.js';

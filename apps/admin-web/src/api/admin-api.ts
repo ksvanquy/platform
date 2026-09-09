@@ -2,55 +2,17 @@ import { apiClient, authClient } from './client.js';
 
 export const adminApi = {
   /**
-   * Kiểm tra tình trạng kết nối tới Quiz Core API
+   * Kiểm tra tình trạng kết nối tới API Gateway
    */
   async checkHealth(): Promise<{ status: string; engine?: string; timestamp?: string }> {
     return apiClient.health();
   },
 
   /**
-   * Lấy chi tiết bài thi theo ID với đầy đủ cấu trúc câu hỏi
+   * Lấy danh sách kỳ thi trong hệ thống (Exam Service)
    */
-  async getQuiz(quizId: string) {
-    const response = await apiClient.quizzes.get(quizId);
-    return response.data;
-  },
-
-  /**
-   * Lấy danh sách đề thi hiện có trong hệ thống
-   */
-  async listQuizzes(params?: { nodeId?: string }) {
-    const response = await apiClient.quizzes.list(params);
-    return response.data;
-  },
-
-  /**
-   * Tạo đề thi mới
-   */
-  async createQuiz(payload: {
-    code: string;
-    title: string;
-    description?: string;
-    isPublic?: boolean;
-    primaryNodeId?: string | null;
-  }) {
-    const response = await apiClient.quizzes.create(payload);
-    return response.data;
-  },
-
-  /**
-   * Cập nhật thông tin đề thi và gán chủ đề / node tri thức
-   */
-  async updateQuiz(
-    quizId: string,
-    payload: {
-      title: string;
-      description?: string;
-      isPublic?: boolean;
-      primaryNodeId?: string | null;
-    }
-  ) {
-    const response = await apiClient.quizzes.update(quizId, payload);
+  async listExams() {
+    const response = await apiClient.exams.list();
     return response.data;
   },
 
