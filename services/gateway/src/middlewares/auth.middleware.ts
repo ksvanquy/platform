@@ -159,12 +159,11 @@ export async function authContextMiddleware(
     }
 
     if (!payload || !payload.sub) {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid or expired authentication token',
-        errorCode: 'UNAUTHORIZED',
-      });
-      return;
+      // Token không hợp lệ hoặc đã hết hạn: không gán principal, để request tiếp tục.
+      // Các route cần xác thực sẽ được bảo vệ bởi guard requireAuth.
+      req.principal = undefined;
+      req.context = { principal: undefined };
+      return next();
     }
 
     // Kiểm tra trạng thái tài khoản ngay trong claim token
