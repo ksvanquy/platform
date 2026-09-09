@@ -537,6 +537,30 @@ export class ApiClient {
       );
     },
   };
+
+  /**
+   * Quizzes Resource (Legacy / v1 Authoring compatibility)
+   */
+  readonly quizzes = {
+    list: async (params?: Record<string, any>): Promise<ApiResponse<any[]>> => {
+      return this.get<ApiResponse<any[]>>('/v1/quizzes', params);
+    },
+    get: async (id: string): Promise<ApiResponse<any>> => {
+      return this.get<ApiResponse<any>>(`/v1/quizzes/${encodeURIComponent(id)}`);
+    },
+  };
+
+  /**
+   * v1Quizzes Resource (RESTful v1 Authoring alias)
+   */
+  readonly v1Quizzes = {
+    list: async (params?: Record<string, any>): Promise<ApiResponse<any[]>> => {
+      return this.get<ApiResponse<any[]>>('/v1/quizzes', params);
+    },
+    get: async (id: string): Promise<ApiResponse<any>> => {
+      return this.get<ApiResponse<any>>(`/v1/quizzes/${encodeURIComponent(id)}`);
+    },
+  };
 }
 
 /**

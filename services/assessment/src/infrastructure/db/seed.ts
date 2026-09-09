@@ -104,7 +104,7 @@ export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
       ownerId: 'usr_instructor_01',
       primaryTopicNodeId: 'node_phys_kinematics',
       gradeNodeId: 'node_grade_10',
-      status: 'APPROVED' as const,
+      status: 'DRAFT' as const,
       currentBlueprintId: 'bp_phys10_review_v1',
       blueprint: {
         id: 'bp_phys10_review_v1',
@@ -125,7 +125,7 @@ export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
           strategyType: 'PARTIAL' as const,
           roundingDecimal: 1,
         },
-        isLocked: true,
+        isLocked: false,
       },
     },
   ];

@@ -83,9 +83,9 @@ describe('Tree Structure Specification (Recursive CTE & Nested Hierarchy)', () =
     });
 
     it('should return only self for a leaf node with no children', async () => {
-      const result = await manageNodeUseCase.getDescendantIds('node_topic_math_algebra_10');
-      expect(result.rootId).toBe('node_topic_math_algebra_10');
-      expect(result.descendantIds).toEqual(['node_topic_math_algebra_10']);
+      const result = await manageNodeUseCase.getDescendantIds('node_math_quad_eq');
+      expect(result.rootId).toBe('node_math_quad_eq');
+      expect(result.descendantIds).toEqual(['node_math_quad_eq']);
     });
   });
 
