@@ -158,6 +158,10 @@ export class AuthClient {
 
     const json = await this.parseJsonResponse(response, 'me');
     if (!response.ok || !json.success) {
+      if (response.status === 401) {
+        this.session.clear();
+        this.notifyListeners(false);
+      }
       throw new Error(json.message || json.error || `Failed to fetch user profile with status ${response.status}`);
     }
 
@@ -215,25 +219,27 @@ export class AuthClient {
    * Đăng xuất và dọn dẹp Session
    */
   async logout(): Promise<void> {
-    const refreshToken = this.session.getRefreshToken();
-    if (refreshToken) {
-      try {
-        const url = `${this.baseUrl}/logout`;
-        await this.fetchFn(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ refreshToken }),
-          credentials: 'include' as any,
-        });
-      } catch {
-        // Silently ignore logout request failure, still clear client session
+    try {
+      const refreshToken = this.session.getRefreshToken();
+      if (refreshToken) {
+        try {
+          const url = `${this.baseUrl}/logout`;
+          await this.fetchFn(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refreshToken }),
+            credentials: 'include' as any,
+          });
+        } catch {
+          // Silently ignore logout request failure, still clear client session
+        }
       }
+    } finally {
+      this.session.clear();
+      this.notifyListeners(false);
     }
-
-    this.session.clear();
-    this.notifyListeners(false);
   }
 
   /**
@@ -265,6 +271,11 @@ export class AuthClient {
       } catch {
         // Refresh failed, return original 401 response
       }
+    }
+
+    if (response.status === 401) {
+      this.session.clear();
+      this.notifyListeners(false);
     }
 
     return response;

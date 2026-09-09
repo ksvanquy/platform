@@ -492,6 +492,7 @@ if (!fs.existsSync(adminWebDist)) {
 if (fs.existsSync(adminWebDist)) {
   app.use('/admin', express.static(adminWebDist));
   app.use('/admin', (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(adminWebDist, 'index.html'));
   });
 }
@@ -509,6 +510,7 @@ if (fs.existsSync(quizWebDist)) {
     ) {
       return next();
     }
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(quizWebDist, 'index.html'));
   });
 }
@@ -516,6 +518,7 @@ if (fs.existsSync(quizWebDist)) {
 // Root route: HTML for browser visitors, Discovery JSON for API clients / tests
 app.get('/', (req: Request, res: Response) => {
   if (req.headers.accept?.includes('text/html') && fs.existsSync(path.join(quizWebDist, 'index.html'))) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.sendFile(path.join(quizWebDist, 'index.html'));
   }
   res.status(200).json(apiDiscovery);

@@ -15,20 +15,31 @@ export const App: React.FC = () => {
       setUser(authClient.getUser());
     });
 
+    const handleUnauthorized = () => {
+      authClient.logout();
+      setIsAuthenticated(false);
+      setUser(null);
+    };
+    window.addEventListener('platform:unauthorized', handleUnauthorized);
+
     // Nếu đã có token lưu trong session nhưng chưa có thông tin profile, gọi /me
-    if (authClient.isAuthenticated() && !user) {
+    if (authClient.isAuthenticated()) {
       authClient
         .me()
         .then((profile) => {
           setUser(profile);
         })
         .catch(() => {
+          authClient.logout();
           setIsAuthenticated(false);
           setUser(null);
         });
     }
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      window.removeEventListener('platform:unauthorized', handleUnauthorized);
+    };
   }, []);
 
   const handleRefreshUser = async () => {

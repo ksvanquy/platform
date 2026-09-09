@@ -20,7 +20,15 @@ export const App: React.FC = () => {
       setUser(authClient.getUser());
     });
 
-    // Luôn kiểm tra tính hợp lệ của token với Auth Service
+    // Lắng nghe sự kiện 401 Unauthorized từ toàn bộ ứng dụng để tự dọn dẹp và về trang login ngay lập tức
+    const handleUnauthorized = () => {
+      authClient.logout();
+      setIsAuthenticated(false);
+      setUser(null);
+    };
+    window.addEventListener('platform:unauthorized', handleUnauthorized);
+
+    // Luôn kiểm tra tính hợp lệ của token với Auth Service khi mở ứng dụng
     if (authClient.isAuthenticated()) {
       authClient.me().then((profile) => {
         setUser(profile);
@@ -32,7 +40,10 @@ export const App: React.FC = () => {
       });
     }
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      window.removeEventListener('platform:unauthorized', handleUnauthorized);
+    };
   }, []);
 
   const {

@@ -62,8 +62,17 @@ function getSharedKeyFilePath(): string {
 
 export function getDefaultRsaKeyPair(): { privateKey: string; publicKey: string } {
   if (!globalRsaKeyPair) {
-    const envPriv = process.env.JWT_PRIVATE_KEY?.trim();
-    const envPub = process.env.JWT_PUBLIC_KEY?.trim();
+    const normalizePem = (key?: string) => {
+      if (!key) return '';
+      let normalized = key.trim();
+      if ((normalized.startsWith('"') && normalized.endsWith('"')) || (normalized.startsWith("'") && normalized.endsWith("'"))) {
+        normalized = normalized.slice(1, -1);
+      }
+      return normalized.replace(/\\n/g, '\n');
+    };
+
+    const envPriv = normalizePem(process.env.JWT_PRIVATE_KEY);
+    const envPub = normalizePem(process.env.JWT_PUBLIC_KEY);
 
     if (envPriv && envPub && envPriv.includes('BEGIN') && envPub.includes('BEGIN')) {
       try {

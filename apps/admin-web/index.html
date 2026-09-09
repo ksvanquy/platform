@@ -8,6 +8,51 @@
     <meta property="og:title" content="Quiz Core - Admin Portal" />
     <meta property="og:description" content="Nền tảng Khảo Thí & Thi Trắc Nghiệm - Kiến trúc Microservices (Question, Assessment, Exam, Attempt, Taxonomy, Auth) với API Gateway Port 3000" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+    <script>
+      (function() {
+        try {
+          var key = 'platform_auth_session';
+          var raw = localStorage.getItem(key);
+          if (raw) {
+            var data = JSON.parse(raw);
+            var token = data && data.tokens && data.tokens.accessToken;
+            if (!token || typeof token !== 'string') {
+              localStorage.removeItem(key);
+            } else {
+              var parts = token.split('.');
+              if (parts.length !== 3) {
+                localStorage.removeItem(key);
+              } else {
+                var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                if (payload && payload.exp && (Date.now() >= payload.exp * 1000 - 5000)) {
+                  localStorage.removeItem(key);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          try { localStorage.removeItem('platform_auth_session'); } catch (_) {}
+        }
+        var origFetch = window.fetch;
+        if (typeof origFetch === 'function') {
+          window.fetch = async function() {
+            var response = await origFetch.apply(this, arguments);
+            if (response && response.status === 401) {
+              var url = String(arguments[0] || '');
+              if (url.includes('/v1/') && !url.includes('/auth/login')) {
+                try {
+                  if (localStorage.getItem('platform_auth_session')) {
+                    localStorage.removeItem('platform_auth_session');
+                    window.dispatchEvent(new CustomEvent('platform:unauthorized'));
+                  }
+                } catch (_) {}
+              }
+            }
+            return response;
+          };
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

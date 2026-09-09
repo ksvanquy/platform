@@ -126,10 +126,37 @@ export class SessionManager {
     try {
       const raw = this.storage.getItem(AUTH_STORAGE_KEY);
       if (raw) {
-        return JSON.parse(raw);
+        const parsed: AuthSessionData = JSON.parse(raw);
+        const accessToken = parsed.tokens?.accessToken;
+        
+        // Tự động kiểm tra tính hợp lệ và thời hạn của token khi nạp từ storage
+        if (!accessToken || typeof accessToken !== 'string') {
+          this.storage.removeItem(AUTH_STORAGE_KEY);
+          return { tokens: null, user: null, principal: null, expiresAt: null };
+        }
+
+        const decoded = decodeJwtPayload<{ exp?: number; sub?: string }>(accessToken);
+        if (!decoded || !decoded.sub) {
+          // Token bị lỗi cấu trúc / hỏng -> tự động dọn sạch
+          this.storage.removeItem(AUTH_STORAGE_KEY);
+          return { tokens: null, user: null, principal: null, expiresAt: null };
+        }
+
+        // Nếu token đã hết hạn (kèm buffer 5 giây) -> tự động dọn sạch
+        const expirationTime = parsed.expiresAt ?? (decoded.exp ? decoded.exp * 1000 : null);
+        if (expirationTime && Date.now() >= expirationTime - 5000) {
+          this.storage.removeItem(AUTH_STORAGE_KEY);
+          return { tokens: null, user: null, principal: null, expiresAt: null };
+        }
+
+        return parsed;
       }
     } catch {
-      // ignore
+      try {
+        this.storage.removeItem(AUTH_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
     }
     return { tokens: null, user: null, principal: null, expiresAt: null };
   }
@@ -224,6 +251,13 @@ export class SessionManager {
 
   isExpired(): boolean {
     if (!this.sessionData.expiresAt) {
+      const token = this.getAccessToken();
+      if (token) {
+        const decoded = decodeJwtPayload<{ exp?: number }>(token);
+        if (decoded?.exp) {
+          return Date.now() >= decoded.exp * 1000 - 5000;
+        }
+      }
       return false;
     }
     // Margin of 5 seconds
