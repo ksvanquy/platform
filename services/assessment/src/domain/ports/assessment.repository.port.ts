@@ -15,7 +15,7 @@ export interface AssessmentRepositoryPort {
   saveAssessment(assessment: Assessment, blueprint?: Blueprint): Promise<Assessment>;
   findAssessmentById(id: string): Promise<Assessment | null>;
   findAssessmentByCode(code: string): Promise<Assessment | null>;
-  listAssessments(filter: AssessmentFilterQuery): Promise<{ assessments: Assessment[]; total: number }>;
+  listAssessments(filter?: AssessmentFilterQuery): Promise<{ assessments: Assessment[]; total: number }>;
   deleteAssessment(id: string): Promise<boolean>;
 
   saveBlueprint(blueprint: Blueprint): Promise<Blueprint>;

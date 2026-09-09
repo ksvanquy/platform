@@ -138,7 +138,7 @@ export class DrizzleAssessmentRepository implements AssessmentRepositoryPort {
     return this.mapAssessmentToDomain(aRow, bpRow);
   }
 
-  async listAssessments(filter: AssessmentFilterQuery): Promise<{ assessments: Assessment[]; total: number }> {
+  async listAssessments(filter: AssessmentFilterQuery = {}): Promise<{ assessments: Assessment[]; total: number }> {
     const conditions = [];
 
     if (filter.status) {

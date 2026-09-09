@@ -7,6 +7,6 @@ export interface QuestionRepositoryPort {
   findByCode(code: string): Promise<Question | null>;
   findRevision(questionId: string, revisionNumber: number): Promise<QuestionRevision | null>;
   listRevisions(questionId: string): Promise<QuestionRevision[]>;
-  listQuestions(query: QuestionFilterQuery): Promise<{ questions: Question[]; total: number }>;
+  listQuestions(query?: QuestionFilterQuery): Promise<{ questions: Question[]; total: number }>;
   delete(id: string): Promise<boolean>;
 }

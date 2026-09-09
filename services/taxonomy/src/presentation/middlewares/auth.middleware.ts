@@ -91,13 +91,10 @@ export async function authContextMiddleware(
     const token = authHeader.substring(7).trim();
     const payload = verifyJwtSignature(token);
 
-    if (!payload) {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid or expired authentication token',
-        errorCode: 'UNAUTHORIZED',
-      });
-      return;
+    if (!payload || !payload.sub) {
+      req.principal = undefined;
+      req.context = { principal: undefined };
+      return next();
     }
 
     if (payload.isActive === false) {

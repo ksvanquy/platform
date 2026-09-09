@@ -190,7 +190,7 @@ export class DrizzleQuestionRepository implements QuestionRepositoryPort {
     return rows.map((r: QuestionRevisionRow) => this.mapRevisionToDomain(r));
   }
 
-  async listQuestions(query: QuestionFilterQuery): Promise<{ questions: Question[]; total: number }> {
+  async listQuestions(query: QuestionFilterQuery = {}): Promise<{ questions: Question[]; total: number }> {
     const conditions = [];
 
     if (query.topicNodeId) {
