@@ -8,7 +8,7 @@
     <meta property="og:title" content="Quiz Core - Hệ Thống Thi Trắc Nghiệm" />
     <meta property="og:description" content="Nền tảng Khảo Thí & Thi Trắc Nghiệm - Kiến trúc Microservices (Question, Assessment, Exam, Attempt, Taxonomy, Auth) với API Gateway Port 3000" />
     <script>
-      // Auto-validate and purge expired or corrupt session tokens before React mounts
+      // Auto-validate and purge expired session tokens before React mounts
       (function() {
         try {
           var key = 'platform_auth_session';
@@ -20,40 +20,16 @@
               localStorage.removeItem(key);
             } else {
               var parts = token.split('.');
-              if (parts.length !== 3) {
-                localStorage.removeItem(key);
-              } else {
+              if (parts.length === 3) {
                 var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
                 if (payload && payload.exp && (Date.now() >= payload.exp * 1000 - 5000)) {
-                  console.info('🧹 [Auth] Token đã hết hạn trong localStorage, tự động dọn dẹp session.');
                   localStorage.removeItem(key);
                 }
               }
             }
           }
-        } catch (e) {
+        } catch (_) {
           try { localStorage.removeItem('platform_auth_session'); } catch (_) {}
-        }
-
-        // Global network interceptor for 401 Unauthorized API responses
-        var origFetch = window.fetch;
-        if (typeof origFetch === 'function') {
-          window.fetch = async function() {
-            var response = await origFetch.apply(this, arguments);
-            if (response && response.status === 401) {
-              var url = String(arguments[0] || '');
-              if (url.includes('/v1/') && !url.includes('/auth/login')) {
-                try {
-                  if (localStorage.getItem('platform_auth_session')) {
-                    console.warn('⚠️ [Auth] Nhận mã 401 từ server (' + url + '). Tự động xóa token và chuyển về màn hình đăng nhập.');
-                    localStorage.removeItem('platform_auth_session');
-                    window.dispatchEvent(new CustomEvent('platform:unauthorized'));
-                  }
-                } catch (_) {}
-              }
-            }
-            return response;
-          };
         }
       })();
     </script>

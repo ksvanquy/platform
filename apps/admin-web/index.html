@@ -20,9 +20,7 @@
               localStorage.removeItem(key);
             } else {
               var parts = token.split('.');
-              if (parts.length !== 3) {
-                localStorage.removeItem(key);
-              } else {
+              if (parts.length === 3) {
                 var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
                 if (payload && payload.exp && (Date.now() >= payload.exp * 1000 - 5000)) {
                   localStorage.removeItem(key);
@@ -30,26 +28,8 @@
               }
             }
           }
-        } catch (e) {
+        } catch (_) {
           try { localStorage.removeItem('platform_auth_session'); } catch (_) {}
-        }
-        var origFetch = window.fetch;
-        if (typeof origFetch === 'function') {
-          window.fetch = async function() {
-            var response = await origFetch.apply(this, arguments);
-            if (response && response.status === 401) {
-              var url = String(arguments[0] || '');
-              if (url.includes('/v1/') && !url.includes('/auth/login')) {
-                try {
-                  if (localStorage.getItem('platform_auth_session')) {
-                    localStorage.removeItem('platform_auth_session');
-                    window.dispatchEvent(new CustomEvent('platform:unauthorized'));
-                  }
-                } catch (_) {}
-              }
-            }
-            return response;
-          };
         }
       })();
     </script>
