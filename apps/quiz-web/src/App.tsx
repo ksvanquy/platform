@@ -43,7 +43,7 @@ const App: React.FC = () => {
   } = useQuizSession(user?.id || 'candidate_guest');
 
   /**
-   * Bắt đầu ca thi:
+   * Bắt đầu bài thi:
    * - Nếu chưa đăng nhập: Ghi nhớ pendingQuizId, mở màn hình đăng nhập
    * - Nếu đã đăng nhập: Gọi start(quizId) và vào thẳng phòng thi
    */
@@ -78,7 +78,7 @@ const App: React.FC = () => {
   /**
    * Xử lý đăng nhập thành công:
    * - Cập nhật thông tin user và trạng thái authenticated
-   * - Nếu có pendingQuizId (người dùng bấm thi trước đó), tự động kích hoạt ca thi ngay
+   * - Nếu có pendingQuizId (người dùng bấm thi trước đó), tự động kích hoạt bài thi ngay
    */
   const handleLoginSuccess = async (loggedInUser: UserProfile) => {
     setUser(loggedInUser);
@@ -150,7 +150,7 @@ const App: React.FC = () => {
         }}
         bannerMessage={
           pendingQuizId
-            ? 'Vui lòng đăng nhập để bắt đầu ca thi bạn đã chọn'
+            ? 'Vui lòng đăng nhập để bắt đầu bài thi bạn đã chọn'
             : null
         }
       />

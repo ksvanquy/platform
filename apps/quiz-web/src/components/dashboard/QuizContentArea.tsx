@@ -3,7 +3,6 @@ import type { UserProfile } from '@platform/auth-client';
 import type { TaxonomyTreeNodeDTO } from '@platform/contracts';
 import {
   ClockIcon,
-  ShieldCheckIcon,
   PlayIcon,
   SearchIcon,
   AwardIcon,
@@ -11,17 +10,19 @@ import {
   BookOpenIcon,
   LayersIcon,
   AcademicCapIcon,
+  PanelLeftIcon,
 } from '../common/Icons.js';
 
-interface QuizItem {
+export interface QuizItem {
   id: string;
   code: string;
   title: string;
   description?: string;
-  status: string;
+  status?: string;
   isPublic?: boolean;
   durationMinutes?: number;
   questionsCount?: number;
+  passingScore?: number;
   primaryNodeId?: string | null;
   gradeNodeId?: string | null;
   currentPublishedVersionId?: string;
@@ -29,8 +30,8 @@ interface QuizItem {
 
 interface QuizContentAreaProps {
   quizzes: QuizItem[];
-  selectedQuizId: string;
-  onSelectQuiz: (quizId: string) => void;
+  selectedQuizId?: string;
+  onSelectQuiz?: (quizId: string) => void;
   selectedNodeName: string;
   selectedNodeBreadcrumbs: string[];
   categoryMap: Record<string, string>;
@@ -48,21 +49,18 @@ interface QuizContentAreaProps {
   gradeCounts?: Record<string, number>;
   onClearCategory?: () => void;
   onClearGrade?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
   quizzes,
-  selectedQuizId,
-  onSelectQuiz,
   selectedNodeName,
   selectedNodeBreadcrumbs,
   categoryMap,
-  user,
   isLoading,
   errorMessage,
   onStartQuiz,
-  quizDetails,
-  loadingDetails = false,
   isLoadingQuizzes = false,
   gradeTree = [],
   selectedGradeNodeId = '',
@@ -71,8 +69,11 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
   gradeCounts = {},
   onClearCategory,
   onClearGrade,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeStartingQuizId, setActiveStartingQuizId] = useState<string | null>(null);
 
   // Filter quizzes by search term
   const filteredQuizzes = useMemo(() => {
@@ -94,35 +95,35 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
     return gradeTree.find((r) => r.children?.some((c) => c.id === selectedGradeNodeId)) || null;
   }, [gradeTree, selectedGradeNodeId]);
 
-  // Find currently selected quiz
-  const selectedQuiz = useMemo(() => {
-    return quizzes.find((q) => q.id === selectedQuizId) || quizzes[0] || null;
-  }, [quizzes, selectedQuizId]);
-
-  const currentVersion = quizDetails?.currentVersion;
-  const durationMinutes = quizDetails?.durationMinutes || selectedQuiz?.durationMinutes || currentVersion?.durationMinutes || 45;
-  const passingScore = quizDetails?.passingScore || currentVersion?.passingScore || 5;
-  const totalQuestions = quizDetails?.questionsCount || selectedQuiz?.questionsCount || currentVersion?.questions?.length || 10;
-  const maxAttempts = quizDetails?.maxAttempts || currentVersion?.maxAttempts || 3;
-
-  const handleStartClick = () => {
-    if (selectedQuiz) {
-      onStartQuiz(selectedQuiz.id);
-    }
+  const handleStartExam = (quizId: string) => {
+    setActiveStartingQuizId(quizId);
+    onStartQuiz(quizId);
   };
 
   return (
     <main
       id="quiz-content-area"
-      className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-950 p-4 sm:p-6 lg:p-8 space-y-6"
+      className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-950 p-4 sm:p-5 lg:p-6 space-y-5"
     >
       {/* Top Header & Breadcrumb Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/80 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80 shrink-0">
         <div className="space-y-1">
-          {/* Breadcrumbs */}
-          <div className="flex items-center space-x-1.5 text-xs text-slate-400 font-medium overflow-x-auto whitespace-nowrap">
+          {/* Breadcrumbs with Sidebar Toggle */}
+          <div className="flex items-center space-x-2 text-xs text-slate-400 font-medium overflow-x-auto whitespace-nowrap">
+            {onToggleSidebar && (
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                className="hidden lg:flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-sky-300 border border-slate-800 text-[11px] font-medium transition-colors cursor-pointer mr-1"
+                title={isSidebarCollapsed ? 'Mở cây thư mục tri thức' : 'Thu gọn thanh danh mục (Tối đa không gian)'}
+              >
+                <PanelLeftIcon size={12} className={isSidebarCollapsed ? 'text-sky-400' : 'text-slate-400'} />
+                <span>{isSidebarCollapsed ? 'Hiện danh mục' : 'Thu gọn'}</span>
+              </button>
+            )}
+
             <span className="flex items-center space-x-1 text-slate-400">
-              <LayersIcon size={13} />
+              <LayersIcon size={12} />
               <span>Chủ đề</span>
             </span>
             {selectedNodeBreadcrumbs.length > 0 ? (
@@ -143,15 +144,15 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
             ) : (
               <>
                 <span className="text-slate-600">/</span>
-                <span className="text-sky-400 font-semibold">Tất cả môn / chủ đề</span>
+                <span className="text-sky-400 font-semibold">Tất cả đề thi</span>
               </>
             )}
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2.5">
             <span>{selectedNodeName || 'Danh Sách Bài Thi'}</span>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
-              {filteredQuizzes.length} đề thi
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-800 text-sky-300 border border-slate-700 font-mono">
+              {filteredQuizzes.length} bài thi
             </span>
             {isLoadingQuizzes && (
               <span className="text-xs text-sky-400 font-normal animate-pulse">Đang tải...</span>
@@ -159,14 +160,14 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
           </h1>
         </div>
 
-        {/* Search Input for quizzes */}
-        <div className="relative w-full sm:w-72">
+        {/* Search Input for exams */}
+        <div className="relative w-full sm:w-80">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo tên hoặc mã đề..."
-            className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
+            placeholder="Tìm theo tên bài thi hoặc mã đề..."
+            className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all shadow-inner"
           />
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
             <SearchIcon size={14} />
@@ -183,11 +184,11 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
         </div>
       </div>
 
-      {/* 2D Facet Filter Bar: Khối Lớp & Cấp Học (Task 4.1 & 4.2) */}
-      <div id="grade-facet-filter-bar" className="bg-slate-900/70 border border-slate-800/90 rounded-2xl p-4 space-y-3 shrink-0">
+      {/* 2D Facet Filter Bar: Khối Lớp & Cấp Học */}
+      <div id="grade-facet-filter-bar" className="bg-slate-900/70 border border-slate-800/90 rounded-2xl p-3.5 space-y-2.5 shrink-0">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
           <div className="flex items-center space-x-2">
-            <AcademicCapIcon size={16} className="text-emerald-400" />
+            <AcademicCapIcon size={15} className="text-emerald-400" />
             <span className="uppercase tracking-wider text-[11px] font-bold text-slate-200">
               Lọc theo Khối Lớp & Cấp Học
             </span>
@@ -196,7 +197,7 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
             <button
               type="button"
               onClick={() => onSelectGradeNode && onSelectGradeNode('')}
-              className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors"
+              className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors cursor-pointer"
             >
               Xem tất cả khối lớp
             </button>
@@ -205,7 +206,6 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
 
         {/* Cấp học gốc: [Tất cả khối lớp] | [Tiểu học] [THCS] [THPT] */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-800">
-          {/* All Grades Pill */}
           <button
             type="button"
             onClick={() => onSelectGradeNode && onSelectGradeNode('')}
@@ -218,10 +218,8 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
             <span>Tất cả khối lớp</span>
           </button>
 
-          {/* Divider */}
           <div className="h-4 w-px bg-slate-700/70 shrink-0 mx-1" />
 
-          {/* Education Stage Roots (Tiểu học, THCS, THPT) */}
           {gradeTree.map((root) => {
             const isRootSelected = selectedGradeNodeId === root.id || activeStageRoot?.id === root.id;
             const count = gradeCounts[root.id] ?? 0;
@@ -253,7 +251,7 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
           })}
         </div>
 
-        {/* Khối lớp con tương ứng (hiển thị trực tiếp các nút lớp, không in nhãn chữ thừa) */}
+        {/* Khối lớp con tương ứng */}
         <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-1 scrollbar-thin scrollbar-thumb-slate-800 border-t border-slate-800/40">
           {(activeStageRoot?.children && activeStageRoot.children.length > 0
             ? activeStageRoot.children
@@ -291,10 +289,10 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
           })}
         </div>
 
-        {/* Active Filter Chips Bar (Hiển thị trực quan các chip đang lọc, không cần nhãn thừa) */}
-        {((selectedNodeName && selectedNodeName !== 'Tất cả bài thi') || selectedGradeNodeId) && (
+        {/* Active Filter Chips Bar */}
+        {((selectedNodeName && selectedNodeName !== 'Tất cả bài thi' && selectedNodeName !== 'Tất cả đề thi') || selectedGradeNodeId) && (
           <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 flex-wrap text-xs">
-            {selectedNodeName && selectedNodeName !== 'Tất cả bài thi' && (
+            {selectedNodeName && selectedNodeName !== 'Tất cả bài thi' && selectedNodeName !== 'Tất cả đề thi' && (
               <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-medium text-[11px]">
                 <TagIcon size={11} />
                 <span>Chủ đề: {selectedNodeName}</span>
@@ -328,7 +326,7 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
               </span>
             )}
 
-            {selectedNodeName && selectedNodeName !== 'Tất cả bài thi' && selectedGradeNodeId && (
+            {selectedNodeName && selectedGradeNodeId && (
               <button
                 type="button"
                 onClick={() => {
@@ -346,322 +344,180 @@ export const QuizContentArea: React.FC<QuizContentAreaProps> = ({
 
       {/* Error Message banner */}
       {errorMessage && (
-        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start space-x-3">
+        <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start space-x-3 shrink-0">
           <span className="text-base shrink-0">⚠️</span>
           <div className="space-y-0.5">
-            <div className="font-bold">Lỗi khởi tạo ca thi:</div>
+            <div className="font-bold">Lỗi khởi tạo bài thi:</div>
             <div>{errorMessage}</div>
           </div>
         </div>
       )}
 
-      {/* 2-Column Content Grid: Left: Quiz List (60%), Right: Exam Session Info (40%) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Danh sách bài thi tương ứng (7 cols) */}
-        <div className="xl:col-span-7 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
-              <BookOpenIcon size={16} className="text-sky-400" />
-              <span>Danh Sách Bài Thi Tương Ứng</span>
-            </h2>
-            <span className="text-xs text-slate-400">
-              Nhấp chọn để xem thông tin ca thi
-            </span>
-          </div>
-
-          {filteredQuizzes.length === 0 ? (
-            <div className="p-8 rounded-2xl bg-slate-900/50 border border-dashed border-slate-800 text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center mx-auto text-xl">
-                📂
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-slate-300">Không tìm thấy bài thi phù hợp</p>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  {searchTerm
-                    ? `Không có bài thi nào khớp với từ khóa "${searchTerm}".`
-                    : 'Chưa có đề thi nào trong danh mục này. Hãy thử chọn môn học khác ở cây thư mục bên trái.'}
-                </p>
-              </div>
+      {/* DANH SÁCH BÀI THI - DẠNG CARD (5 CARD TRÊN 1 HÀNG TRÊN DESKTOP/MÀN RỘNG) */}
+      <div className="flex-1 space-y-3">
+        {filteredQuizzes.length === 0 ? (
+          <div className="p-12 rounded-3xl bg-slate-900/40 border border-dashed border-slate-800 text-center space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center mx-auto text-2xl">
+              📂
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3">
-              {filteredQuizzes.map((quiz) => {
-                const isSelected = selectedQuiz?.id === quiz.id;
-                const topicName = quiz.primaryNodeId ? categoryMap[quiz.primaryNodeId] : null;
-
-                return (
-                  <div
-                    key={quiz.id}
-                    id={`quiz-card-${quiz.id}`}
-                    onClick={() => onSelectQuiz(quiz.id)}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all relative overflow-hidden group ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-sky-950/40 to-slate-900 border-sky-500 shadow-lg shadow-sky-500/5 ring-1 ring-sky-500/30'
-                        : 'bg-slate-900/60 border-slate-800/80 hover:bg-slate-900 hover:border-slate-700 text-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        {/* Title & Badges */}
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          <span
-                            className={`text-sm font-bold tracking-tight ${
-                              isSelected ? 'text-sky-200' : 'text-slate-100 group-hover:text-white'
-                            }`}
-                          >
-                            {quiz.title}
-                          </span>
-
-                          {quiz.isPublic ? (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                              Công khai
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                              Chính thức
-                            </span>
-                          )}
-
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            Đang mở
-                          </span>
-                        </div>
-
-                        {/* Description */}
-                        {quiz.description && (
-                          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                            {quiz.description}
-                          </p>
-                        )}
-
-                        {/* Metadata Footer */}
-                        <div className="flex items-center space-x-3 text-xs text-slate-400 pt-1 flex-wrap gap-y-1">
-                          <span className="font-mono text-[11px] text-slate-400">
-                            Mã: <strong className="text-slate-200 font-semibold">{quiz.code}</strong>
-                          </span>
-
-                          {topicName && (
-                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                              <TagIcon size={11} />
-                              <span className="truncate max-w-[150px]">{topicName}</span>
-                            </span>
-                          )}
-
-                          {quiz.gradeNodeId && gradeMap[quiz.gradeNodeId] && (
-                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                              <AcademicCapIcon size={11} />
-                              <span className="truncate max-w-[150px]">{gradeMap[quiz.gradeNodeId]}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Action Buttons: 1-Click Start + Select Info */}
-                      <div className="shrink-0 flex flex-col sm:flex-row items-end sm:items-center gap-2">
-                        <button
-                          type="button"
-                          id={`btn-start-quiz-${quiz.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectQuiz(quiz.id);
-                            onStartQuiz(quiz.id);
-                          }}
-                          disabled={isLoading}
-                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-slate-950 font-black text-xs shadow-md shadow-sky-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                          title="Bắt đầu ca thi ngay lập tức"
-                        >
-                          <PlayIcon size={12} className="text-slate-950 fill-slate-950" />
-                          <span>Bắt đầu ca thi</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-slate-300">Không tìm thấy bài thi phù hợp</p>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                {searchTerm
+                  ? `Không có bài thi nào khớp với từ khóa "${searchTerm}". Hãy thử xóa bộ lọc tìm kiếm.`
+                  : 'Chưa có đề thi nào trong danh mục hoặc khối lớp đã chọn. Hãy thử chọn môn học khác ở cây tri thức.'}
+              </p>
             </div>
-          )}
-        </div>
-
-        {/* Right Column: Thông tin ca thi (5 cols) */}
-        <div className="xl:col-span-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
-              <ClockIcon size={16} className="text-sky-400" />
-              <span>Thông Tin Ca Thi</span>
-            </h2>
-            <span className="text-[11px] font-semibold text-emerald-400 flex items-center space-x-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <span>Hệ thống trực tuyến</span>
-            </span>
           </div>
+        ) : (
+          /* Grid 5 cards per row on wide screens (xl:grid-cols-5 2xl:grid-cols-5) */
+          <div
+            id="quiz-cards-grid"
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-5 gap-4 items-stretch"
+          >
+            {filteredQuizzes.map((quiz) => {
+              const topicName = quiz.primaryNodeId ? categoryMap[quiz.primaryNodeId] : null;
+              const gradeName = quiz.gradeNodeId ? gradeMap[quiz.gradeNodeId] : null;
+              const isStartingThisQuiz = isLoading && activeStartingQuizId === quiz.id;
 
-          {selectedQuiz ? (
-            <div
-              id="exam-session-info-card"
-              className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5"
-            >
-              {/* Exam Header */}
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2">
-                <div className="text-[11px] font-semibold text-sky-400 uppercase tracking-wider">
-                  Đề thi được chọn
-                </div>
-                <div className="text-base font-black text-slate-100 leading-tight">
-                  {selectedQuiz.title}
-                </div>
-                <div className="flex items-center space-x-2 text-xs text-slate-400 flex-wrap gap-y-1">
-                  <span className="font-mono bg-slate-800 px-2 py-0.5 rounded text-[11px] text-slate-300">
-                    Mã: {selectedQuiz.code}
-                  </span>
-                  {selectedQuiz.primaryNodeId && categoryMap[selectedQuiz.primaryNodeId] && (
-                    <>
-                      <span>•</span>
-                      <span className="text-indigo-400 font-medium">{categoryMap[selectedQuiz.primaryNodeId]}</span>
-                    </>
-                  )}
-                  {selectedQuiz.gradeNodeId && gradeMap[selectedQuiz.gradeNodeId] && (
-                    <>
-                      <span>•</span>
-                      <span className="text-emerald-400 font-medium flex items-center space-x-1">
-                        <AcademicCapIcon size={12} />
-                        <span>{gradeMap[selectedQuiz.gradeNodeId]}</span>
+              return (
+                <div
+                  key={quiz.id}
+                  id={`quiz-card-${quiz.id}`}
+                  className="bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-sky-500/60 rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-sky-500/10 hover:-translate-y-1 group relative overflow-hidden h-full"
+                >
+                  {/* Card Top: Badges & Tags */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                      {/* Status badge */}
+                      <span className="inline-flex items-center space-x-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>Đang mở</span>
                       </span>
-                    </>
-                  )}
-                  <span>•</span>
-                  <span>{selectedQuiz.isPublic ? 'Khảo sát mở' : 'Đánh giá chính thức'}</span>
-                </div>
-              </div>
 
-              {/* Candidate Info */}
-              <div className="space-y-2 text-xs">
-                <div className="text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                  Thông tin thí sinh
-                </div>
-                <div className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-800 grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-slate-500 block text-[11px]">Họ tên học viên:</span>
-                    <span className="font-bold text-slate-200 text-xs">
-                      {user ? (
-                        user.name || user.email || 'Thí sinh'
+                      {/* Public / Official badge */}
+                      {quiz.isPublic ? (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/80">
+                          Khảo sát
+                        </span>
                       ) : (
-                        <span className="text-amber-400/90 font-medium">Chưa đăng nhập (Khách)</span>
-                      )}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[11px]">Mã định danh:</span>
-                    <span className="font-mono text-indigo-300 text-[11px] truncate block">
-                      {user?.id || 'Khách vãng lai'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Exam Metrics Grid */}
-              <div className="space-y-2 text-xs">
-                <div className="text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                  Quy cách ca thi
-                </div>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
-                    <div className="flex items-center space-x-1.5 text-sky-400">
-                      <ClockIcon size={14} />
-                      <span className="text-[11px] font-semibold">Thời gian làm bài</span>
-                    </div>
-                    <div className="text-base font-black text-slate-100">
-                      {loadingDetails ? (
-                        <span className="text-xs text-slate-500">Đang tải...</span>
-                      ) : (
-                        `${durationMinutes} phút`
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-300 border border-sky-500/25">
+                          Chính thức
+                        </span>
                       )}
                     </div>
+
+                    {/* Title & Code */}
+                    <div className="space-y-1">
+                      <h3
+                        className="text-sm font-bold text-slate-100 group-hover:text-sky-300 transition-colors line-clamp-2 leading-snug tracking-tight"
+                        title={quiz.title}
+                      >
+                        {quiz.title}
+                      </h3>
+                      <div className="flex items-center space-x-1.5 text-[11px] text-slate-400 font-mono">
+                        <span className="text-slate-500">Mã:</span>
+                        <strong className="text-slate-300 font-semibold truncate">{quiz.code}</strong>
+                      </div>
+                    </div>
+
+                    {/* Subject / Grade tags */}
+                    {(topicName || gradeName) && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {topicName && (
+                          <span
+                            className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 max-w-[130px] truncate"
+                            title={topicName}
+                          >
+                            <TagIcon size={10} className="shrink-0" />
+                            <span className="truncate">{topicName}</span>
+                          </span>
+                        )}
+                        {gradeName && (
+                          <span
+                            className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 max-w-[110px] truncate"
+                            title={gradeName}
+                          >
+                            <AcademicCapIcon size={11} className="shrink-0" />
+                            <span className="truncate">{gradeName}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Description (subtle 2 lines) */}
+                    {quiz.description && (
+                      <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                        {quiz.description}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
-                    <div className="flex items-center space-x-1.5 text-emerald-400">
-                      <AwardIcon size={14} />
-                      <span className="text-[11px] font-semibold">Điểm đạt tối thiểu</span>
-                    </div>
-                    <div className="text-base font-black text-slate-100">
-                      {loadingDetails ? (
-                        <span className="text-xs text-slate-500">Đang tải...</span>
-                      ) : (
-                        `${passingScore} điểm`
-                      )}
-                    </div>
-                  </div>
+                  {/* Card Bottom: Core Specifications & CTA Action Button */}
+                  <div className="space-y-3 pt-3 mt-3 border-t border-slate-800/80">
+                    {/* 3 Core Metrics: Thời gian, Số câu, Điểm đạt */}
+                    <div className="grid grid-cols-3 gap-1 py-2 px-1 rounded-xl bg-slate-950/60 border border-slate-800/70 text-center">
+                      {/* Thời gian */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-center text-sky-400">
+                          <ClockIcon size={12} />
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-100 font-mono">
+                          {quiz.durationMinutes || 45}p
+                        </div>
+                        <div className="text-[9px] text-slate-500 font-medium">Thời gian</div>
+                      </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
-                    <div className="flex items-center space-x-1.5 text-indigo-400">
-                      <BookOpenIcon size={14} />
-                      <span className="text-[11px] font-semibold">Số câu hỏi</span>
-                    </div>
-                    <div className="text-base font-black text-slate-100">
-                      {loadingDetails ? (
-                        <span className="text-xs text-slate-500">Đang tải...</span>
-                      ) : (
-                        `${totalQuestions} câu`
-                      )}
-                    </div>
-                  </div>
+                      {/* Số câu */}
+                      <div className="space-y-0.5 border-x border-slate-800/60">
+                        <div className="flex items-center justify-center text-indigo-400">
+                          <BookOpenIcon size={12} />
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-100 font-mono">
+                          {quiz.questionsCount || 10}
+                        </div>
+                        <div className="text-[9px] text-slate-500 font-medium">Câu hỏi</div>
+                      </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
-                    <div className="flex items-center space-x-1.5 text-amber-400">
-                      <ShieldCheckIcon size={14} />
-                      <span className="text-[11px] font-semibold">Lượt thi cho phép</span>
+                      {/* Điểm đạt */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-center text-emerald-400">
+                          <AwardIcon size={12} />
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-100 font-mono">
+                          {quiz.passingScore ?? 5.0}đ
+                        </div>
+                        <div className="text-[9px] text-slate-500 font-medium">Điểm đạt</div>
+                      </div>
                     </div>
-                    <div className="text-base font-black text-slate-100">
-                      {loadingDetails ? (
-                        <span className="text-xs text-slate-500">Đang tải...</span>
+
+                    {/* Primary Action Button: 1-Click Vào thi */}
+                    <button
+                      type="button"
+                      id={`btn-start-quiz-${quiz.id}`}
+                      onClick={() => handleStartExam(quiz.id)}
+                      disabled={isLoading}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-slate-950 font-bold text-xs shadow-md shadow-sky-500/20 active:scale-95 transition-all flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group-hover:brightness-105"
+                      title="Bắt đầu làm bài thi ngay"
+                    >
+                      {isStartingThisQuiz ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                          <span>Đang vào thi...</span>
+                        </>
                       ) : (
-                        `${maxAttempts} lượt`
+                        <>
+                          <PlayIcon size={12} className="text-slate-950 fill-slate-950" />
+                          <span>Vào thi</span>
+                        </>
                       )}
-                    </div>
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              {/* Exam Rules & Integrity */}
-              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2 text-[11px] text-slate-400">
-                <div className="font-semibold text-slate-300 flex items-center space-x-1.5">
-                  <ShieldCheckIcon size={14} className="text-sky-400" />
-                  <span>Quy chế ca thi & Bảo mật:</span>
-                </div>
-                <ul className="space-y-1 text-slate-400 list-disc list-inside">
-                  <li>Thời gian đếm ngược chính xác theo đồng hồ máy chủ (RFC Timing).</li>
-                  <li>Tự động kích hoạt cơ chế phát hiện mở nhiều tab gian lận.</li>
-                  <li>Lưu đáp án tự động sau mỗi câu trả lời (Idempotency).</li>
-                  <li>Hệ thống tự động thu bài khi đồng hồ đếm ngược về 0.</li>
-                </ul>
-              </div>
-
-              {/* Start Exam Button */}
-              <button
-                id="btn-start-exam"
-                type="button"
-                onClick={handleStartClick}
-                disabled={isLoading}
-                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-slate-950 font-black text-sm tracking-wide transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    <span>Đang khởi tạo ca thi...</span>
-                  </>
-                ) : (
-                  <>
-                    <PlayIcon size={16} className="text-slate-950 fill-slate-950" />
-                    <span>{user ? 'BẮT ĐẦU VÀO CA THI' : 'ĐĂNG NHẬP & BẮT ĐẦU THI'}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          ) : (
-            <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-2">
-              <p className="text-xs text-slate-400">Vui lòng chọn một đề thi để xem thông tin ca thi.</p>
-            </div>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </main>
   );

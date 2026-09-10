@@ -33,6 +33,7 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   const [loadingTree, setLoadingTree] = useState<boolean>(true);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
   // Taxonomy tree & node lookup maps (TOPIC)
   const [taxonomyTree, setTaxonomyTree] = useState<TaxonomyTreeNodeDTO[]>([]);
@@ -46,10 +47,6 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   const [selectedGradeNodeId, setSelectedGradeNodeId] = useState<string>('');
   const [gradeMap, setGradeMap] = useState<Record<string, string>>({});
   const gradeDescendantMapRef = useRef<Record<string, Set<string>>>({});
-
-  // Selected quiz details (duration, passingScore, etc.)
-  const [quizDetails, setQuizDetails] = useState<any>(null);
-  const [loadingDetails, setLoadingDetails] = useState<boolean>(false);
 
   // 1. Fetch Taxonomy Tree (TOPIC)
   const fetchCategories = async () => {
@@ -152,11 +149,12 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
         id: e.id,
         code: e.code,
         title: e.title,
-        description: `Kỳ thi ${e.code} (${e.durationMinutes || 45} phút)`,
+        description: e.description || `Đề thi ${e.code} (${e.durationMinutes || 45} phút)`,
         durationMinutes: e.durationMinutes || 45,
         isExam: true,
         isPublic: e.isPublished || e.status === 'READY' || e.status === 'ACTIVE',
         questionsCount: e.variants?.[0]?.questionCount || 10,
+        passingScore: e.passingScore ?? e.assessment?.passingScore ?? 5,
         primaryNodeId: e.assessment?.primaryTopicNodeId,
         gradeNodeId: e.assessment?.gradeNodeId,
       }));
@@ -175,38 +173,6 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
       setLoadingQuizzes(false);
     }
   }, []);
-
-  // 3. Fetch details for selected quiz
-  useEffect(() => {
-    let isCancelled = false;
-    if (!selectedQuizId) {
-      setQuizDetails(null);
-      return;
-    }
-
-    const loadDetails = async () => {
-      setLoadingDetails(true);
-      try {
-        const details = await quizApi.getQuizDetails(selectedQuizId);
-        if (!isCancelled) {
-          setQuizDetails(details);
-        }
-      } catch {
-        if (!isCancelled) {
-          setQuizDetails(null);
-        }
-      } finally {
-        if (!isCancelled) {
-          setLoadingDetails(false);
-        }
-      }
-    };
-
-    loadDetails();
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedQuizId]);
 
   useEffect(() => {
     fetchCategories();
@@ -357,22 +323,25 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
         </span>
       </div>
 
-      {/* 2. BỐ CỤC BÊN DƯỚI (SPLIT VIEW):
-          Sidebar bên trái (25% - 30%): Cây thư mục Tri thức (Taxonomy Tree) để chọn môn/chủ đề
-          Khu vực nội dung bên phải (70% - 75%): Danh sách bài thi tương ứng + Thông tin ca thi
+      {/* 2. BỐ CỤC BÊN DƯỚI:
+          Sidebar bên trái: Cây thư mục Tri thức (Taxonomy Tree) - có thể thu gọn để mở rộng tối đa màn hình
+          Khu vực nội dung: Danh sách bài thi dạng Card (5 card trên 1 hàng)
       */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Desktop Sidebar (25% - 30%) */}
-        <div className="hidden lg:flex h-full w-[28%] xl:w-[25%] max-w-[360px] min-w-[270px] shrink-0 border-r border-slate-800/80">
-          <TaxonomyTreeSidebar
-            tree={taxonomyTree}
-            selectedNodeId={selectedCategoryNodeId}
-            onSelectNode={handleSelectNode}
-            quizCountsByNode={quizCountsByNode}
-            totalQuizzesCount={allQuizzes.length}
-            isLoading={loadingTree}
-          />
-        </div>
+        {/* Desktop Sidebar (Collapsible for maximum exam display space) */}
+        {!isSidebarCollapsed && (
+          <div className="hidden lg:flex h-full w-64 xl:w-72 shrink-0 border-r border-slate-800/80 transition-all duration-200">
+            <TaxonomyTreeSidebar
+              tree={taxonomyTree}
+              selectedNodeId={selectedCategoryNodeId}
+              onSelectNode={handleSelectNode}
+              quizCountsByNode={quizCountsByNode}
+              totalQuizzesCount={allQuizzes.length}
+              isLoading={loadingTree}
+              onCollapse={() => setIsSidebarCollapsed(true)}
+            />
+          </div>
+        )}
 
         {/* Mobile Sidebar Drawer */}
         {isMobileSidebarOpen && (
@@ -406,11 +375,9 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
           </div>
         )}
 
-        {/* Right Content Area (70% - 75%): Danh sách bài thi tương ứng + Thông tin ca thi */}
+        {/* Main Content Area: Danh sách bài thi dạng Card (5 card trên 1 hàng) */}
         <QuizContentArea
           quizzes={displayedQuizzes}
-          selectedQuizId={selectedQuizId}
-          onSelectQuiz={setSelectedQuizId}
           selectedNodeName={selectedNodeName}
           selectedNodeBreadcrumbs={selectedNodeBreadcrumbs}
           categoryMap={categoryMap}
@@ -418,8 +385,6 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
           isLoading={isLoading}
           errorMessage={errorMessage}
           onStartQuiz={onStart}
-          quizDetails={quizDetails}
-          loadingDetails={loadingDetails}
           isLoadingQuizzes={loadingQuizzes}
           gradeTree={gradeTree}
           selectedGradeNodeId={selectedGradeNodeId}
@@ -428,6 +393,8 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
           gradeCounts={gradeCountsByNode}
           onClearCategory={() => setSelectedCategoryNodeId('')}
           onClearGrade={() => setSelectedGradeNodeId('')}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
         />
       </div>
 

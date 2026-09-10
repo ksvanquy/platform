@@ -18,6 +18,7 @@ interface TaxonomyTreeSidebarProps {
   quizCountsByNode: Record<string, number>;
   totalQuizzesCount: number;
   isLoading?: boolean;
+  onCollapse?: () => void;
 }
 
 interface TreeNodeItemProps {
@@ -164,6 +165,7 @@ export const TaxonomyTreeSidebar: React.FC<TaxonomyTreeSidebarProps> = ({
   quizCountsByNode,
   totalQuizzesCount,
   isLoading = false,
+  onCollapse,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
@@ -211,16 +213,16 @@ export const TaxonomyTreeSidebar: React.FC<TaxonomyTreeSidebarProps> = ({
   return (
     <aside
       id="taxonomy-tree-sidebar"
-      className="w-full lg:w-[28%] xl:w-[25%] max-w-[360px] min-w-[270px] bg-slate-900/40 border-r border-slate-800/80 flex flex-col shrink-0 h-full overflow-hidden"
+      className="w-full h-full bg-slate-900/40 flex flex-col shrink-0 overflow-hidden"
     >
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-slate-800/80 space-y-3 shrink-0">
+      <div className="p-3.5 border-b border-slate-800/80 space-y-2.5 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 text-slate-100 font-bold text-xs uppercase tracking-wider">
-            <BookOpenIcon size={16} className="text-sky-400" />
-            <span>Cây Thư Mục Tri Thức</span>
+            <BookOpenIcon size={15} className="text-sky-400" />
+            <span className="truncate">Cây Tri Thức</span>
           </div>
-          <div className="flex items-center space-x-1 text-[11px] text-slate-400">
+          <div className="flex items-center space-x-1.5 text-[11px] text-slate-400">
             <button
               type="button"
               onClick={handleExpandAll}
@@ -238,6 +240,19 @@ export const TaxonomyTreeSidebar: React.FC<TaxonomyTreeSidebarProps> = ({
             >
               Thu
             </button>
+            {onCollapse && (
+              <>
+                <div className="h-3 w-px bg-slate-800" />
+                <button
+                  type="button"
+                  onClick={onCollapse}
+                  className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
+                  title="Thu gọn thanh danh mục (Tối đa không gian đề thi)"
+                >
+                  <ChevronRightIcon size={14} className="rotate-180" />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
