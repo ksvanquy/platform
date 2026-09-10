@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useQuizSession } from './hooks/useQuizSession.js';
+import React, { useState, useEffect, useRef } from 'react';
+import { useQuizSession, ACTIVE_SESSION_STORAGE_KEY } from './hooks/useQuizSession.js';
 import { QuizStartView } from './views/QuizStartView.js';
 import { QuizActiveView } from './views/QuizActiveView.js';
 import { QuizResultView } from './views/QuizResultView.js';
@@ -20,6 +20,8 @@ const App: React.FC = () => {
     return '';
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isRehydrating, setIsRehydrating] = useState<boolean>(false);
+  const hasRehydratedRef = useRef<boolean>(false);
 
   useEffect(() => {
     const unsubscribe = authClient.onAuthStateChange((isAuthed) => {
@@ -40,7 +42,51 @@ const App: React.FC = () => {
     start,
     setAnswer,
     submit,
+    clearActiveSessionCache,
   } = useQuizSession(user?.id || 'candidate_guest');
+
+  /**
+   * Giai đoạn 1: Tự động khôi phục ca thi đang dở dang (Session Auto-Rehydration)
+   * Giúp thí sinh không bị mất ca thi khi vô tình tắt tab, ấn F5 hoặc ấn Backspace
+   */
+  useEffect(() => {
+    if (hasRehydratedRef.current) return;
+    hasRehydratedRef.current = true;
+
+    try {
+      const cachedStr = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+      if (!cachedStr) return;
+
+      const cached = JSON.parse(cachedStr);
+      if (!cached || !cached.quizId) {
+        clearActiveSessionCache();
+        return;
+      }
+
+      const deadlineTime = cached.deadline ? new Date(cached.deadline).getTime() : 0;
+      const isStillValid = deadlineTime > Date.now();
+
+      if (isStillValid && cached.status === 'IN_PROGRESS') {
+        const candidateId = user?.id || cached.userId || 'candidate_guest';
+        setIsLoading(true);
+        setIsRehydrating(true);
+
+        start(cached.quizId, candidateId)
+          .catch((err) => {
+            console.warn('[Session Rehydration] Tự động khôi phục ca thi thất bại:', err);
+            clearActiveSessionCache();
+          })
+          .finally(() => {
+            setIsLoading(false);
+            setIsRehydrating(false);
+          });
+      } else {
+        clearActiveSessionCache();
+      }
+    } catch {
+      clearActiveSessionCache();
+    }
+  }, [user?.id, start, clearActiveSessionCache]);
 
   /**
    * Bắt đầu bài thi:
@@ -100,6 +146,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    clearActiveSessionCache();
     await authClient.logout();
     setIsAuthenticated(false);
     setUser(null);
@@ -108,8 +155,28 @@ const App: React.FC = () => {
   };
 
   const handleRestart = () => {
+    clearActiveSessionCache();
     window.location.reload();
   };
+
+  // 0. Màn hình thông báo đang tự động khôi phục ca thi dang dở
+  if (isRehydrating) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col items-center space-y-4 max-w-sm text-center animate-in fade-in duration-300">
+          <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 text-2xl animate-pulse">
+            🔄
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-bold text-slate-200 text-base">Đang khôi phục ca thi</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Phát hiện ca thi đang dở dang. Hệ thống đang bảo toàn dữ liệu và đưa bạn trở lại phòng thi...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // 1. Màn hình kết quả sau khi nộp
   if (result) {

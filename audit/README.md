@@ -25,6 +25,11 @@
    - Bóc tách nguyên nhân gốc rễ (RCA) của lỗi `User authentication or userId in body is required to start an attempt`.
    - Ma trận mẫu seed đề xuất phủ đủ 3 cấp học và kế hoạch khắc phục 3 giai đoạn.
 
+4. **[Báo cáo Audit Tính năng Ca thi, Cơ chế Chịu lỗi & Lỗi Ngoại biên (exam-session-resilience-audit.md)](./exam-session-resilience-audit.md)**:
+   - Bóc tách nguyên nhân gốc rễ (RCA) hiện tượng khi tắt tab hoặc ấn nhầm Backspace bị mất/thoát vĩnh viễn ca thi hiện tại.
+   - Kiểm tra toàn diện 6 lỗi ngoại biên (In-Flight Debounced Autosave Loss, Sequence Number Conflict, Sweeper Grace Period, Deserialization Bug, Multi-tab Racing, v.v.).
+   - Ma trận rủi ro và Kế hoạch khắc phục kiến trúc 3 giai đoạn bảo đảm Zero Data Loss và phục hồi ca thi tức thì.
+
 ---
 
 ## 🎯 Tóm tắt kết quả Audit (Executive Summary)

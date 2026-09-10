@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { QuizHeader } from '../components/runner/QuizHeader.js';
 import { QuizFooter } from '../components/runner/QuizFooter.js';
 import { QuestionPalette } from '../components/runner/QuestionPalette.js';
@@ -26,6 +26,55 @@ export const QuizActiveView: React.FC<QuizActiveViewProps> = ({
   onSubmit,
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
+
+  // Giai đoạn 1: Lớp Phòng vệ Trình duyệt Tuyệt đối (Triple-Guard System)
+  useEffect(() => {
+    // Không chặn nếu đang trong tiến trình nộp bài hợp lệ
+    if (isSubmitting) return;
+
+    // 1. Lá chắn BeforeUnload: Cảnh báo khi người dùng tắt tab, reload (F5) hoặc đóng trình duyệt
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'Bạn đang trong ca thi. Rời khỏi trang có thể làm gián đoạn tiến trình làm bài!';
+      return e.returnValue;
+    };
+
+    // 2. Lá chắn Keydown: Chặn phím Backspace làm lùi trang (History Back) khi không focus vào ô nhập liệu
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Backspace') {
+        const activeEl = document.activeElement as HTMLElement | null;
+        const isInput =
+          activeEl &&
+          (activeEl.tagName === 'INPUT' ||
+            activeEl.tagName === 'TEXTAREA' ||
+            activeEl.isContentEditable);
+        if (!isInput) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    // 3. Lá chắn PopState (History Trap): Bẫy thao tác bấm nút Back của chuột hoặc trình duyệt
+    try {
+      window.history.pushState({ inActiveQuizSession: true }, '', window.location.href);
+    } catch {}
+
+    const handlePopState = () => {
+      try {
+        window.history.pushState({ inActiveQuizSession: true }, '', window.location.href);
+      } catch {}
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isSubmitting]);
 
   const currentQuestion = questions[currentIndex];
 
