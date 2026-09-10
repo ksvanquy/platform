@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 import express, { Express, Request, Response } from 'express';
 import {
   createUserRepository,
@@ -144,6 +143,7 @@ const apiDiscovery = {
   endpoints: [
     { method: 'GET', path: '/health', description: 'System health check & microservices status' },
     { method: 'GET', path: '/v1/time', description: 'Server-Authoritative Clock Synchronization' },
+    { method: 'GET', path: '/v1/hosting-config', description: 'CDN & Frontend Decoupled Hosting Discovery' },
     { method: 'GET', path: '/.well-known/jwks.json', description: 'JWKS Key Discovery' },
     { method: 'POST', path: '/v1/auth/register', description: 'Auth: User registration' },
     { method: 'POST', path: '/v1/auth/login', description: 'Auth: User login' },
@@ -465,31 +465,58 @@ app.use('/v1', (req: Request, res: Response, next: any) => {
   next();
 });
 
-// Static frontend serving (Candidate Quiz Web & Admin Web)
+// ============================================================================
+// Decoupled Static Hosting (Phương án A: CDN / Cloud Storage) & Local Serving
+// ============================================================================
+// Trong mô hình Decoupled Static Hosting (khuyến nghị cho quy mô lớn):
+// - Frontend tĩnh (quiz-web, admin-web) được lưu trữ trên Cloud Storage / CDN
+// - Gateway hoạt động như Pure API Gateway và thông báo CDN topology qua /v1/hosting-config
+// - Vẫn hỗ trợ phục vụ tệp tĩnh local (nếu có dist) để tương thích môi trường Dev / Preview
+const FRONTEND_HOSTING_MODE =
+  process.env.FRONTEND_HOSTING_MODE || (process.env.CDN_QUIZ_URL ? 'decoupled' : 'embedded');
+const CDN_QUIZ_URL = process.env.CDN_QUIZ_URL || '';
+const CDN_ADMIN_URL = process.env.CDN_ADMIN_URL || '';
+
 const quizWebDist = path.resolve(process.cwd(), 'apps/quiz-web/dist');
 const adminWebDist = path.resolve(process.cwd(), 'apps/admin-web/dist');
 
-// Ensure frontend assets are built if missing
-if (!fs.existsSync(quizWebDist)) {
-  try {
-    console.log('📦 Building frontend assets (@platform/quiz-web)...');
-    execSync('npm run build --workspace=@platform/quiz-web', { stdio: 'inherit' });
-  } catch (err) {
-    console.warn('⚠️ Could not pre-build @platform/quiz-web:', err);
-  }
+const isQuizWebBuilt = fs.existsSync(path.join(quizWebDist, 'index.html'));
+const isAdminWebBuilt = fs.existsSync(path.join(adminWebDist, 'index.html'));
+
+if (!isQuizWebBuilt || !isAdminWebBuilt) {
+  console.warn(
+    '⚠️ [Gateway Startup] Pre-built frontend assets not found! ' +
+    'In production, frontend is served via CDN (Phương án A) or pre-built via "npm run build". ' +
+    'Gateway will run in API-only mode for missing local frontends.'
+  );
 }
 
-if (!fs.existsSync(adminWebDist)) {
-  try {
-    console.log('📦 Building admin assets (@platform/admin-web)...');
-    execSync('npm run build --workspace=@platform/admin-web', { stdio: 'inherit' });
-  } catch (err) {
-    console.warn('⚠️ Could not pre-build @platform/admin-web:', err);
-  }
-}
+// Dedicated CDN & Frontend Hosting Discovery Route
+app.get('/v1/hosting-config', (_req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    mode: FRONTEND_HOSTING_MODE,
+    architecture: 'Decoupled Static Hosting via CDN / Cloud Storage (Phương án A)',
+    cdnQuizUrl: CDN_QUIZ_URL || null,
+    cdnAdminUrl: CDN_ADMIN_URL || null,
+    localDistAvailable: {
+      quizWeb: isQuizWebBuilt,
+      adminWeb: isAdminWebBuilt,
+    },
+    corsConfig: {
+      credentialsAllowed: true,
+      origin: 'Dynamic Whitelist / Any Origin Allowed',
+    },
+    recommendation: 'Use CDN edge caching for static assets (/assets/*) with max-age=31536000, immutable.',
+  });
+});
 
-// Serve Admin Web under /admin
-if (fs.existsSync(adminWebDist)) {
+// Serve Admin Web under /admin (hoặc redirect sang CDN nếu cấu hình CDN_ADMIN_URL)
+if (CDN_ADMIN_URL && FRONTEND_HOSTING_MODE === 'decoupled' && !isQuizWebBuilt) {
+  app.use('/admin', (_req: Request, res: Response) => {
+    res.redirect(302, CDN_ADMIN_URL);
+  });
+} else if (fs.existsSync(adminWebDist)) {
   app.use('/admin', express.static(adminWebDist));
   app.use('/admin', (_req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -497,8 +524,15 @@ if (fs.existsSync(adminWebDist)) {
   });
 }
 
-// Serve Quiz Web static assets & SPA routing fallback
-if (fs.existsSync(quizWebDist)) {
+// Serve Quiz Web static assets & SPA routing fallback (hoặc redirect sang CDN)
+if (CDN_QUIZ_URL && FRONTEND_HOSTING_MODE === 'decoupled' && !isQuizWebBuilt) {
+  app.get('/', (req: Request, res: Response, next: any) => {
+    if (req.headers.accept?.includes('text/html')) {
+      return res.redirect(302, CDN_QUIZ_URL);
+    }
+    next();
+  });
+} else if (fs.existsSync(quizWebDist)) {
   app.use(express.static(quizWebDist, { index: false }));
   app.use((req: Request, res: Response, next: any) => {
     if (

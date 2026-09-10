@@ -7,16 +7,23 @@ import { createApiClient, ApiClient } from '@platform/api-client';
  * - Tự động decode và lưu trữ Principal/User Profile
  * - Frontend không cần tự implement JWT handling ở nhiều nơi
  */
+const gatewayBaseUrl = (import.meta as any).env?.VITE_API_GATEWAY_URL || '';
+
 export const authClient: AuthClient = createAuthClient({
-  baseUrl: (import.meta as any).env?.VITE_AUTH_API_URL || '/v1/auth',
+  baseUrl:
+    (import.meta as any).env?.VITE_AUTH_API_URL ||
+    (gatewayBaseUrl ? `${gatewayBaseUrl.replace(/\/$/, '')}/v1/auth` : '/v1/auth'),
 });
 
 /**
- * Singleton ApiClient kết nối tới Quiz Service:
+ * Singleton ApiClient kết nối tới Quiz Service / API Gateway:
  * - Tự động inject header "Authorization: Bearer <token>" từ authClient
  * - Cung cấp generic HTTP methods và typed domain resources (quizzes, sessions)
+ * - Tương thích Decoupled Static Hosting khi frontend chạy trên CDN độc lập
  */
 export const apiClient: ApiClient = createApiClient({
-  baseUrl: (import.meta as any).env?.VITE_QUIZ_API_URL || '',
+  baseUrl:
+    (import.meta as any).env?.VITE_QUIZ_API_URL ||
+    (gatewayBaseUrl ? gatewayBaseUrl.replace(/\/$/, '') : ''),
   getToken: () => authClient.getAccessToken(),
 });

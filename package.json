@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "tsx watch services/gateway/src/server.ts",
     "build": "npm run build --workspace=@platform/quiz-web && npm run build --workspace=@platform/admin-web && tsc --noEmit -p services/gateway/tsconfig.json",
+    "build:frontend:cdn": "npm run build --workspace=@platform/quiz-web && npm run build --workspace=@platform/admin-web",
+    "deploy:cdn": "tsx scripts/deploy-cdn.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit -p services/gateway/tsconfig.json",
     "build:packages": "tsc -p packages/contracts/tsconfig.json && tsc -p packages/auth-client/tsconfig.json && tsc -p packages/api-client/tsconfig.json",

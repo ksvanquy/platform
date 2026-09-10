@@ -35,6 +35,11 @@
    - Phân tích rủi ro thất bại xác thực (Bypass Silent Token Refresh), gãy định tuyến môi trường Production, thiếu timeout và lỗi parse JSON khi Gateway sập (502/504).
    - Bản đồ rà soát toàn diện các điểm gọi HTTP trên toàn codebase và phương án chuẩn hóa qua `@platform/api-client`.
 
+6. **[Báo cáo Audit Rủi ro Build Frontend lúc Gateway Startup & Phân định Build-Time vs Runtime (frontend-build-lifecycle-audit.md)](./frontend-build-lifecycle-audit.md)**:
+   - Thẩm định nhận định: Tách bạch hoàn toàn Build-time (CI/Docker/Deploy) và Runtime (API Gateway & Reverse Proxy).
+   - Bóc tách 7 rủi ro vận hành chí mạng: Cold Start Delay & Container CrashLoopBackOff, Event Loop Blocking với `execSync`, Out-of-Memory (OOM) Kill, xung đột Read-only Filesystem, tê liệt Auto-scaling (HPA), và vi phạm Twelve-Factor App.
+   - Giải pháp chuẩn hóa: Loại bỏ `execSync` khỏi Gateway, cấu hình Multi-stage Dockerfile và CI/CD Pipeline chuẩn Cloud-Native.
+
 ---
 
 ## 🎯 Tóm tắt kết quả Audit (Executive Summary)

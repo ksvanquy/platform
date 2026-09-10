@@ -181,6 +181,15 @@ describe('GIAI ĐOẠN 7: API Gateway & Clean Microservices Integration (Port 30
     expect(res.body.endpoints.length).toBeGreaterThan(10);
   });
 
+  it('4b. GET /v1/hosting-config - CDN & Frontend Decoupled Hosting Discovery (Phương án A)', async () => {
+    const res = await request(app).get('/v1/hosting-config');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.architecture).toContain('Decoupled Static Hosting');
+    expect(res.body.corsConfig).toBeDefined();
+    expect(res.body.corsConfig.credentialsAllowed).toBe(true);
+  });
+
   it('5. GET /v1/taxonomies - Gateway điều hướng thành công tới Taxonomy Service', async () => {
     const res = await request(app).get('/v1/taxonomies');
     expect(res.status).toBe(200);
