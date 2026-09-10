@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuizSession, ACTIVE_SESSION_STORAGE_KEY } from './hooks/useQuizSession.js';
-import { QuizStartView } from './views/QuizStartView.js';
+import { QuizStartView, ActiveAttemptBannerInfo } from './views/QuizStartView.js';
 import { QuizActiveView } from './views/QuizActiveView.js';
 import { QuizResultView } from './views/QuizResultView.js';
 import { LoginView } from './views/LoginView.js';
 import { authClient } from './api/client.js';
+import { quizApi } from './api/quiz-api.js';
 import type { UserProfile } from '@platform/auth-client';
 
 const App: React.FC = () => {
@@ -21,6 +22,7 @@ const App: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRehydrating, setIsRehydrating] = useState<boolean>(false);
+  const [activeAttempt, setActiveAttempt] = useState<ActiveAttemptBannerInfo | null>(null);
   const hasRehydratedRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -89,11 +91,71 @@ const App: React.FC = () => {
   }, [user?.id, start, clearActiveSessionCache]);
 
   /**
+   * Giai đoạn 3: Phát hiện ca thi đang diễn ra từ Backend Server (Active Attempt Discovery)
+   * Tự động hiển thị banner nhắc nhở thí sinh nếu có ca thi đang dở dang
+   */
+  useEffect(() => {
+    if (session && session.status === 'IN_PROGRESS') {
+      setActiveAttempt(null);
+      return;
+    }
+
+    // 1. Kiểm tra từ cache local storage
+    try {
+      const cachedStr = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        const deadlineTime = cached.deadline ? new Date(cached.deadline).getTime() : 0;
+        if (cached && cached.status === 'IN_PROGRESS' && deadlineTime > Date.now()) {
+          const remainingMinutes = Math.max(1, Math.round((deadlineTime - Date.now()) / 60000));
+          setActiveAttempt({
+            id: cached.id,
+            examId: cached.quizId,
+            quizId: cached.quizId,
+            title: cached.title || cached.quizId,
+            deadline: cached.deadline,
+            remainingMinutes,
+          });
+          return;
+        }
+      }
+    } catch {
+      // Ignored
+    }
+
+    // 2. Nếu thí sinh đã đăng nhập: truy vấn máy chủ GET /v1/attempts?status=IN_PROGRESS
+    if (user?.id) {
+      quizApi
+        .getActiveAttempt(user.id)
+        .then((serverAttempt) => {
+          if (serverAttempt && serverAttempt.status === 'IN_PROGRESS') {
+            const dl = serverAttempt.deadline ? new Date(serverAttempt.deadline).getTime() : 0;
+            if (dl === 0 || dl > Date.now()) {
+              const remainingMinutes = dl > 0 ? Math.max(1, Math.round((dl - Date.now()) / 60000)) : undefined;
+              setActiveAttempt({
+                id: serverAttempt.id,
+                examId: serverAttempt.examId,
+                quizId: serverAttempt.examId,
+                title: serverAttempt.examTitle || serverAttempt.examId,
+                deadline: serverAttempt.deadline,
+                remainingMinutes,
+              });
+            }
+          }
+        })
+        .catch(() => {
+          // Ignored
+        });
+    }
+  }, [user?.id, session]);
+
+  /**
    * Bắt đầu bài thi:
    * - Nếu chưa đăng nhập: Ghi nhớ pendingQuizId, mở màn hình đăng nhập
    * - Nếu đã đăng nhập: Gọi start(quizId) và vào thẳng phòng thi
    */
   const handleStart = async (quizId: string) => {
+    setActiveAttempt(null);
     if (!isAuthenticated || !user) {
       setPendingQuizId(quizId);
       setShowLoginView(true);
@@ -234,6 +296,11 @@ const App: React.FC = () => {
       onStart={handleStart}
       onLogout={handleLogout}
       onLoginRequest={() => setShowLoginView(true)}
+      activeAttempt={activeAttempt}
+      onResumeActiveAttempt={(attempt) => {
+        handleStart(attempt.examId || attempt.quizId || '');
+      }}
+      onDismissActiveAttempt={() => setActiveAttempt(null)}
     />
   );
 };

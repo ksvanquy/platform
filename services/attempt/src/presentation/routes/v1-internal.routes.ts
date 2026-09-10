@@ -38,7 +38,7 @@ export function createV1InternalRouter(sweeperService: AttemptExpirySweeperServi
    */
   router.post('/attempts/sweep', internalAuthMiddleware, async (req: Request, res: Response) => {
     try {
-      const gracePeriodMs = req.body?.gracePeriodMs !== undefined ? Number(req.body.gracePeriodMs) : 15000;
+      const gracePeriodMs = req.body?.gracePeriodMs !== undefined ? Number(req.body.gracePeriodMs) : 60000;
       const now = req.body?.simulatedNow ? new Date(req.body.simulatedNow) : new Date();
 
       const result = await sweeperService.sweep(now, gracePeriodMs);

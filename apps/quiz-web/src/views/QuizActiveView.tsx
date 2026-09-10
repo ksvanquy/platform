@@ -76,6 +76,20 @@ export const QuizActiveView: React.FC<QuizActiveViewProps> = ({
     };
   }, [isSubmitting]);
 
+  // Giai đoạn 3: Phát hiện trạng thái mất kết nối mạng và cảnh báo thí sinh
+  const [isOffline, setIsOffline] = useState<boolean>(() => typeof navigator !== 'undefined' && !navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const currentQuestion = questions[currentIndex];
 
   // Tính số câu đã hoàn thành
@@ -116,6 +130,28 @@ export const QuizActiveView: React.FC<QuizActiveViewProps> = ({
         saveStatus={saveStatus}
         onExpire={handleExpire}
       />
+
+      {/* Cảnh báo mất kết nối mạng (Network Offline Alert) */}
+      {isOffline && (
+        <aside
+          aria-label="Cảnh báo mất kết nối mạng"
+          className="bg-rose-500/15 border-b border-rose-500/30 px-4 py-2.5 text-rose-200 text-xs flex items-center justify-center gap-2 font-medium z-10 animate-in fade-in duration-200"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+          <span>Mất kết nối Internet! Các câu trả lời đang được bảo lưu tạm trên trình duyệt. Vui lòng không tắt tab và kiểm tra đường truyền mạng.</span>
+        </aside>
+      )}
+
+      {/* Thanh định vị an tâm & chỉ dẫn thí sinh */}
+      {!isOffline && (
+        <div className="bg-slate-900/40 border-b border-slate-800/60 px-4 py-1.5 text-slate-400 text-[11px] hidden sm:flex items-center justify-between max-w-5xl w-full mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-400">🛡️</span>
+            <span>Hệ thống tự động lưu từng câu làm bài. Bạn có thể yên tâm làm bài.</span>
+          </div>
+          <span className="text-slate-500">Bấm số hoặc click trực tiếp để chọn đáp án</span>
+        </div>
+      )}
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Khung hiển thị câu hỏi trọng tâm (Chiếm 2 cột trên màn lớn) */}

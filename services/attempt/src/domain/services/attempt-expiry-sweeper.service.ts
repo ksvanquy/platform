@@ -60,7 +60,7 @@ export class AttemptExpirySweeperService {
     };
   }
 
-  async sweep(now: Date = new Date(), gracePeriodMs = 15000): Promise<SweepResult> {
+  async sweep(now: Date = new Date(), gracePeriodMs = 60000): Promise<SweepResult> {
     if (this.isSweeping) {
       return {
         sweptCount: 0,

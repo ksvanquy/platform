@@ -239,4 +239,33 @@ export const quizApi = {
       details: scoreResult.breakdown,
     };
   },
+
+  /**
+   * Giai đoạn 3: Tự động truy vấn ca thi đang diễn ra của thí sinh (Auto-Discovery & Rehydration)
+   * GET /v1/attempts?status=IN_PROGRESS&userId=...
+   */
+  async getActiveAttempt(userId?: string): Promise<any | null> {
+    if (!userId) return null;
+    try {
+      const res = await apiClient.attempts.list({
+        status: 'IN_PROGRESS',
+        userId,
+        studentId: userId,
+      });
+      const attempts = Array.isArray(res.data) ? res.data : (res as any).attempts || [];
+      if (attempts && attempts.length > 0) {
+        const now = Date.now();
+        // Tìm ca thi IN_PROGRESS còn hạn thời gian
+        const valid = attempts.find((a: any) => {
+          if (a.status !== 'IN_PROGRESS') return false;
+          const dl = a.deadline ? new Date(a.deadline).getTime() : 0;
+          return dl === 0 || dl > now;
+        });
+        return valid || null;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
 };

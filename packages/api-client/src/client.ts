@@ -257,7 +257,7 @@ export class ApiClient {
     /**
      * Lấy danh sách các ca thi (thí sinh hoặc giảng viên giám thị)
      */
-    list: async (params?: { examId?: string; studentId?: string; status?: string }): Promise<ApiResponse<AttemptDTO[]>> => {
+    list: async (params?: { examId?: string; studentId?: string; status?: string; userId?: string }): Promise<ApiResponse<AttemptDTO[]>> => {
       return this.get<ApiResponse<AttemptDTO[]>>('/v1/attempts', params);
     },
 

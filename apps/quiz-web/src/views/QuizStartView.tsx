@@ -8,6 +8,15 @@ import { TaxonomyTreeSidebar } from '../components/dashboard/TaxonomyTreeSidebar
 import { QuizContentArea } from '../components/dashboard/QuizContentArea.js';
 import { BookOpenIcon, XIcon } from '../components/common/Icons.js';
 
+export interface ActiveAttemptBannerInfo {
+  id: string;
+  examId: string;
+  quizId?: string;
+  title?: string;
+  deadline?: string;
+  remainingMinutes?: number;
+}
+
 interface QuizStartViewProps {
   quizId: string;
   user: UserProfile | null;
@@ -16,6 +25,9 @@ interface QuizStartViewProps {
   onStart: (quizId: string) => void;
   onLogout: () => void;
   onLoginRequest?: () => void;
+  activeAttempt?: ActiveAttemptBannerInfo | null;
+  onResumeActiveAttempt?: (attempt: ActiveAttemptBannerInfo) => void;
+  onDismissActiveAttempt?: () => void;
 }
 
 export const QuizStartView: React.FC<QuizStartViewProps> = ({
@@ -26,6 +38,9 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
   onStart,
   onLogout,
   onLoginRequest,
+  activeAttempt,
+  onResumeActiveAttempt,
+  onDismissActiveAttempt,
 }) => {
   const [selectedQuizId, setSelectedQuizId] = useState<string>(quizId || '');
   const [allQuizzes, setAllQuizzes] = useState<any[]>([]);
@@ -307,6 +322,56 @@ export const QuizStartView: React.FC<QuizStartViewProps> = ({
         onLogout={onLogout}
         onLoginRequest={onLoginRequest}
       />
+
+      {/* Giai đoạn 3: Banner Nhắc nhở & Tự phục hồi Ca thi đang dang dở */}
+      {activeAttempt && (
+        <aside
+          aria-label="Thông báo ca thi đang diễn ra"
+          className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-slate-900 border-b border-amber-500/30 px-4 py-3 text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shrink-0 animate-in fade-in slide-in-from-top-2 duration-300 z-10"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0 text-lg animate-pulse">
+              ⏳
+            </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                Phát hiện ca thi đang diễn ra
+              </div>
+              <div className="text-sm font-semibold text-slate-100 flex flex-wrap items-center gap-2">
+                <span>Đề thi:</span>
+                <span className="text-amber-200 font-bold">{activeAttempt.title || activeAttempt.examId || activeAttempt.quizId}</span>
+                {activeAttempt.remainingMinutes !== undefined && (
+                  <span className="text-xs font-normal text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700">
+                    Còn lại khoảng: <strong className="text-amber-300 font-mono font-bold">{activeAttempt.remainingMinutes} phút</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-center">
+            {onResumeActiveAttempt && (
+              <button
+                type="button"
+                onClick={() => onResumeActiveAttempt(activeAttempt)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer hover:shadow-amber-500/20"
+              >
+                <span>Tiếp tục thi ngay</span>
+                <span>→</span>
+              </button>
+            )}
+            {onDismissActiveAttempt && (
+              <button
+                type="button"
+                onClick={onDismissActiveAttempt}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 text-xs transition-colors cursor-pointer"
+                title="Bỏ qua nhắc nhở"
+              >
+                <XIcon size={16} />
+              </button>
+            )}
+          </div>
+        </aside>
+      )}
 
       {/* Mobile Sidebar Toggle Button for small screens */}
       <div className="lg:hidden flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 text-xs shrink-0">

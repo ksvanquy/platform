@@ -130,7 +130,7 @@ export class Attempt {
   /**
    * Tier 2: Kiểm tra xem đã hết thời gian ân hạn nộp bài chưa (Submission Deadline)
    */
-  isSubmissionTimeExpired(now: Date = new Date(), gracePeriodMs = 15000): boolean {
+  isSubmissionTimeExpired(now: Date = new Date(), gracePeriodMs = 60000): boolean {
     if ((this._status as any) === 'TIMED_OUT_GRADED' || this._status === 'EXPIRED') {
       return true;
     }
@@ -173,7 +173,7 @@ export class Attempt {
     sequenceNumber: number,
     clientTimestamp?: number,
     now: Date = new Date(),
-    gracePeriodMs = 15000,
+    gracePeriodMs = 60000,
     validQuestionIds?: string[]
   ): void {
     if (
@@ -221,7 +221,7 @@ export class Attempt {
   /**
    * Nộp bài thi
    */
-  submit(now: Date = new Date(), gracePeriodMs = 15000): void {
+  submit(now: Date = new Date(), gracePeriodMs = 60000): void {
     if (
       this._status === 'SUBMITTED' ||
       this._status === 'EXPIRED' ||
