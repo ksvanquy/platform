@@ -552,6 +552,18 @@ export class ApiClient {
   };
 
   /**
+   * Users Resource (Auth Service - Protected Admin Endpoints)
+   */
+  readonly users = {
+    list: async (params?: Record<string, any>): Promise<ApiResponse<any[]>> => {
+      return this.get<ApiResponse<any[]>>('/v1/auth/users', params);
+    },
+    updateStatus: async (userId: string, isActive: boolean): Promise<ApiResponse<any>> => {
+      return this.patch<ApiResponse<any>>(`/v1/auth/users/${encodeURIComponent(userId)}/status`, { isActive });
+    },
+  };
+
+  /**
    * Quizzes Resource (Legacy / v1 Authoring compatibility)
    */
   readonly quizzes = {

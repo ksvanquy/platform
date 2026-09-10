@@ -8,6 +8,8 @@
  * - Tự động bù trừ độ trễ đường truyền khứ hồi (RTT / 2).
  */
 
+import { apiClient } from '../api/client.js';
+
 export interface TimeSyncState {
   readonly serverAnchorMs: number;
   readonly perfAnchorMs: number;
@@ -55,9 +57,18 @@ export class TimeSyncManager {
 
     this.syncPromise = (async () => {
       try {
+        const targetUrl = (() => {
+          if (endpointUrl && !endpointUrl.startsWith('/')) return endpointUrl;
+          const baseUrl = (apiClient as any)?.getBaseUrl?.() || '';
+          if (baseUrl) {
+            return `${baseUrl.replace(/\/+$/, '')}/${endpointUrl.replace(/^\/+/, '')}`;
+          }
+          return endpointUrl;
+        })();
+
         const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-        const response = await fetch(endpointUrl, {
+        const response = await fetch(targetUrl, {
           method: 'GET',
           headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',

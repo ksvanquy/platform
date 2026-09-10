@@ -30,6 +30,11 @@
    - Kiểm tra toàn diện 6 lỗi ngoại biên (In-Flight Debounced Autosave Loss, Sequence Number Conflict, Sweeper Grace Period, Deserialization Bug, Multi-tab Racing, v.v.).
    - Ma trận rủi ro và Kế hoạch khắc phục kiến trúc 3 giai đoạn bảo đảm Zero Data Loss và phục hồi ca thi tức thì.
 
+5. **[Báo cáo Audit Lỗi Insecure Direct API Call & Hardcoded Endpoints (insecure-direct-api-call-audit.md)](./insecure-direct-api-call-audit.md)**:
+   - Bóc tách rủi ro gọi trực tiếp `fetch()` và hardcode endpoint trong frontend client apps (`apps/admin-web/src/api/admin-api.ts`).
+   - Phân tích rủi ro thất bại xác thực (Bypass Silent Token Refresh), gãy định tuyến môi trường Production, thiếu timeout và lỗi parse JSON khi Gateway sập (502/504).
+   - Bản đồ rà soát toàn diện các điểm gọi HTTP trên toàn codebase và phương án chuẩn hóa qua `@platform/api-client`.
+
 ---
 
 ## 🎯 Tóm tắt kết quả Audit (Executive Summary)

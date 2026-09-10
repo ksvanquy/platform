@@ -370,5 +370,52 @@ describe('Bước 5 — packages/api-client', () => {
       expect(typeof syncResult.clockOffsetMs).toBe('number');
       expect(typeof syncResult.rttMs).toBe('number');
     });
+
+    it('should manage users via api.users resource (list and updateStatus)', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: [{ id: 'usr_01', email: 'admin@test.com', isActive: true }],
+        }),
+      });
+
+      const usersRes = await api.users.list();
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/auth/users',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${mockToken}`,
+          }),
+        })
+      );
+      expect(usersRes.data).toHaveLength(1);
+      expect(usersRes.data![0].email).toBe('admin@test.com');
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          message: 'User status updated',
+          data: { id: 'usr_01', isActive: false },
+        }),
+      });
+
+      const updateRes = await api.users.updateStatus('usr_01', false);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://quiz.api.local/v1/auth/users/usr_01/status',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ isActive: false }),
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${mockToken}`,
+          }),
+        })
+      );
+      expect(updateRes.data.isActive).toBe(false);
+    });
   });
 });
