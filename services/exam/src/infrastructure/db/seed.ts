@@ -17,101 +17,142 @@ export async function seedExamDatabase(
   const generateExamUseCase = new GenerateExamUseCase(examRepo, questionClient, assessmentClient);
   const generateVariantsUseCase = new GenerateVariantsUseCase(examRepo, questionClient, assessmentClient);
 
-  // 1. Seed Math 10 Official Exam (EXM_TOAN10_HK1)
-  const existingMath = await examRepo.findExamByCode('EXM_TOAN10_HK1');
-  if (!existingMath) {
-    try {
-      const asmData =
-        (await assessmentClient.getAssessmentWithBlueprint('asm_math10_midterm')) ||
-        (await assessmentClient.getAssessmentWithBlueprint('MATH10-MIDTERM-2026'));
-
-      if (asmData) {
-        await generateExamUseCase.execute({
-          assessmentId: asmData.assessment.id,
-          code: 'EXM_TOAN10_HK1',
-          title: 'Đề Thi Giữa Kỳ 1 Môn Toán Lớp 10 (Chính thức)',
-          durationMinutes: asmData.blueprint.durationMinutes || 45,
-          variantsCount: 4, // Sinh 4 mã đề: 101, 102, 103, 104
-          seedBase: 2026,
-        });
-
-        const seeded = await examRepo.findExamByCode('EXM_TOAN10_HK1');
-        if (seeded) {
-          seeded.publish();
-          seeded.activate();
-          await examRepo.saveExam(seeded);
-          console.log('✅ [exam_db] Successfully generated & published exam EXM_TOAN10_HK1 (4 variants).');
-        }
-      } else {
-        console.warn('⚠️ [exam_db] Assessment asm_math10_midterm not found for exam generation.');
-      }
-    } catch (err: any) {
-      console.warn('⚠️ [exam_db] Could not generate EXM_TOAN10_HK1:', err?.message || err);
-    }
-  } else {
-    // Ensure existing Math exam is published & active
-    if (!existingMath.isPublished || existingMath.status !== 'ACTIVE') {
-      existingMath.publish();
-      existingMath.activate();
-      await examRepo.saveExam(existingMath);
-    }
-    const snapshots = await examRepo.listSnapshotsByExamId(existingMath.id);
-    if (snapshots.length === 0) {
+  async function ensureExamSeeded(config: {
+    code: string;
+    title: string;
+    assessmentId: string;
+    assessmentCode?: string;
+    variantsCount: number;
+    seedBase: number;
+  }) {
+    const existing = await examRepo.findExamByCode(config.code);
+    if (!existing) {
       try {
-        await generateVariantsUseCase.execute(existingMath.id, 4);
-        console.log('✅ [exam_db] Generated missing variants for existing EXM_TOAN10_HK1.');
+        let asmData = await assessmentClient.getAssessmentWithBlueprint(config.assessmentId);
+        if (!asmData && config.assessmentCode) {
+          asmData = await assessmentClient.getAssessmentWithBlueprint(config.assessmentCode);
+        }
+
+        if (asmData) {
+          await generateExamUseCase.execute({
+            assessmentId: asmData.assessment.id,
+            code: config.code,
+            title: config.title,
+            durationMinutes: asmData.blueprint.durationMinutes || 45,
+            variantsCount: config.variantsCount,
+            seedBase: config.seedBase,
+          });
+
+          const seeded = await examRepo.findExamByCode(config.code);
+          if (seeded) {
+            seeded.publish();
+            seeded.activate();
+            await examRepo.saveExam(seeded);
+            console.log(`✅ [exam_db] Successfully generated & published exam ${config.code} (${config.variantsCount} variants).`);
+          }
+        } else {
+          console.warn(`⚠️ [exam_db] Assessment ${config.assessmentId} not found for exam generation.`);
+        }
       } catch (err: any) {
-        console.warn('⚠️ [exam_db] Could not generate variants for existing EXM_TOAN10_HK1:', err?.message || err);
+        console.warn(`⚠️ [exam_db] Could not generate ${config.code}:`, err?.message || err);
+      }
+    } else {
+      if (!existing.isPublished || existing.status !== 'ACTIVE') {
+        existing.publish();
+        existing.activate();
+        await examRepo.saveExam(existing);
+      }
+      const snapshots = await examRepo.listSnapshotsByExamId(existing.id);
+      if (snapshots.length === 0) {
+        try {
+          await generateVariantsUseCase.execute(existing.id, config.variantsCount);
+          console.log(`✅ [exam_db] Generated missing variants for existing ${config.code}.`);
+        } catch (err: any) {
+          console.warn(`⚠️ [exam_db] Could not generate variants for existing ${config.code}:`, err?.message || err);
+        }
       }
     }
   }
 
-  // 2. Seed IT SQL Quiz Exam (EXM_IT_SQL_01)
-  const existingIT = await examRepo.findExamByCode('EXM_IT_SQL_01');
-  if (!existingIT) {
-    try {
-      const itAsmData =
-        (await assessmentClient.getAssessmentWithBlueprint('asm_it_sql')) ||
-        (await assessmentClient.getAssessmentWithBlueprint('IT-SQL-QUIZ-2026'));
+  // 1. Math 10 Official Exam (EXM_TOAN10_HK1) - 4 variants
+  await ensureExamSeeded({
+    code: 'EXM_TOAN10_HK1',
+    title: 'Đề Thi Giữa Kỳ 1 Môn Toán Lớp 10 (Chính thức)',
+    assessmentId: 'asm_math10_midterm',
+    assessmentCode: 'MATH10-MIDTERM-2026',
+    variantsCount: 4,
+    seedBase: 2026,
+  });
 
-      if (itAsmData) {
-        await generateExamUseCase.execute({
-          assessmentId: itAsmData.assessment.id,
-          code: 'EXM_IT_SQL_01',
-          title: 'Bài Kiểm Tra SQL & Cơ Sở Dữ Liệu Quan Hệ',
-          durationMinutes: itAsmData.blueprint.durationMinutes || 15,
-          variantsCount: 2, // Sinh 2 mã đề: 101, 102
-          seedBase: 2026,
-        });
+  // 2. IT SQL Quiz Exam (EXM_IT_SQL_01) - 2 variants
+  await ensureExamSeeded({
+    code: 'EXM_IT_SQL_01',
+    title: 'Bài Kiểm Tra SQL & Cơ Sở Dữ Liệu Quan Hệ',
+    assessmentId: 'asm_it_sql',
+    assessmentCode: 'IT-SQL-QUIZ-2026',
+    variantsCount: 2,
+    seedBase: 2026,
+  });
 
-        const seededIT = await examRepo.findExamByCode('EXM_IT_SQL_01');
-        if (seededIT) {
-          seededIT.publish();
-          seededIT.activate();
-          await examRepo.saveExam(seededIT);
-          console.log('✅ [exam_db] Successfully generated & published exam EXM_IT_SQL_01 (2 variants).');
-        }
-      }
-    } catch (err: any) {
-      console.warn('⚠️ [exam_db] Could not generate EXM_IT_SQL_01:', err?.message || err);
-    }
-  } else {
-    // Ensure existing IT exam is published & active
-    if (!existingIT.isPublished || existingIT.status !== 'ACTIVE') {
-      existingIT.publish();
-      existingIT.activate();
-      await examRepo.saveExam(existingIT);
-    }
-    const itSnapshots = await examRepo.listSnapshotsByExamId(existingIT.id);
-    if (itSnapshots.length === 0) {
-      try {
-        await generateVariantsUseCase.execute(existingIT.id, 2);
-        console.log('✅ [exam_db] Generated missing variants for existing EXM_IT_SQL_01.');
-      } catch (err: any) {
-        console.warn('⚠️ [exam_db] Could not generate variants for existing EXM_IT_SQL_01:', err?.message || err);
-      }
-    }
-  }
+  // 3. TIỂU HỌC: Toán 1 (EXM_TOAN1_GK1) - 2 variants
+  await ensureExamSeeded({
+    code: 'EXM_TOAN1_GK1',
+    title: 'Đề Thi Giữa Kỳ 1 Môn Toán Lớp 1 (Chính thức)',
+    assessmentId: 'asm_math1_midterm',
+    assessmentCode: 'MATH1-MIDTERM-2026',
+    variantsCount: 2,
+    seedBase: 2026,
+  });
+
+  // 4. TIỂU HỌC: Toán 5 (EXM_TOAN5_CK) - 2 variants
+  await ensureExamSeeded({
+    code: 'EXM_TOAN5_CK',
+    title: 'Đề Khảo Sát Năng Lực Cuối Kỳ Môn Toán Lớp 5',
+    assessmentId: 'asm_math5_final',
+    assessmentCode: 'MATH5-FINAL-2026',
+    variantsCount: 2,
+    seedBase: 2026,
+  });
+
+  // 5. THCS: Toán 9 (EXM_TOAN9_VAO10) - 2 variants
+  await ensureExamSeeded({
+    code: 'EXM_TOAN9_VAO10',
+    title: 'Đề Thi Khảo Sát Toán 9 Tuyển Sinh Lớp 10',
+    assessmentId: 'asm_math9_admission',
+    assessmentCode: 'MATH9-ENTRANCE-2026',
+    variantsCount: 2,
+    seedBase: 2026,
+  });
+
+  // 6. THCS: Tiếng Anh 8 (EXM_ENG8_GK1) - 2 variants
+  await ensureExamSeeded({
+    code: 'EXM_ENG8_GK1',
+    title: 'Đề Kiểm Tra Giữa Kỳ 1 Môn Tiếng Anh Lớp 8',
+    assessmentId: 'asm_eng8_midterm',
+    assessmentCode: 'ENG8-MIDTERM-2026',
+    variantsCount: 2,
+    seedBase: 2026,
+  });
+
+  // 7. THPT: Vật lý 10 (EXM_PHYS10_GK1) - 2 variants
+  await ensureExamSeeded({
+    code: 'EXM_PHYS10_GK1',
+    title: 'Đề Kiểm Tra Định Kỳ Vật Lý Lớp 10',
+    assessmentId: 'asm_phys10_midterm',
+    assessmentCode: 'PHYS10-MIDTERM-2026',
+    variantsCount: 2,
+    seedBase: 2026,
+  });
+
+  // 8. THPT: Toán 12 THPTQG (EXM_TOAN12_THPTQG) - 2 variants
+  await ensureExamSeeded({
+    code: 'EXM_TOAN12_THPTQG',
+    title: 'Đề Thi Khảo Sát Toán 12 - Luyện Thi Tốt Nghiệp THPT',
+    assessmentId: 'asm_math12_national',
+    assessmentCode: 'MATH12-THPTQG-2026',
+    variantsCount: 2,
+    seedBase: 2026,
+  });
 
   console.log('✅ [exam_db] Exam database seed completed.');
 }
