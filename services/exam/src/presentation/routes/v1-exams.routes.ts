@@ -31,8 +31,8 @@ export function createExamRouter(deps: ExamRouterDependencies = {}): Router {
   const assessmentClient = deps.assessmentClient || new DirectAssessmentClientAdapter();
 
   const generateExamUseCase = new GenerateExamUseCase(examRepo, questionClient, assessmentClient);
-  const getExamUseCase = new GetExamUseCase(examRepo);
-  const listExamsUseCase = new ListExamsUseCase(examRepo);
+  const getExamUseCase = new GetExamUseCase(examRepo, assessmentClient);
+  const listExamsUseCase = new ListExamsUseCase(examRepo, assessmentClient);
   const getExamSnapshotUseCase = new GetExamSnapshotUseCase(examRepo);
   const updateExamUseCase = new UpdateExamUseCase(examRepo);
   const deleteExamUseCase = new DeleteExamUseCase(examRepo);

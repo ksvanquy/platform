@@ -82,13 +82,14 @@ export const quizApi = {
    * 1. POST /v1/attempts (Khởi tạo / resume attempt với examId hoặc quizId)
    * 2. POST /v1/attempts/:id/start (Kích hoạt tính giờ & nhận sanitized manifest)
    */
-  async startQuiz(quizOrExamId: string, variantCode?: string): Promise<StartQuizResponse['data']> {
+  async startQuiz(quizOrExamId: string, variantCode?: string, userId?: string): Promise<StartQuizResponse['data']> {
     // 1. Tạo hoặc khôi phục attempt từ máy chủ
     const createRes: any = await apiClient.attempts.createOrRecover({
       examId: quizOrExamId,
       quizId: quizOrExamId,
       variantCode,
       autoStart: true,
+      userId,
     });
     const attempt = createRes.data;
     const initialManifest = createRes.manifest;
@@ -102,7 +103,7 @@ export const quizApi = {
 
     if (!initialManifest?.questions || initialManifest.questions.length === 0) {
       try {
-        const startRes: any = await apiClient.attempts.start(attempt.id);
+        const startRes: any = await apiClient.attempts.start(attempt.id, { userId });
         const startData = startRes.data || {};
         startedAttempt = startData.attempt || startData;
         manifest = startRes.manifest || startData.manifest;
@@ -211,7 +212,8 @@ export const quizApi = {
         answer: payload.answer,
         sequenceNumber: payload.sequenceNumber,
         clientTimestamp: timeSync.getNow(),
-      }
+        userId: payload.userId,
+      } as any
     );
     return {
       success: true,
@@ -224,7 +226,9 @@ export const quizApi = {
    * POST /v1/attempts/:id/submit
    */
   async submitQuiz(payload: SubmitQuizPayload): Promise<SubmitQuizResponse['data']> {
-    const res = await apiClient.attempts.submit(payload.sessionId);
+    const res = await apiClient.attempts.submit(payload.sessionId, {
+      userId: payload.userId,
+    });
     const { scoreResult } = res.data;
 
     return {

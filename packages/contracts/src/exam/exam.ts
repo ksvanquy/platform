@@ -65,6 +65,15 @@ export interface ExamVariantSummary {
   questionCount: number;
 }
 
+export interface ExamAssessmentMeta {
+  id: string;
+  code: string;
+  title: string;
+  primaryTopicNodeId?: string | null;
+  gradeNodeId?: string | null;
+  description?: string | null;
+}
+
 export interface ExamDTO {
   id: string;
   assessmentId: string;
@@ -79,6 +88,7 @@ export interface ExamDTO {
   variantsCount?: number;
   variants?: ExamVariantSummary[];
   createdAt: string;
+  assessment?: ExamAssessmentMeta;
 }
 
 export interface GenerateExamInput {

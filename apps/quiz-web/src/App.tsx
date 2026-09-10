@@ -56,6 +56,17 @@ const App: React.FC = () => {
 
     setIsLoading(true);
     try {
+      if (authClient.isExpired()) {
+        try {
+          await authClient.refresh();
+        } catch {
+          if (!authClient.isAuthenticated()) {
+            setPendingQuizId(quizId);
+            setShowLoginView(true);
+            return;
+          }
+        }
+      }
       await start(quizId, user.id);
     } catch {
       // Error handled in hook

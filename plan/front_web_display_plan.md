@@ -1,26 +1,25 @@
-# 🎨 KẾ HOẠCH THIẾT KẾ & TRIỂN KHAI FRONT-WEB (AUDITED & CORE-FOCUSED PLAN)
+# 🎨 KẾ HOẠCH THIẾT KẾ & TRIỂN KHAI FRONT-WEB (CORE-FOCUSED PLAN)
 ### Tối Ưu Hóa Trải Nghiệm Khảo Thí Cốt Lõi Thí Sinh (`apps/quiz-web`)
-**React 19 • Tailwind CSS • Unified Gateway (Port 3000) • Khám Phá Tự Do (Guest Browsing) • KaTeX Math Rendering • Tập Trung Nghiệp Vụ Khảo Thí Cốt Lõi**
+**React 19 • Tailwind CSS • Unified Gateway (Port 3000) • Khám Phá Tự Do (Guest Browsing) • Tập Trung Nghiệp Vụ Khảo Thí Cốt Lõi**
 
-> 🚦 **QUY TRÌNH CHUẨN XÁC ĐÃ AUDIT**:  
-> **Bước 1: Khám phá & Chọn đề (Khách xem thoải mái, không chặn đăng nhập)** $\longrightarrow$ **Bước 2: Thi thì Đăng nhập (1-Chạm kích hoạt, ghi nhớ đề thi)** $\longrightarrow$ **Bước 3: Phòng thi Online (KaTeX + 6 dạng câu hỏi + Đánh dấu cờ 🚩) $\rightarrow$ Modal nộp bài** $\longrightarrow$ **Bước 4: Bảng điểm & Phân tích phổ Bloom**.  
-> *Đã loại bỏ 100% tính năng rườm rà: Thể lệ dài dòng, bốc thăm ngẫu nhiên, cảnh báo gian lận gây phiền toái, nhãn chữ thừa chiếm diện tích.*
+> 🚦 **QUY TRÌNH KHẢO THÍ CỐT LÕI (4 BƯỚC ĐỒNG BỘ CODEBASE)**:  
+> **Bước 1: Khám phá & Chọn đề (Khách xem thoải mái, không chặn đăng nhập)** $\longrightarrow$ **Bước 2: Thi thì Đăng nhập (1-Chạm kích hoạt, ghi nhớ đề thi)** $\longrightarrow$ **Bước 3: Phòng thi Online (Đồng hồ đồng bộ, Autosave, 6 dạng câu hỏi, Palette điều hướng) $\rightarrow$ Modal nộp bài an toàn** $\longrightarrow$ **Bước 4: Bảng điểm & Kết quả khảo thí chi tiết**.  
+> *Đã loại bỏ toàn bộ phần mở rộng không cần thiết (KaTeX, gắn cờ phức tạp, phân tích phổ Bloom) để bám sát 100% cấu trúc thực tế của codebase.*
 
 ---
 
 ## 1. 🔍 BẢNG ĐỐI SOÁT KIẾN TRÚC CỐT LÕI (CORE ARCHITECTURE MATRIX)
 
-| STT | Khối Chức Năng Cốt Lõi | Hiện trạng trong Codebase (`apps/quiz-web`) | Khoảng cách Kỹ thuật cần triển khai (Delta Gaps) |
+| STT | Khối Chức Năng Cốt Lõi | Hiện trạng trong Codebase (`apps/quiz-web`) | Tình Trạng Triển Khai |
 |:---:|---|---|---|
-| **1** | **Khám Phá & Chọn Đề (Guest Mode)** | `App.tsx` đang chặn bắt buộc đăng nhập ngay đầu (`if (!isAuthenticated) return <LoginView />`). | ⚡ **Cần chỉnh (Task FW-1.2)**: Cho phép khách vãng lai tự do duyệt cây môn học, lọc cấp học/khối lớp và xem chi tiết bài thi mà không cần đăng nhập trước. |
-| **2** | **Bộ Lọc Khối Lớp Tinh Gọn** | Đã có `TaxonomyTreeSidebar.tsx` và thanh lọc 2D trong `QuizContentArea.tsx`. |  **Hoàn thành Task FW-1.1**. Giao diện trực quan, không chữ thừa, hiển thị trực tiếp các nút chọn. |
-| **3** | **Thi Thì Đăng Nhập (Auth on Start)** | Đang bắt đăng nhập trước khi vào app. | ⚡ **Cần làm (Task FW-1.3)**: Khi nhấn `[ 🚀 BẮT ĐẦU CA THI ]`, nếu chưa đăng nhập $\rightarrow$ chuyển sang đăng nhập, lưu `pendingQuizId` để đăng nhập xong vào thi ngay. |
-| **4** | **Đồng Hồ Máy Chủ & Lưu Nháp** | Đã có `TimeSyncManager.ts` (Cristian), `QuizTimer.tsx`, `useQuizSession.ts` (debounce 300ms, queue flush). |  Cơ chế đồng bộ thời gian và lưu nháp đã chuẩn. |
-| **5** | **Render Công Thức KaTeX** | Chưa cài đặt thư viện `katex`. | ⚠️ **Cần làm (Task FW-2.1 $\rightarrow$ FW-2.3)**: Cài đặt `katex`, viết `KaTeXViewer.tsx`, tích hợp hiển thị công thức `$..$` và `$$..$$` cho đề bài và cả 6 dạng câu hỏi. |
-| **6** | **6 Dạng Câu Hỏi Khảo Thí** | Đã có 6 components (`SingleChoice`, `MultipleChoice`, `FillIn`, `Matching`, `Numeric`, `Ordering`). | ⚠️ **Cần làm**: Tích hợp `KaTeXViewer` vào nội dung lựa chọn, mệnh đề và vế ghép của cả 6 components. |
-| **7** | **Bảng Điều Hướng & Gắn Cờ 🚩** | Đã có `QuestionPalette.tsx` hiển thị lưới câu hỏi (Đã làm / Chưa làm). | ⚠️ **Cần làm (Task FW-3.1 & FW-3.2)**: Thêm State `flaggedQuestions`, nút 🚩 *"Đánh dấu xem lại"* và đổi màu cam nổi bật trên Question Palette. |
-| **8** | **Hộp Thoại Xác Nhận Nộp Bài** | Đang dùng `window.confirm` đơn giản. | ⚠️ **Cần làm (Task FW-4.1)**: Tạo `SubmitConfirmModal.tsx` cảnh báo rõ: Đã làm $X/N$, Chưa làm $Y/N$, Đang gắn cờ $Z$ câu để tránh nộp nhầm. |
-| **9** | **Bảng Điểm & Phân Tích Bloom** | Đã có `ScoreSummaryCard.tsx` và `QuestionFeedbackList.tsx`. | ⚠️ **Cần làm (Task FW-4.2 $\rightarrow$ FW-4.4)**: Thêm biểu đồ phân tích 4 cấp độ tư duy Bloom (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao); render KaTeX trong lời giải. |
+| **1** | **Khám Phá & Chọn Đề (Guest Mode)** | `App.tsx` & `QuizStartView.tsx`: Cho phép khách vãng lai tự do duyệt môn học, lọc lớp, xem thông tin đề. | ✅ **Đã hoàn thành (FW-1.2)** |
+| **2** | **Bộ Lọc Khối Lớp Tinh Gọn** | `TaxonomyTreeSidebar.tsx` và thanh lọc 2D trong `QuizContentArea.tsx` trực quan, không chữ thừa. | ✅ **Đã hoàn thành (FW-1.1)** |
+| **3** | **Thi Thì Đăng Nhập (Auth on Start)** | Khi bấm `[ 🚀 BẮT ĐẦU CA THI ]`, nếu chưa đăng nhập sẽ ghi nhớ `pendingQuizId`, đăng nhập xong tự động vào thi ngay. | ✅ **Đã hoàn thành (FW-1.3, FW-1.4)** |
+| **4** | **Đồng Hồ Máy Chủ & Lưu Nháp** | `TimeSyncManager.ts` (Cristian), `QuizTimer.tsx`, `useQuizSession.ts` (debounce 300ms, queue flush tự động). | ✅ **Đã hoàn thành** |
+| **5** | **6 Dạng Câu Hỏi Khảo Thí** | 6 components thuần React/Tailwind: `SingleChoice`, `MultipleChoice`, `FillIn`, `Matching`, `Numeric`, `Ordering`. | ✅ **Đã hoàn thành** (Hiển thị văn bản chuẩn, không phụ thuộc thư viện ngoài) |
+| **6** | **Mục Lục Câu Hỏi (Question Palette)** | `QuestionPalette.tsx`: Hiển thị lưới câu hỏi trực quan với 3 trạng thái: Đang làm, Đã trả lời, Chưa làm. | ✅ **Đã hoàn thành** |
+| **7** | **Hộp Thoại Xác Nhận Nộp Bài** | `QuizFooter.tsx`: Modal xác nhận nộp bài, thống kê số câu chưa làm, cảnh báo đóng băng phiên thi. | ✅ **Đã hoàn thành** |
+| **8** | **Bảng Điểm & Kết Quả Khảo Thí** | `ScoreSummaryCard.tsx` (Điểm, tỷ lệ %, Đạt/Chưa đạt) + `QuestionFeedbackList.tsx` (Chi tiết từng câu). | ✅ **Đã hoàn thành** |
 
 ---
 
@@ -32,10 +31,10 @@
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                                        │
 │   [BƯỚC 1: KHÁM PHÁ & CHỌN ĐỀ] ──────► [BƯỚC 2: BẮT ĐẦU CA THI] ──────► [BƯỚC 3: PHÒNG THI ONLINE] ──► [BƯỚC 4: KẾT QUẢ]│
-│   • Khách xem thoải mái                • Chưa login: Yêu cầu login      • Đề thi KaTeX chuẩn xác       • Điểm số & Đạt │
-│   • Cây môn học & Lọc khối               (Lưu pendingQuizId để vào ngay)• 6 dạng câu hỏi tương tác     • Phân tích 4   │
-│   • Xem mô tả, thời gian, số câu       • Đã login: Vào thẳng phòng thi  • Đánh dấu xem lại cờ 🚩         mức Bloom     │
-│                                                                         • Lưu nháp ngầm 300ms          • Lời giải KaTeX│
+│   • Khách duyệt đề tự do               • Chưa login: Yêu cầu login      • Đồng hồ Cristian chuẩn xác   • Điểm số & Đạt │
+│   • Cây môn học & Bộ lọc lớp             (Lưu pendingQuizId vào ngay)   • 6 dạng câu hỏi tương tác     • Tỷ lệ % đúng  │
+│   • Xem thời gian, số câu, điểm đạt    • Đã login: Vào thẳng phòng thi  • Mục lục câu hỏi (Palette)    • Chi tiết từng │
+│                                                                         • Tự động lưu nháp 300ms         câu & ghi chú │
 │                                                                                  │                                     │
 │                                                                                  ▼                                     │
 │                                                                         [Modal Xác Nhận Nộp]                           │
@@ -46,9 +45,9 @@
 ---
 
 ### 📚 BƯỚC 1: KHÁM PHÁ & CHỌN ĐỀ THI (`QuizStartView.tsx`)
-*Mục tiêu: Người dùng/Khách vãng lai tự do khám phá danh mục đề thi, lọc khối lớp và tìm kiếm môn học mà không bị ép đăng nhập ngay.*
+*Mục tiêu: Cho phép người dùng và khách vãng lai tự do khám phá danh mục đề thi, lọc khối lớp và tìm kiếm môn học mà không bị ép đăng nhập.*
 
-#### Bố cục Wireframe ASCII (Hỗ trợ cả Khách vãng lai & Học viên đã đăng nhập)
+#### Bố cục Wireframe ASCII
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ 🎓 Hệ Thống Khảo Thí Trực Tuyến                        │ [Nếu là Khách: [ 🔐 Đăng nhập ] ]                                  │
@@ -66,7 +65,7 @@
 │   │   └─ 📄 Hình học               │ │ [🏷️ Chủ đề: Đại số 10 ✕]  [🎓 Khối: Lớp 10 ✕]                     [Đặt lại bộ lọc] │ │
 │ 📁 Tin học                         │ │ └────────────────────────────────────────────────────────────────────────────────────┘ │
 │ 📁 Ngoại ngữ                       ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ 📁 Vật lý                          │ DANH SÁCH BÀI THI (Xem thoải mái thông tin khảo thí)                                   │
+│ 📁 Vật lý                          │ DANH SÁCH BÀI THI (Xem thông tin khảo thí)                                             │
 │                                    │ ┌────────────────────────────────────────────────────────────────────────────────────┐ │
 │                                    │ │ 📝 KIỂM TRA GIỮA KỲ TOÁN 10                 [Chính thức]  [Đang mở]                │ │
 │                                    │ │ Mô tả: Mệnh đề, tập hợp, bất phương trình và dấu của tam thức bậc hai...           │ │
@@ -78,32 +77,24 @@
 └────────────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### Quy chuẩn trải nghiệm
-- **Khách xem tự do**: Người dùng chưa đăng nhập vẫn duyệt được cây môn học, lọc các lớp, tìm kiếm bài thi và đọc toàn bộ thông tin đề thi.
-- **TopBar thích ứng**: 
-  - Khách vãng lai: Hiển thị nút `[ 🔐 Đăng nhập ]` nổi bật ở góc phải.
-  - Đã đăng nhập: Hiển thị tên học viên, email, avatar và menu hồ sơ / đăng xuất.
-- **Bộ lọc khối lớp không nhãn thừa**: Các nút cấp học, khối lớp con và chip lọc hiển thị trực tiếp, không in chữ thừa ("Hàng 1, 2, 3", "Khối lớp:").
-
 ---
 
 ### 🔐 BƯỚC 2: BẮT ĐẦU CA THI & XÁC THỰC TÀI KHOẢN (THI THÌ ĐĂNG NHẬP)
-*Mục tiêu: Khi người dùng bấm `[ 🚀 BẮT ĐẦU CA THI ]`, kiểm tra trạng thái đăng nhập.*
+*Mục tiêu: Đảm bảo trải nghiệm liền mạch khi bắt đầu làm bài.*
 
-#### Kịch bản xử lý thông minh
-1. **Trường hợp A: Người dùng ĐÃ ĐĂNG NHẬP**:
-   - Nhấn `[ 🚀 BẮT ĐẦU CA THI ]` $\rightarrow$ Nút chuyển sang trạng thái loading xoay $\rightarrow$ Tạo ca thi trên Gateway $\rightarrow$ Chuyển thẳng vào phòng thi `QuizActiveView.tsx` (1-chạm mượt mà).
-2. **Trường hợp B: Người dùng là KHÁCH (CHƯA ĐĂNG NHẬP)**:
+1. **Người dùng ĐÃ ĐĂNG NHẬP**:
+   - Nhấn `[ 🚀 BẮT ĐẦU CA THI ]` $\rightarrow$ Nút chuyển loading xoay $\rightarrow$ Gọi API tạo ca thi $\rightarrow$ Vào thẳng phòng thi `QuizActiveView.tsx`.
+2. **Người dùng là KHÁCH (CHƯA ĐĂNG NHẬP)**:
    - Nhấn `[ 🚀 BẮT ĐẦU CA THI ]` $\rightarrow$ Hệ thống lưu mã đề vào bộ nhớ tạm (`pendingQuizId = quiz.id`).
-   - Hiển thị màn hình hoặc modal đăng nhập nhanh:
-     - Gợi ý sẵn tài khoản mẫu tiện lợi: `student@quiz.com` / `student123`.
-     - Thông báo rõ ràng: *"Vui lòng đăng nhập để bắt đầu bài thi: [Tên đề thi]"*.
-   - Sau khi đăng nhập thành công $\rightarrow$ Hệ thống **tự động kích hoạt ngay ca thi `pendingQuizId`** và đưa thí sinh thẳng vào phòng thi, **không bắt thí sinh phải tìm lại bài thi để bấm lần nữa**.
+   - Hiển thị màn hình đăng nhập `LoginView.tsx`:
+     - Thông báo rõ ràng: *"Vui lòng đăng nhập để bắt đầu ca thi bạn đã chọn"*.
+     - Cung cấp sẵn thông tin tài khoản mẫu (`student@quiz.com` / `student123`).
+   - Sau khi đăng nhập thành công $\rightarrow$ Hệ thống tự động kích hoạt ca thi `pendingQuizId` và đưa thí sinh vào phòng thi ngay lập tức.
 
 ---
 
 ### ⏱️ BƯỚC 3: PHÒNG THI TRỰC TUYẾN CHUẨN XÁC (`QuizActiveView.tsx`)
-*Mục tiêu: Đọc đề sắc nét với KaTeX, trả lời linh hoạt 6 dạng câu, đánh dấu cờ 🚩, lưu nháp tự động và nộp bài an toàn.*
+*Mục tiêu: Giao diện thi tập trung, hiển thị câu hỏi rõ ràng, đồng hồ đếm ngược chính xác, lưu nháp tự động và nộp bài an toàn.*
 
 #### Bố cục Wireframe ASCII
 ```text
@@ -113,54 +104,46 @@
 │ KHUNG HIỂN THỊ CÂU HỎI (2/3 màn hình)                            │ MỤC LỤC CÂU HỎI (1/3)         │
 │                                                                  │                               │
 │ ┌──────────────────────────────────────────────────────────────┐ │ ┌───────────────────────────┐ │
-│ │ Câu 8 / 20  •  0.5 điểm      [ 🚩 Đánh dấu xem lại câu này ] │ │ │ [1]  [2]  [3]  [4]  [5]   │ │
+│ │ Câu 8 / 20  •  0.5 điểm                                      │ │ │ [1]  [2]  [3]  [4]  [5]   │ │
 │ ├──────────────────────────────────────────────────────────────┤ │ │ [6]  [7]  [8*] [9]  [10]  │ │
-│ │ ĐỀ BÀI (KaTeX Rendering):                                    │ │ │ [11] [12] [13] [14] [15]  │ │
-│ │ Cho tam thức bậc hai:                                        │ │ │ [16] [17] [18] [19] [20]  │ │
-│ │                   $$f(x) = ax^2 + bx + c \quad (a \neq 0)$$  │ │ └───────────────────────────┘ │
-│ │ Điều kiện cần và đủ để $f(x) > 0, \forall x \in \mathbb{R}$? │ │                               │
-│ │                                                              │ │ 🎨 CHÚ THÍCH TRẠNG THÁI:      │
-│ │ CÁC PHƯƠNG ÁN LỰA CHỌN:                                      │ │ 🔵 Xanh: Đã làm (8 câu)      │
-│ │ ┌──────────────────────────────────────────────────────────┐ │ │ ⚪ Xám: Chưa làm (11 câu)    │
-│ │ │ ( ) A. $a > 0$ và $\Delta > 0$                           │ │ │ 🟠 Cam 🚩: Xem lại (1 câu) │
-│ │ ├──────────────────────────────────────────────────────────┤ │ │ 🟢 Viền sáng: Đang mở (Câu 8)│
-│ │ │ (*) B. $a > 0$ và $\Delta < 0$  (Đang chọn)             │ │ └───────────────────────────┘ │
+│ │ ĐỀ BÀI:                                                      │ │ │ [11] [12] [13] [14] [15]  │ │
+│ │ Cho tam thức bậc hai f(x) = ax^2 + bx + c (a khác 0).        │ │ │ [16] [17] [18] [19] [20]  │ │
+│ │ Điều kiện cần và đủ để f(x) > 0 với mọi x thuộc R là gì?     │ │ └───────────────────────────┘ │
+│ │                                                              │ │                               │
+│ │ CÁC PHƯƠNG ÁN LỰA CHỌN:                                      │ │ 🎨 CHÚ THÍCH TRẠNG THÁI:      │
+│ │ ┌──────────────────────────────────────────────────────────┐ │ │ 🔵 Xanh: Đang làm (Câu 8)   │
+│ │ │ ( ) A. a > 0 và Delta > 0                                │ │ │ 🟢 Lục: Đã trả lời (7 câu)  │
+│ │ ├──────────────────────────────────────────────────────────┤ │ │ ⚪ Xám: Chưa làm (12 câu)   │
+│ │ │ (*) B. a > 0 và Delta < 0  (Đang chọn)                   │ │ └───────────────────────────┘ │
 │ │ ├──────────────────────────────────────────────────────────┤ │                               │
-│ │ │ ( ) C. $a < 0$ và $\Delta < 0$                           │ │                               │
+│ │ │ ( ) C. a < 0 và Delta < 0                                │ │                               │
 │ │ ├──────────────────────────────────────────────────────────┤ │                               │
-│ │ │ ( ) D. $a > 0$ và $\Delta \le 0$                         │ │                               │
+│ │ │ ( ) D. a > 0 và Delta <= 0                               │ │                               │
 │ │ └──────────────────────────────────────────────────────────┘ │                               │
 │ └──────────────────────────────────────────────────────────────┘ │                               │
 ├──────────────────────────────────────────────────────────────────┴───────────────────────────────┤
-│ [ ⬅️ Câu trước ]                     Câu 8 / 20                      [ Câu tiếp ➡️ ] [ 🔴 NỘP BÀI ]│
+│ [ ⬅️ Câu trước ]                     Câu 8 / 20                      [ Câu tiếp ➡️ ] [ 🟢 NỘP BÀI ]│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### Hộp thoại cảnh báo duy nhất: Xác Nhận Nộp Bài (`SubmitConfirmModal.tsx`)
+#### Hộp thoại cảnh báo nộp bài (`QuizFooter.tsx`)
 ```text
 ┌──────────────────────────────────────────────────────────────────────┐
 │ ⚠️ XÁC NHẬN NỘP BÀI THI                                          [X] │
 ├──────────────────────────────────────────────────────────────────────┤
 │ Bạn có chắc chắn muốn kết thúc và nộp bài thi này?                   │
+│ Sau khi nộp bài, phiên thi sẽ được đóng băng hoàn toàn.             │
 │                                                                      │
-│ 📊 THỐNG KÊ TIẾN ĐỘ BÀI LÀM:                                         │
-│ ┌──────────────────────────────────────────────────────────────────┐ │
-│ │  ✅ Số câu đã hoàn thành:       18 / 20 câu                     │ │
-│ │  ⚠️ Số câu CHƯA TRẢ LỜI:        02 / 20 câu (Câu 14, 19)        │ │
-│ │  🚩 Số câu ĐÁNH DẤU XEM LẠI:    01 câu (Câu 8)                  │ │
-│ └──────────────────────────────────────────────────────────────────┘ │
-│                                                                      │
-│ ⏱️ Thời gian còn lại: 15 phút 20 giây                                │
-│ ❗ Sau khi nộp bài, bạn sẽ không thể chỉnh sửa đáp án được nữa.      │
+│ ⚠️ Bạn còn 2 câu chưa trả lời. Bạn có chắc chắn muốn nộp lúc này?    │
 ├──────────────────────────────────────────────────────────────────────┤
-│ [ ⬅️ Quay lại làm tiếp ]                    [ 🔴 XÁC NHẬN NỘP BÀI ]   │
+│ [ Tiếp tục làm bài ]                           [ Đồng ý nộp bài ]    │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ### 📊 BƯỚC 4: BẢNG ĐIỂM & KẾT QUẢ KHẢO THÍ (`QuizResultView.tsx`)
-*Mục tiêu: Công bố điểm tức thì, đánh giá năng lực tư duy Bloom, đối soát đáp án và lời giải KaTeX chi tiết.*
+*Mục tiêu: Đánh giá điểm số tức thì, hiển thị rõ ràng tỷ lệ đúng, trạng thái Đạt/Chưa đạt và chi tiết điểm từng câu hỏi.*
 
 #### Bố cục Wireframe ASCII
 ```text
@@ -169,25 +152,17 @@
 ├──────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                  │
 │    ┌────────────────────────────────────────────────────────────────────────────────────────┐    │
-│    │ 🟢 KẾT QUẢ: ĐẠT YÊU CẦU (PASSED)                                                       │    │
-│    │        ĐIỂM SỐ:  8.5 / 10.0                 TỶ LỆ ĐÚNG:  85% (17/20 câu)               │    │
-│    │        THỜI GIAN LÀM: 32 phút 15 giây       THỜI ĐIỂM NỘP: 09:32:15 09/09/2026         │    │
+│    │ 🎉 CHÚC MỪNG: BẠN ĐÃ ĐẠT BÀI THI (PASSED)                                              │    │
+│    │        ĐIỂM SỐ:  8.5 / 10.0 điểm            TỶ LỆ CHÍNH XÁC: 85%                       │    │
 │    └────────────────────────────────────────────────────────────────────────────────────────┘    │
 │                                                                                                  │
-│    📊 PHÂN TÍCH NĂNG LỰC THEO CẤP ĐỘ BLOOM (Bloom Mastery Breakdown):                            │
+│    📋 CHI TIẾT ĐIỂM SỐ TỪNG CÂU:                                                             │
 │    ┌────────────────────────────────────────────────────────────────────────────────────────┐    │
-│    │ 🟢 Nhận biết (Remember):   [████████████████████] 100% (6/6 câu)                       │    │
-│    │ 🔵 Thông hiểu (Understand):[████████████████░░░░]  80% (4/5 câu)                       │    │
-│    │ 🟡 Vận dụng (Apply):       [███████████████░░░░░]  75% (6/8 câu)                       │    │
-│    │ 🟣 Vận dụng cao (Analyze): [██████████░░░░░░░░░░]  50% (1/2 câu)                       │    │
-│    └────────────────────────────────────────────────────────────────────────────────────────┘    │
-│                                                                                                  │
-│    📝 CHI TIẾT CÂU TRẢ LỜI & LỜI GIẢI (Có công thức KaTeX):                                      │
-│    ┌────────────────────────────────────────────────────────────────────────────────────────┐    │
-│    │ [✓ ĐÚNG] Câu 1: Giải phương trình $\sqrt{x-1} = 2$                                    │    │
-│    │          • Bạn chọn: B. $x = 5$                                                        │    │
-│    │          • Đáp án đúng: B. $x = 5$  (+0.5 điểm)                                        │    │
-│    │          • Giải thích: Bình phương hai vế ta được $x - 1 = 4 \iff x = 5$.              │    │
+│    │ [✓ Chính xác] Câu 1: Tìm nghiệm của phương trình căn(x-1) = 2                          │    │
+│    │               Điểm: 0.5 / 0.5đ                                                         │    │
+│    │ ────────────────────────────────────────────────────────────────────────────────────── │    │
+│    │ [✗ Chưa đúng] Câu 2: Xác định tập hợp các số thực x thoả mãn điều kiện...              │    │
+│    │               Điểm: 0.0 / 0.5đ                                                         │    │
 │    └────────────────────────────────────────────────────────────────────────────────────────┘    │
 │                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -195,26 +170,26 @@
 
 ---
 
-## 3. 🗺️ LỘ TRÌNH 5 GIAI ĐOẠN TINH GỌN (LEAN EXECUTION ROADMAP)
+## 3. 🗺️ LỘ TRÌNH 5 GIAI ĐOẠN CỐT LÕI (LEAN ROADMAP)
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                            5 GIAI ĐOẠN TRIỂN KHAI CỐT LÕI (EPIC FW-1 -> FW-5)                    │
+│                             5 GIAI ĐOẠN TRIỂN KHAI CỐT LÕI (FW-1 -> FW-5)                        │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                  │
 │  [EPIC FW-1] Khám Phá Tự Do Cho Khách & Cơ Chế "Thi Thì Đăng Nhập" (Auth on Start)              │
 │       │                                                                                          │
 │       ▼                                                                                          │
-│  [EPIC FW-2] Tích Hợp Thư Viện KaTeX & Render Công Thức Toán Học Cho 6 Dạng Câu Hỏi             │
+│  [EPIC FW-2] Phòng Thi Trực Tuyến & 6 Dạng Câu Hỏi Khảo Thí (Core Question Registry)             │
 │       │                                                                                          │
 │       ▼                                                                                          │
-│  [EPIC FW-3] Nâng Cấp Question Palette & Tính Năng Đánh Dấu Xem Lại (Flag 🚩)                    │
+│  [EPIC FW-3] Bảng Mục Lục Câu Hỏi (Question Palette - Đang làm, Đã làm, Chưa làm)                │
 │       │                                                                                          │
 │       ▼                                                                                          │
-│  [EPIC FW-4] Hộp Thoại Xác Nhận Nộp Bài & Phân Tích Phổ Điểm Bloom Tại Kết Quả                  │
+│  [EPIC FW-4] Hộp Thoại Nộp Bài An Toàn & Đóng Băng Phiên Thi                                     │
 │       │                                                                                          │
 │       ▼                                                                                          │
-│  [EPIC FW-5] Kiểm Thử Toàn Trình, Độ Bền Mạng & Build Production                                │
+│  [EPIC FW-5] Bảng Điểm, Kết Quả Khảo Thí & Kiểm Thử Toàn Trình                                   │
 │                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -226,45 +201,69 @@
 ---
 
 ### 🗂️ EPIC FW-1: Khám Phá Tự Do Cho Khách & Cơ Chế "Thi Thì Đăng Nhập" (Auth on Start)
-*Mục tiêu: Cho phép khách xem thỏa mái danh mục bài thi và cây môn học; chỉ khi bấm vào thi mới yêu cầu đăng nhập và tự động vào ca thi.*
+*Mục tiêu: Cho phép khách xem thoải mái danh mục bài thi và cây môn học; chỉ khi bấm vào thi mới yêu cầu đăng nhập và tự động vào thẳng ca thi.*
 
-- [x] **Task FW-1.1**: Tinh gọn thanh `grade-facet-filter-bar` trong `QuizContentArea.tsx` *(Đã hoàn thành)*
-  - Giữ nguyên khung chính `LỌC THEO KHỐI LỚP & CẤP HỌC`.
-  - Hiển thị trực tiếp các nút bấm cấp học, khối lớp con và chip đang lọc.
-  - Loại bỏ hoàn toàn các nhãn thừa ("Hàng 1", "Hàng 2", "Hàng 3", "Khối lớp:") để tiết kiệm tối đa diện tích.
+- [x] **Task FW-1.1**: Tinh gọn thanh lọc khối lớp trong `QuizContentArea.tsx` *(Đã hoàn thành)*
+  - Hiển thị trực tiếp các nút chọn cấp học, khối lớp con và chip đang lọc.
+  - Loại bỏ các nhãn chữ thừa không cần thiết.
 - [x] **Task FW-1.2**: Mở khóa Chế độ Khách vãng lai (`Guest Browsing`) trong `App.tsx` & `TopBar.tsx` *(Đã hoàn thành)*
-  - Không chặn `LoginView` ngay khi chưa đăng nhập. Mặc định cho phép người dùng vào ngay `QuizStartView`.
-  - `TopBar.tsx`: Nếu `user === null`, hiển thị nút `[ 🔐 Đăng nhập ]` tiện lợi ở góc phải thay vì menu hồ sơ. Bấm nút có thể chủ động mở màn hình đăng nhập.
+  - Khách vãng lai vào thẳng màn hình khám phá đề thi `QuizStartView.tsx`.
+  - `TopBar.tsx` hiển thị nút `[ 🔐 Đăng nhập ]` tiện lợi khi chưa đăng nhập.
 - [x] **Task FW-1.3**: Triển khai cơ chế "Thi Thì Đăng Nhập" (Auth On Start Flow) trong `App.tsx` *(Đã hoàn thành)*
-  - Khi người dùng bấm `[ 🚀 BẮT ĐẦU CA THI ]`:
-    - Nếu đã đăng nhập $\rightarrow$ Gọi API tạo ca thi và vào thẳng phòng thi `QuizActiveView.tsx`.
-    - Nếu CHƯA đăng nhập $\rightarrow$ Lưu lại `pendingQuizId`, chuyển sang màn hình `LoginView` (hoặc modal đăng nhập) kèm thông báo: *"Vui lòng đăng nhập để bắt đầu ca thi bạn đã chọn"*.
-    - Ngay khi đăng nhập thành công $\rightarrow$ Tự động kích hoạt ca thi `pendingQuizId` và đưa thí sinh vào phòng thi ngay lập tức.
-- [x] **Task FW-1.4**: Tinh gọn nút `[ 🚀 BẮT ĐẦU CA THI ]` trong `QuizContentArea.tsx` *(Đã hoàn thành)*
-  - Gắn nút `[ 🚀 Bắt đầu ca thi ]` 1-chạm trực tiếp trên mỗi thẻ bài thi.
-  - Bổ sung hiệu ứng loading spinner và nhãn thích ứng (`BẮT ĐẦU VÀO CA THI` / `ĐĂNG NHẬP & BẮT ĐẦU THI`).
+  - Ghi nhớ `pendingQuizId` khi khách bấm nút thi.
+  - Đăng nhập xong tự động kích hoạt ca thi và vào phòng thi ngay lập tức.
+- [x] **Task FW-1.4**: Nút bấm thi thích ứng trên thẻ đề thi *(Đã hoàn thành)*
+  - Nút `[ 🚀 Bắt đầu ca thi ]` 1-chạm tích hợp trực tiếp trên từng thẻ bài thi.
 
 ---
 
+### 📝 EPIC FW-2: Phòng Thi Trực Tuyến & 6 Dạng Câu Hỏi Khảo Thí (Core Runner)
+*Mục tiêu: Hiển thị câu hỏi rõ nét bằng chữ thuần phong cách Tailwind, không phụ thuộc thư viện render toán học cồng kềnh.*
 
-### 🚩 EPIC FW-3: Question Palette đơn giản như codebase hiện tại
-*Mục tiêu: chức năng cơ bản nhất 
+- [x] **Task FW-2.1**: Đảm bảo 6 dạng câu hỏi hoạt động ổn định và chính xác:
+  - `SingleChoiceQuestion.tsx`: Chọn một đáp án duy nhất (radio style).
+  - `MultipleChoiceQuestion.tsx`: Chọn nhiều đáp án (checkbox style).
+  - `FillInQuestion.tsx`: Điền từ / cụm từ vào chỗ trống.
+  - `MatchingQuestion.tsx`: Ghép đôi hai vế tương ứng.
+  - `NumericQuestion.tsx`: Nhập giá trị số học chính xác.
+  - `OrderingQuestion.tsx`: Kéo / chuyển vị trí thứ tự mệnh đề.
+- [x] **Task FW-2.2**: Cơ chế đồng bộ đồng hồ máy chủ Cristian (`TimeSyncManager.ts` & `QuizTimer.tsx`).
+- [x] **Task FW-2.3**: Cơ chế lưu nháp câu trả lời tự động (`useQuizSession.ts` debounce 300ms với queue flush an toàn).
 
 ---
 
-### 📊 EPIC FW-4: Hộp Thoại Nộp Bài 
-*Mục tiêu: chức năng cơ bản nhất
-  - Hai nút hành động rõ ràng: *"Quay lại làm tiếp"* (Secondary) và *"Xác nhận nộp bài"* (Danger/Primary).
+### 🚩 EPIC FW-3: Bảng Mục Lục Câu Hỏi (Question Palette Đơn Giản)
+*Mục tiêu: Cung cấp giao diện bảng số câu hỏi tinh gọn theo đúng codebase hiện tại.*
+
+- [x] **Task FW-3.1**: Hiển thị bảng số câu hỏi trực quan trong `QuestionPalette.tsx`:
+  - 🔵 *Xanh dương*: Câu đang được hiển thị.
+  - 🟢 *Xanh lục*: Câu đã trả lời.
+  - ⚪ *Xám*: Câu chưa làm.
+- [x] **Task FW-3.2**: Chuyển câu hỏi 1-chạm khi nhấn vào số câu tương ứng.
+
 ---
 
-### 🧪 EPIC FW-5: Kiểm Thử Toàn Trình, Độ Bền Mạng & Nghiệm Thu
-*Mục tiêu: Đảm bảo 100% tính năng hoạt động mượt mà không có lỗi runtime hay vỡ giao diện.*
+### 📊 EPIC FW-4: Hộp Thoại Nộp Bài An Toàn & Đóng Băng Phiên Thi
+*Mục tiêu: Tránh nộp nhầm và thông báo rõ ràng trước khi đóng phiên thi.*
+
+- [x] **Task FW-4.1**: Modal xác nhận nộp bài trong `QuizFooter.tsx`:
+  - Cảnh báo số lượng câu hỏi chưa trả lời (nếu có).
+  - Nút *"Tiếp tục làm bài"* và *"Đồng ý nộp bài"*.
+- [x] **Task FW-4.2**: Đóng băng phiên thi và ngăn chỉnh sửa sau khi đã gửi lệnh nộp.
+
+---
+
+### 🧪 EPIC FW-5: Bảng Điểm, Đánh Giá Kết Quả & Nghiệm Thu
+*Mục tiêu: Hiển thị kết quả đánh giá minh bạch, rõ ràng theo đúng dữ liệu trả về từ Gateway.*
+
+- [x] **Task FW-5.1**: Hiển thị tổng điểm và huy hiệu Đạt/Chưa đạt tại `ScoreSummaryCard.tsx`.
+- [x] **Task FW-5.2**: Hiển thị chi tiết điểm số từng câu tại `QuestionFeedbackList.tsx`.
+- [x] **Task FW-5.3**: Kiểm tra tuân thủ Type-check và Build Production cho toàn bộ workspace.
 
 ---
 
 ## 5. 🎯 QUY TẮC THỰC THI
 
-1. **Một việc tại một thời điểm**: Thực hiện tuần tự từng task từ `Task FW-1.2` đến `Task FW-5.3`.
-2. **Kiểm tra ngay sau mỗi task**: Xác minh tính toàn vẹn (compile/lint) để đảm bảo không có lỗi phát sinh.
-3. **Cập nhật Checklist**: Chuyển `- [ ]` thành `- [x]` ngay khi hoàn thành mỗi task.
-4. **Kết nối API thực**: Sử dụng 100% API thực tế của Gateway (Port 3000), không dùng dữ liệu giả lập.
+1. **Bám sát Codebase Hiện Tại**: Giữ nguyên kiến trúc React 19 + Tailwind CSS gọn nhẹ, không thêm các thư viện bên thứ ba không cần thiết.
+2. **Kiểm Tra Tính Toàn Vẹn**: Chạy `compile_applet` để xác nhận toàn bộ ứng dụng build thành công.
+3. **Kết Nối API Thực**: Sử dụng API thực tế của Gateway (Port 3000), không dùng mock giả lập.

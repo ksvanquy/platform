@@ -318,6 +318,13 @@ export class AuthClient {
   }
 
   /**
+   * Kiểm tra xem Access Token hiện tại đã hết hạn (hoặc sắp hết hạn trong 5 giây tới) chưa
+   */
+  isExpired(): boolean {
+    return this.session.isExpired();
+  }
+
+  /**
    * Lấy Session Manager bên dưới nếu cần tùy biến sâu
    */
   getSession(): SessionManager {

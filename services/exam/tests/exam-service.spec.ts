@@ -114,7 +114,8 @@ describe('Exam Service API & Use Cases', () => {
     title: 'Toán 10 Giữa Kỳ',
     ownerId: 'usr_inst_01',
     primaryTopicNodeId: 'TOPIC_MATH',
-    status: 'PUBLISHED',
+    gradeNodeId: 'GRADE_10',
+    status: 'PUBLISHED' as any,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -264,5 +265,31 @@ describe('Exam Service API & Use Cases', () => {
       .send({ status: 'ACTIVE' });
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.data.status).toBe('ACTIVE');
+  });
+
+  it('GET /v1/exams - should return exams enriched with assessment metadata (primaryTopicNodeId, gradeNodeId) for candidate filtering', async () => {
+    await request(app)
+      .post('/v1/exams')
+      .set('x-user-id', 'usr_inst_01')
+      .set('x-user-roles', 'INSTRUCTOR')
+      .send({
+        assessmentId: 'asm_mock_01',
+        code: 'EXM_FILTER_TEST',
+        title: 'Filter Test Exam',
+        durationMinutes: 45,
+        variantsCount: 1,
+      });
+
+    const res = await request(app).get('/v1/exams');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toBeInstanceOf(Array);
+    expect(res.body.data.length).toBeGreaterThan(0);
+
+    const exam = res.body.data.find((e: any) => e.code === 'EXM_FILTER_TEST');
+    expect(exam).toBeDefined();
+    expect(exam.assessment).toBeDefined();
+    expect(exam.assessment.primaryTopicNodeId).toBe('TOPIC_MATH');
+    expect(exam.assessment.gradeNodeId).toBe('GRADE_10');
   });
 });

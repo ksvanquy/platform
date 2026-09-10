@@ -20,6 +20,11 @@
    - Bảng tra cứu toàn diện 40+ endpoints trong hệ sinh thái microservices.
    - Chi tiết: Method, Route, Required Role, Required Permission, ABAC/Ownership Check, Threat Vector & Mitigation.
 
+3. **[Báo cáo Audit Mẫu Seed & Luồng Khởi tạo Ca thi (seed-and-attempt-flow-audit.md)](./seed-and-attempt-flow-audit.md)**:
+   - Phân tích sự phù hợp của dữ liệu mẫu seed đối với bộ lọc Cấp học, Khối lớp, Chuyên đề kiến thức.
+   - Bóc tách nguyên nhân gốc rễ (RCA) của lỗi `User authentication or userId in body is required to start an attempt`.
+   - Ma trận mẫu seed đề xuất phủ đủ 3 cấp học và kế hoạch khắc phục 3 giai đoạn.
+
 ---
 
 ## 🎯 Tóm tắt kết quả Audit (Executive Summary)

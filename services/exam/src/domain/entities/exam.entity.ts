@@ -6,6 +6,7 @@ import type {
   SanitizedExamManifest,
   FrozenQuestionItem,
   ScoringPolicyConfig,
+  ExamAssessmentMeta,
 } from '@platform/contracts';
 import { InvalidExamDataError } from '../errors/exam-domain.errors.js';
 
@@ -134,7 +135,7 @@ export class Exam {
     this._status = 'CLOSED';
   }
 
-  toDTO(variants?: ExamVariantSummary[]): ExamDTO {
+  toDTO(variants?: ExamVariantSummary[], assessment?: ExamAssessmentMeta): ExamDTO {
     return {
       id: this.id,
       assessmentId: this.assessmentId,
@@ -149,6 +150,7 @@ export class Exam {
       variantsCount: variants ? variants.length : undefined,
       variants: variants,
       createdAt: this.createdAt.toISOString(),
+      assessment,
     };
   }
 }

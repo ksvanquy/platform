@@ -43,4 +43,5 @@ export interface AssessmentClientPort {
     assessment: AssessmentDTO;
     blueprint: BlueprintDTO;
   } | null>;
+  getAssessment?(assessmentIdOrCode: string): Promise<AssessmentDTO | null>;
 }

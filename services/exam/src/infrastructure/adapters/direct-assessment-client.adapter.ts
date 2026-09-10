@@ -9,6 +9,18 @@ export class DirectAssessmentClientAdapter implements AssessmentClientPort {
     this.assessmentRepo = customRepo || new DrizzleAssessmentRepository();
   }
 
+  async getAssessment(assessmentIdOrCode: string): Promise<AssessmentDTO | null> {
+    try {
+      let assessment = await this.assessmentRepo.findAssessmentById(assessmentIdOrCode);
+      if (!assessment) {
+        assessment = await this.assessmentRepo.findAssessmentByCode(assessmentIdOrCode);
+      }
+      return assessment ? assessment.toDTO() : null;
+    } catch {
+      return null;
+    }
+  }
+
   async getAssessmentWithBlueprint(assessmentIdOrCode: string): Promise<{
     assessment: AssessmentDTO;
     blueprint: BlueprintDTO;

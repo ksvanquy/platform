@@ -212,7 +212,7 @@ export class ApiClient {
      * Tạo hoặc khôi phục ca thi. Hỗ trợ cả legacy quizId string hoặc new exam payload.
      */
     create: async (
-      quizIdOrPayload: string | { examId?: string; quizId?: string; variantCode?: string; metadata?: Record<string, unknown> }
+      quizIdOrPayload: string | { examId?: string; quizId?: string; variantCode?: string; userId?: string; metadata?: Record<string, unknown> }
     ): Promise<ApiResponse<any>> => {
       const body = typeof quizIdOrPayload === 'string'
         ? { quizId: quizIdOrPayload }
@@ -228,12 +228,14 @@ export class ApiClient {
       quizId?: string;
       variantCode?: string;
       autoStart?: boolean;
+      userId?: string;
       metadata?: Record<string, unknown>;
     }): Promise<ApiResponse<AttemptDTO>> => {
       const body = {
         ...payload,
         examId: payload.examId || payload.quizId || '',
         quizId: payload.quizId || payload.examId || '',
+        userId: payload.userId,
       };
       return this.post<ApiResponse<AttemptDTO>>('/v1/attempts', body);
     },
@@ -241,8 +243,8 @@ export class ApiClient {
     /**
      * Bắt đầu ca thi, kích hoạt đếm ngược thời gian từ đồng hồ máy chủ
      */
-    start: async (attemptId: string): Promise<ApiResponse<any>> => {
-      return this.post<ApiResponse<any>>(`/v1/attempts/${encodeURIComponent(attemptId)}/start`, {});
+    start: async (attemptId: string, payload?: { userId?: string }): Promise<ApiResponse<any>> => {
+      return this.post<ApiResponse<any>>(`/v1/attempts/${encodeURIComponent(attemptId)}/start`, payload || {});
     },
 
     /**

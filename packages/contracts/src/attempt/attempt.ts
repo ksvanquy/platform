@@ -62,6 +62,7 @@ export interface RecordAntiCheatEventInput {
 export interface StartAttemptInput {
   examId: string;
   variantCode?: string;
+  userId?: string;
 }
 
 export interface AutosaveAnswerInput {
@@ -69,10 +70,12 @@ export interface AutosaveAnswerInput {
   answer: unknown;
   sequenceNumber: number;
   clientTimestamp?: number;
+  userId?: string;
 }
 
 export interface SubmitAttemptInput {
   reason?: 'MANUAL' | 'TIME_EXPIRED' | 'VIOLATION';
+  userId?: string;
 }
 
 export interface AttemptDTO {
