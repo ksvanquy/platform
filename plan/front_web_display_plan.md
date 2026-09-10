@@ -246,81 +246,19 @@
 
 ---
 
-### 📐 EPIC FW-2: Tích Hợp KaTeX & Hiển Thị Công Thức Toán Học Cho 6 Dạng Câu Hỏi
-*Mục tiêu: Đảm bảo toàn bộ công thức toán học (`$...$` và `$$...$$`) hiển thị sắc nét, đúng chuẩn font Computer Modern.*
 
-- [ ] **Task FW-2.1**: Cài đặt gói `katex` và `@types/katex` vào `apps/quiz-web`
-  - Cập nhật dependencies trong `apps/quiz-web/package.json`.
-  - Nạp stylesheet KaTeX CSS (`katex/dist/katex.min.css`) vào `apps/quiz-web/src/index.css`.
-- [ ] **Task FW-2.2**: Xây dựng component `KaTeXViewer.tsx` tại `apps/quiz-web/src/components/common/`
-  - Parser regex thông minh: Tách các đoạn văn bản thường và đoạn công thức toán.
-  - Hỗ trợ công thức nội dòng `$f(x) = ax^2 + bx + c$` (`displayMode: false`).
-  - Hỗ trợ công thức khối `$$\int_{a}^{b} f(x) dx$$` (`displayMode: true`).
-  - Xử lý `try/catch` an toàn nếu công thức sai cú pháp, không làm crash ứng dụng.
-- [ ] **Task FW-2.3**: Tích hợp `KaTeXViewer` vào đề mục câu hỏi và 6 components câu hỏi
-  - Tích hợp vào `QuizActiveView.tsx` (phần render đề bài `currentQuestion.prompt`).
-  - Tích hợp vào `SingleChoiceQuestion.tsx` và `MultipleChoiceQuestion.tsx` (nội dung đáp án `opt.content`).
-  - Tích hợp vào `MatchingQuestion.tsx` (các vế ghép đôi).
-  - Tích hợp vào `OrderingQuestion.tsx` (các mệnh đề sắp xếp).
-  - Tích hợp vào `FillInQuestion.tsx` và `NumericQuestion.tsx`.
+### 🚩 EPIC FW-3: Question Palette đơn giản như codebase hiện tại
+*Mục tiêu: chức năng cơ bản nhất 
 
 ---
 
-### 🚩 EPIC FW-3: Nâng Cấp Question Palette (Tính Năng Đánh Dấu Xem Lại)
-*Mục tiêu: Giúp thí sinh dễ dàng gắn cờ các câu hỏi chưa chắc chắn để quay lại rà soát trước khi nộp.*
-
-- [ ] **Task FW-3.1**: Bổ sung State `flaggedQuestions` vào `QuizActiveView.tsx`
-  - Sử dụng `Set<string>` để quản lý danh sách ID các câu hỏi đang được gắn cờ xem lại.
-  - Cung cấp nút chuyển đổi: 🚩 *"Đánh dấu xem lại câu này"* đặt dưới mỗi câu hỏi.
-- [ ] **Task FW-3.2**: Nâng cấp giao diện `QuestionPalette.tsx`
-  - Bổ sung màu sắc trạng thái thứ 3:
-    - *Xám/Tối*: Chưa làm.
-    - *Xanh lam*: Đã chọn đáp án.
-    - *Hổ phách/Vàng cam có biểu tượng cờ 🚩*: Đã đánh dấu xem lại.
-    - *Viền sáng*: Câu hỏi đang được kích hoạt hiển thị.
-  - Thống kê ở chân Palette: `Đã làm: X` • `Chưa làm: Y` • `Xem lại: Z`.
-
----
-
-### 📊 EPIC FW-4: Hộp Thoại Nộp Bài & Phân Tích Phổ Điểm Bloom Tại Kết Quả
-*Mục tiêu: Đem lại trải nghiệm kết thúc bài thi an toàn, không nộp nhầm và phân tích năng lực chuẩn học thuật.*
-
-- [ ] **Task FW-4.1**: Tạo component `SubmitConfirmModal.tsx` tại `apps/quiz-web/src/components/runner/`
-  - Mở ra khi thí sinh bấm nút *"Nộp bài"*.
-  - Bảng tổng kết trước nộp:
-    - ✅ Số câu đã hoàn thành: **$A / N$**
-    - ⚠️ Số câu chưa chọn đáp án: **$B / N$**
-    - 🚩 Số câu đang đánh dấu xem lại: **$C$**
+### 📊 EPIC FW-4: Hộp Thoại Nộp Bài 
+*Mục tiêu: chức năng cơ bản nhất
   - Hai nút hành động rõ ràng: *"Quay lại làm tiếp"* (Secondary) và *"Xác nhận nộp bài"* (Danger/Primary).
-- [ ] **Task FW-4.2**: Nâng cấp `ScoreSummaryCard.tsx` tại `apps/quiz-web/src/components/results/`
-  - Hiển thị điểm số chính thức: Điểm đạt / Thang điểm 10 (hoặc 100).
-  - Huy hiệu trạng thái lớn: 🟢 **ĐẠT (PASSED)** hoặc 🔴 **CHƯA ĐẠT (FAILED)** dựa theo `result.passed`.
-  - Hiển thị thời gian hoàn thành bài thi và thời điểm nộp bài.
-- [ ] **Task FW-4.3**: Tạo component `BloomMasteryBreakdown.tsx` tại `apps/quiz-web/src/components/results/`
-  - Nhóm các câu hỏi theo 4 cấp độ tư duy Bloom:
-    - 🟢 Nhận biết (Remember)
-    - 🔵 Thông hiểu (Understand)
-    - 🟡 Vận dụng (Apply)
-    - 🟣 Vận dụng cao (Analyze)
-  - Hiển thị thanh tiến trình trực quan (% câu đúng) cho từng cấp độ năng lực.
-- [ ] **Task FW-4.4**: Tích hợp `KaTeXViewer` vào `QuestionFeedbackList.tsx`
-  - Đảm bảo lời giải thích (`explanation`) và nội dung đáp án trong màn hình xem lại kết quả đều hiển thị công thức toán học KaTeX sắc nét.
-
 ---
 
 ### 🧪 EPIC FW-5: Kiểm Thử Toàn Trình, Độ Bền Mạng & Nghiệm Thu
 *Mục tiêu: Đảm bảo 100% tính năng hoạt động mượt mà không có lỗi runtime hay vỡ giao diện.*
-
-- [ ] **Task FW-5.1**: Kiểm thử luồng thi Thí sinh thực tế (End-to-End Walkthrough)
-  - Vào app với tư cách khách: xem cây môn học, lọc lớp, xem thông tin đề.
-  - Bấm Bắt đầu ca thi $\rightarrow$ Chuyển sang đăng nhập `student@quiz.com` $\rightarrow$ Tự động vào thẳng phòng thi.
-  - Làm bài với công thức KaTeX $\rightarrow$ Đánh dấu cờ câu phân vân.
-  - Bấm Nộp bài qua `SubmitConfirmModal` $\rightarrow$ Xem bảng điểm và phân tích cấp độ Bloom.
-- [ ] **Task FW-5.2**: Kiểm thử độ bền lưu nháp (Autosave & Network Resilience)
-  - F5 tải lại trang giữa lúc đang thi $\rightarrow$ Ca thi tự khôi phục nguyên vẹn các câu đã tích.
-  - Đồng hồ đếm ngược giữ nguyên độ chính xác theo server (không bị reset về thời gian đầu).
-- [ ] **Task FW-5.3**: Kiểm tra tuân thủ Type-check và Build Production
-  - Kiểm tra tính hợp lệ của TypeScript và hoàn tất build toàn bộ ứng dụng.
 
 ---
 
