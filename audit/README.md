@@ -47,6 +47,12 @@
    - **Đánh giá độc lập & 5 Biện pháp đối phó cạm bẫy kiến trúc**: Tránh "Shared Library Hell", tối ưu Dual-mode CPU (Strict vs Mesh-Trust), phân định ABAC Pure Functions với tầng DB, xử lý Token Revocation tức thì, và quản trị phiên bản SemVer.
    - Bản vẽ kiến trúc chi tiết, sơ đồ tuần tự (Sequence Diagram), ma trận so sánh Trước/Sau và Lộ trình di chuyển 5 bước.
 
+8. **[Báo cáo Audit Xung đột Đồng thời, Mất dữ liệu & Vòng đời Ca thi (attempt-concurrency-and-race-condition-audit.md)](./attempt-concurrency-and-race-condition-audit.md)**:
+   - Đánh giá lỗ hổng nghiêm trọng nhất hiện tại trong nghiệp vụ Khảo thí: Xung đột đồng thời (Concurrency) và Tranh chấp ghi đè dữ liệu (Race Conditions) trong `services/attempt`.
+   - Bóc tách 5 sự cố trọng yếu: Mất câu trả lời (Lost Updates) khi autosave liên tiếp do ghi đè toàn bộ JSONB; Lùi trạng thái ca thi (State Regression) từ `GRADED` về `IN_PROGRESS`; Nộp bài kép (Double-Submit); Tranh chấp nộp bài phút chót với Sweeper Daemon; và Xung đột nhiều pod khi scale ngang thiếu Distributed Lock.
+   - Bản thiết kế khắc phục triệt để: Atomic JSONB Patching (`jsonb_set`), Optimistic Concurrency Control (OCC) với cột `version`, Pessimistic Row Lock (`SELECT ... FOR UPDATE`), và PostgreSQL Advisory Lock (`pg_try_advisory_xact_lock`).
+
+
 ---
 
 ## 🎯 Tóm tắt kết quả Audit (Executive Summary)
