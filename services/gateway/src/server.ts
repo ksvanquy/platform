@@ -204,12 +204,12 @@ app.get('/health', (_req: Request, res: Response) => {
     service: 'API Gateway',
     timestamp: new Date().toISOString(),
     services: {
-      auth: isAuthDbConfigured(),
-      taxonomy: isTaxonomyDbConfigured(),
-      question: isQuestionDbConfigured(),
-      assessment: isAssessmentDbConfigured(),
-      exam: isExamDbConfigured(),
-      attempt: isAttemptDbConfigured(),
+      auth: isAuthDbConfigured() || Boolean(authUserRepository),
+      taxonomy: isTaxonomyDbConfigured() || Boolean(taxonomyRepoInstance),
+      question: isQuestionDbConfigured() || Boolean(questionRepoInstance),
+      assessment: isAssessmentDbConfigured() || Boolean(assessmentRepoInstance),
+      exam: isExamDbConfigured() || Boolean(examRepoInstance),
+      attempt: isAttemptDbConfigured() || Boolean(attemptRepoInstance),
     },
   });
 });
@@ -221,6 +221,40 @@ app.get('/api', (_req: Request, res: Response) => {
 app.get('/v1/api-discovery', (_req: Request, res: Response) => {
   res.status(200).json(apiDiscovery);
 });
+
+// Automatic Microservices Initialization Helper
+let embeddedInitPromise: Promise<void> | null = null;
+
+export async function ensureServicesInitialized(): Promise<void> {
+  const needsEmbedded =
+    !isTaxonomyDbConfigured() ||
+    !isQuestionDbConfigured() ||
+    !isAssessmentDbConfigured() ||
+    !isExamDbConfigured() ||
+    !isAttemptDbConfigured();
+
+  if (!needsEmbedded) return;
+
+  if (!embeddedInitPromise) {
+    embeddedInitPromise = (async () => {
+      try {
+        console.log('📦 [Gateway] Dedicated database URLs not fully configured in environment.');
+        console.log('🚀 [Gateway] Bootstrapping embedded PostgreSQL microservices (PGlite) with clean seed data...');
+        const { bootstrapEmbeddedMicroservices } = await import('./embedded-bootstrap.js');
+        const repos = await bootstrapEmbeddedMicroservices();
+        setTaxonomyRepository(repos.taxonomyRepo);
+        setQuestionRepository(repos.questionRepo);
+        setAssessmentRepository(repos.assessmentRepo);
+        setExamRepository(repos.examRepo);
+        setAttemptRepository(repos.attemptRepo);
+        console.log('✅ [Gateway] Embedded PostgreSQL databases initialized & seeded (Taxonomy, Question, Assessment, Exam, Attempt).');
+      } catch (err: any) {
+        console.error('❌ [Gateway] Failed to initialize embedded microservices:', err);
+      }
+    })();
+  }
+  return embeddedInitPromise;
+}
 
 // Taxonomy Module & Dynamic Router Delegation
 let taxonomyRepoInstance: TaxonomyRepositoryPort | null = null;
@@ -375,8 +409,9 @@ function getAttemptRouter(): express.Router {
 }
 
 // Mount Question Bank Routes
-app.use('/v1/questions', (req: Request, res: Response, next: any) => {
+app.use('/v1/questions', async (req: Request, res: Response, next: any) => {
   try {
+    await ensureServicesInitialized();
     const router = getQuestionRouter();
     return router(req, res, next);
   } catch (err: any) {
@@ -388,8 +423,9 @@ app.use('/v1/questions', (req: Request, res: Response, next: any) => {
 });
 
 // Mount Assessment Blueprint Routes
-app.use('/v1/assessments', (req: Request, res: Response, next: any) => {
+app.use('/v1/assessments', async (req: Request, res: Response, next: any) => {
   try {
+    await ensureServicesInitialized();
     const router = getAssessmentRouter();
     return router(req, res, next);
   } catch (err: any) {
@@ -401,8 +437,9 @@ app.use('/v1/assessments', (req: Request, res: Response, next: any) => {
 });
 
 // Mount Exam Engine Routes
-app.use('/v1/exams', (req: Request, res: Response, next: any) => {
+app.use('/v1/exams', async (req: Request, res: Response, next: any) => {
   try {
+    await ensureServicesInitialized();
     const router = getExamRouter();
     return router(req, res, next);
   } catch (err: any) {
@@ -414,8 +451,9 @@ app.use('/v1/exams', (req: Request, res: Response, next: any) => {
 });
 
 // Mount Attempt Engine Routes
-app.use('/v1/attempts', (req: Request, res: Response, next: any) => {
+app.use('/v1/attempts', async (req: Request, res: Response, next: any) => {
   try {
+    await ensureServicesInitialized();
     const router = getAttemptRouter();
     return router(req, res, next);
   } catch (err: any) {
@@ -427,8 +465,9 @@ app.use('/v1/attempts', (req: Request, res: Response, next: any) => {
 });
 
 // Mount Attempt Internal Sweeper Routes
-app.use('/v1/internal', (req: Request, res: Response, next: any) => {
+app.use('/v1/internal', async (req: Request, res: Response, next: any) => {
   try {
+    await ensureServicesInitialized();
     const repo = getAttemptRepository();
     const examClient = new DirectExamClientAdapter();
     const sweeper =
@@ -445,7 +484,7 @@ app.use('/v1/internal', (req: Request, res: Response, next: any) => {
 });
 
 // Mount Taxonomy Domain Routes
-app.use('/v1', (req: Request, res: Response, next: any) => {
+app.use('/v1', async (req: Request, res: Response, next: any) => {
   if (
     req.path.startsWith('/taxonomies') ||
     req.path === '/taxonomies' ||
@@ -453,6 +492,7 @@ app.use('/v1', (req: Request, res: Response, next: any) => {
     req.path === '/nodes'
   ) {
     try {
+      await ensureServicesInitialized();
       const router = getTaxonomyRouter();
       return router(req, res, next);
     } catch (err: any) {
@@ -560,22 +600,24 @@ app.get('/', (req: Request, res: Response) => {
 
 if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   const PORT = Number(process.env.GATEWAY_PORT || process.env.PORT || 3000);
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Platform API Gateway Server running on http://0.0.0.0:${PORT}`);
-  });
-}
+  ensureServicesInitialized()
+    .catch((err) => console.error('Error during embedded services initialization:', err))
+    .finally(() => {
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Platform API Gateway Server running on http://0.0.0.0:${PORT}`);
+      });
 
-// Initialize attempt sweeper daemon if attempt DB is configured
-if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && isAttemptDbConfigured()) {
-  try {
-    const repo = getAttemptRepository();
-    if (repo) {
-      attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, new DirectExamClientAdapter());
-      attemptSweeperDaemonInstance.start(30000);
-    }
-  } catch (err: any) {
-    console.warn('⚠️ [attempt_db] Could not initialize sweeper daemon:', err?.message || err);
-  }
+      // Initialize attempt sweeper daemon once services are ready
+      try {
+        const repo = getAttemptRepository();
+        if (repo) {
+          attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, new DirectExamClientAdapter());
+          attemptSweeperDaemonInstance.start(30000);
+        }
+      } catch (err: any) {
+        console.warn('⚠️ [attempt_db] Could not initialize sweeper daemon:', err?.message || err);
+      }
+    });
 }
 
 export {

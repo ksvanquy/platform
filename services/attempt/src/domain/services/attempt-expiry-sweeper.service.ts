@@ -64,7 +64,7 @@ export class AttemptExpirySweeperService {
     };
   }
 
-  async sweep(now: Date = new Date(), gracePeriodMs = 15000, batchLimit = 50): Promise<SweepResult> {
+  async sweep(now: Date = new Date(), gracePeriodMs = 60000, batchLimit = 50): Promise<SweepResult> {
     if (this.isSweeping) {
       return {
         sweptCount: 0,
@@ -79,9 +79,7 @@ export class AttemptExpirySweeperService {
     AttemptMetrics.incrementSweeperRuns();
 
     try {
-      // Task CONC-4.1: Thử giành Distributed Advisory Lock (pg_try_advisory_xact_lock)
-      // Nếu một replica khác đang chạy chu kỳ quét, lập tức bỏ qua chu kỳ này một cách an toàn mà không block
-      const lockExecution = await this.attemptRepo.withAdvisoryLock(SWEEPER_LOCK_KEY, async () => {
+      const runSweep = async () => {
         const result: SweepResult = {
           sweptCount: 0,
           sweptAttemptIds: [],
@@ -123,7 +121,17 @@ export class AttemptExpirySweeperService {
         }
 
         return result;
-      });
+      };
+
+      // Task CONC-4.1: Thử giành Distributed Advisory Lock (pg_try_advisory_xact_lock)
+      // Nếu một replica khác đang chạy chu kỳ quét, lập tức bỏ qua chu kỳ này một cách an toàn mà không block
+      let lockExecution: { acquired: boolean; result?: SweepResult };
+      if (typeof this.attemptRepo.withAdvisoryLock === 'function') {
+        lockExecution = await this.attemptRepo.withAdvisoryLock(SWEEPER_LOCK_KEY, runSweep);
+      } else {
+        const sweepRes = await runSweep();
+        lockExecution = { acquired: true, result: sweepRes };
+      }
 
       if (!lockExecution.acquired) {
         // Ghi nhận metrics replica bỏ qua quét do instance khác đang giữ lock

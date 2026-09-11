@@ -92,6 +92,7 @@ export async function setupFullMicroservicesDb(): Promise<FullMicroservicesConte
       snapshot_id VARCHAR(64) NOT NULL,
       variant_code VARCHAR(32) NOT NULL DEFAULT 'DEFAULT',
       status VARCHAR(32) NOT NULL DEFAULT 'CREATED',
+      version INTEGER NOT NULL DEFAULT 1,
       started_at TIMESTAMP WITH TIME ZONE,
       deadline TIMESTAMP WITH TIME ZONE,
       submitted_at TIMESTAMP WITH TIME ZONE,

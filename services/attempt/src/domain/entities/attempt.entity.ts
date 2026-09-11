@@ -244,7 +244,7 @@ export class Attempt {
   /**
    * Nộp bài thi
    */
-  submit(now: Date = new Date(), gracePeriodMs = 15000): void {
+  submit(now: Date = new Date(), gracePeriodMs = 60000): void {
     if (this.isFinalized()) {
       return; // Idempotent
     }
