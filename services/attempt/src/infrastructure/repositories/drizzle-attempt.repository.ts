@@ -294,7 +294,7 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
         isNull(attempts.deadline),
         sql`${attempts.deadline} + INTERVAL '15 seconds' >= ${now}`
       ),
-      sql`(${attempts.answers}->${questionId} IS NULL OR (${attempts.answers}->${questionId}->>'sequenceNumber')::int < ${answerRecord.sequenceNumber})`
+      sql`(${attempts.answers}->${questionId} IS NULL OR COALESCE((${attempts.answers}->${questionId}->>'sequenceNumber')::int, 0) < ${answerRecord.sequenceNumber})`
     ];
 
     if (userId && userRole !== 'ADMIN') {
@@ -357,11 +357,11 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
       throw new AttemptTimeExpiredError(attemptId);
     }
     const currentAnswer = existing.answers[questionId];
-    if (currentAnswer && currentAnswer.sequenceNumber >= answerRecord.sequenceNumber) {
+    if (currentAnswer && (currentAnswer.sequenceNumber ?? 0) >= answerRecord.sequenceNumber) {
       throw new OutdatedAnswerSequenceError(
         questionId,
         answerRecord.sequenceNumber,
-        currentAnswer.sequenceNumber
+        currentAnswer.sequenceNumber ?? 0
       );
     }
 

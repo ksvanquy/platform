@@ -11,6 +11,12 @@ export const ACTIVE_SESSION_STORAGE_KEY = 'quiz_active_session_cache';
 export function useQuizSession(initialUserId: string = 'candidate_demo') {
   const [userId, setUserId] = useState<string>(initialUserId);
   const [session, setSession] = useState<SessionDTO | null>(null);
+
+  useEffect(() => {
+    if (initialUserId && initialUserId !== userId) {
+      setUserId(initialUserId);
+    }
+  }, [initialUserId]);
   const [questions, setQuestions] = useState<readonly QuestionDTO[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('IDLE');
@@ -127,9 +133,10 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
 
       pendingSavesRef.current.delete(questionId);
 
+      const targetUserId = session.userId || userId;
       const savePromise = quizApi.saveAnswer({
         sessionId: session.id,
-        userId,
+        userId: targetUserId,
         questionId,
         answer: pending.value,
         sequenceNumber: pending.sequenceNumber,
@@ -205,7 +212,7 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
           try {
             await quizApi.saveAnswer({
               sessionId: session.id,
-              userId,
+              userId: targetUserId,
               questionId,
               answer: pending.value,
               sequenceNumber: retrySeq,
@@ -225,7 +232,7 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
     }, 300);
 
     saveTimerMapRef.current.set(questionId, timer);
-  }, [session?.id, userId]);
+  }, [session?.id, session?.userId, userId]);
 
   /**
    * Giai đoạn 2: Xả Hàng đợi Autosave bằng Keepalive Fetch / Beacon API khi Trang bị Hủy hoặc Rời tab
@@ -239,14 +246,15 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
 
     const baseUrl = apiClient.getBaseUrl ? apiClient.getBaseUrl() : '';
     const token = (authClient as any)?.session?.getAccessToken?.() || null;
+    const targetUserId = session.userId || userId;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    if (userId) {
-      headers['X-User-Id'] = userId;
+    if (targetUserId) {
+      headers['X-User-Id'] = targetUserId;
     }
 
     for (const [qId, pending] of pendingSavesRef.current.entries()) {
@@ -254,7 +262,7 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
         answer: pending.value,
         sequenceNumber: pending.sequenceNumber,
         clientTimestamp: Date.now(),
-        userId,
+        userId: targetUserId,
       };
       const payloadStr = JSON.stringify(payloadObj);
       const endpoint = `${baseUrl}/v1/attempts/${encodeURIComponent(session.id)}/answers/${encodeURIComponent(qId)}`;
@@ -304,13 +312,14 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
     const handleOnline = () => {
       if (pendingSavesRef.current.size > 0 && session?.id) {
         setSaveStatus('SAVING');
+        const targetUserId = session.userId || userId;
         const tasks = Array.from(pendingSavesRef.current.entries());
         (async () => {
           for (const [qId, pending] of tasks) {
             try {
               await quizApi.saveAnswer({
                 sessionId: session.id,
-                userId,
+                userId: targetUserId,
                 questionId: qId,
                 answer: pending.value,
                 sequenceNumber: pending.sequenceNumber,
@@ -342,7 +351,7 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
         window.removeEventListener('online', handleOnline);
       }
     };
-  }, [flushPendingAutosaves, session?.id, userId]);
+  }, [flushPendingAutosaves, session?.id, session?.userId, userId]);
 
   /**
    * Nộp bài thi: Flush toàn bộ debounced queue trước khi submit (Zero Data Loss)
@@ -354,11 +363,12 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
     saveTimerMapRef.current.forEach((t) => clearTimeout(t));
     saveTimerMapRef.current.clear();
 
+    const targetUserId = session.userId || userId;
     const flushPromises: Promise<any>[] = [];
     for (const [qId, pending] of pendingSavesRef.current.entries()) {
       const p = quizApi.saveAnswer({
         sessionId: session.id,
-        userId,
+        userId: targetUserId,
         questionId: qId,
         answer: pending.value,
         sequenceNumber: pending.sequenceNumber,
@@ -378,7 +388,7 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
     try {
       const evalResult = await quizApi.submitQuiz({
         sessionId: session.id,
-        userId,
+        userId: targetUserId,
         policy,
       });
       setResult(evalResult);

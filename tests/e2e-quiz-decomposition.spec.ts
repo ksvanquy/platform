@@ -26,7 +26,7 @@ describe('GIAI ĐOẠN 6: Full E2E Lifecycle Across Decomposed Microservices', (
 
   beforeAll(async () => {
     fullCtx = await setupFullMicroservicesDb();
-  });
+  }, 60000);
 
   afterAll(async () => {
     if (fullCtx) {

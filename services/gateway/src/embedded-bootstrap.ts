@@ -26,6 +26,8 @@ export interface EmbeddedBootstrapResult {
   assessmentRepo: DrizzleAssessmentRepository;
   examRepo: DrizzleExamRepository;
   attemptRepo: DrizzleAttemptRepository;
+  examQClient: DirectQuestionClientAdapter;
+  examAsmClient: DirectAssessmentClientAdapter;
 }
 
 let bootstrapResult: EmbeddedBootstrapResult | null = null;
@@ -47,7 +49,7 @@ export async function bootstrapEmbeddedMicroservices(): Promise<EmbeddedBootstra
       CREATE TABLE IF NOT EXISTS taxonomies (
         id VARCHAR(64) PRIMARY KEY,
         code VARCHAR(64) NOT NULL UNIQUE,
-        name VARCHAR(255) NOT NULL,
+        name VARCHAR(128) NOT NULL,
         description TEXT,
         is_hierarchical BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -55,18 +57,17 @@ export async function bootstrapEmbeddedMicroservices(): Promise<EmbeddedBootstra
       );
       CREATE TABLE IF NOT EXISTS taxonomy_nodes (
         id VARCHAR(64) PRIMARY KEY,
-        taxonomy_code VARCHAR(64) NOT NULL REFERENCES taxonomies(code) ON DELETE CASCADE,
+        taxonomy_id VARCHAR(64) NOT NULL REFERENCES taxonomies(id) ON DELETE CASCADE,
         parent_id VARCHAR(64) REFERENCES taxonomy_nodes(id) ON DELETE CASCADE,
-        code VARCHAR(64) NOT NULL,
         name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL,
         description TEXT,
         sort_order INTEGER NOT NULL DEFAULT 0,
-        path VARCHAR(512),
-        level INTEGER NOT NULL DEFAULT 1,
+        status VARCHAR(20) NOT NULL DEFAULT 'PUBLISHED',
         metadata JSONB NOT NULL DEFAULT '{}',
+        deleted_at TIMESTAMP WITH TIME ZONE,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        CONSTRAINT uq_tax_node UNIQUE (taxonomy_code, code)
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
       );
     `);
     await seedTaxonomyDatabase(taxDb as any);
@@ -79,22 +80,14 @@ export async function bootstrapEmbeddedMicroservices(): Promise<EmbeddedBootstra
       CREATE TABLE IF NOT EXISTS questions (
         id VARCHAR(64) PRIMARY KEY,
         code VARCHAR(64) NOT NULL UNIQUE,
-        content JSONB NOT NULL,
         type VARCHAR(32) NOT NULL,
-        topic_id VARCHAR(64) NOT NULL,
-        subject_id VARCHAR(64),
-        grade_level_id VARCHAR(64),
-        difficulty_level_id VARCHAR(64),
-        bloom_taxonomy_level VARCHAR(32) NOT NULL,
-        current_version INTEGER NOT NULL DEFAULT 1,
-        status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
-        solution_explanation JSONB,
-        rubric JSONB,
-        tags JSONB NOT NULL DEFAULT '[]',
-        metadata JSONB NOT NULL DEFAULT '{}',
-        author_id VARCHAR(64),
-        reviewer_id VARCHAR(64),
-        reviewed_at TIMESTAMP WITH TIME ZONE,
+        topic_node_id VARCHAR(64),
+        grade_node_id VARCHAR(64),
+        difficulty VARCHAR(32) NOT NULL DEFAULT 'REMEMBER',
+        default_points INTEGER NOT NULL DEFAULT 1,
+        status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+        current_revision_id VARCHAR(64),
+        owner_id VARCHAR(64) NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
       );
@@ -102,11 +95,15 @@ export async function bootstrapEmbeddedMicroservices(): Promise<EmbeddedBootstra
         id VARCHAR(64) PRIMARY KEY,
         question_id VARCHAR(64) NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
         revision_number INTEGER NOT NULL,
-        content_snapshot JSONB NOT NULL,
-        change_summary TEXT,
-        author_id VARCHAR(64),
+        prompt TEXT NOT NULL,
+        options JSONB NOT NULL,
+        pairs JSONB,
+        explanation TEXT,
+        rubric JSONB,
+        media_assets JSONB,
+        created_by VARCHAR(64) NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        CONSTRAINT uq_q_rev UNIQUE (question_id, revision_number)
+        CONSTRAINT uq_question_revision UNIQUE (question_id, revision_number)
       );
     `);
     await seedQuestionDatabase(qDb as any);
@@ -121,25 +118,27 @@ export async function bootstrapEmbeddedMicroservices(): Promise<EmbeddedBootstra
         code VARCHAR(64) NOT NULL UNIQUE,
         title VARCHAR(255) NOT NULL,
         description TEXT,
-        subject_id VARCHAR(64),
-        grade_level_id VARCHAR(64),
+        owner_id VARCHAR(64) NOT NULL,
+        primary_topic_node_id VARCHAR(64),
+        grade_node_id VARCHAR(64),
         status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
-        blueprint_locked BOOLEAN NOT NULL DEFAULT FALSE,
-        total_questions INTEGER NOT NULL DEFAULT 0,
-        duration_minutes INTEGER NOT NULL DEFAULT 45,
-        scoring_policy JSONB NOT NULL DEFAULT '{}',
-        result_reveal_policy VARCHAR(64) NOT NULL DEFAULT 'IMMEDIATE_SUMMARY',
+        current_blueprint_id VARCHAR(64),
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
       );
-      CREATE TABLE IF NOT EXISTS assessment_blueprints (
+      CREATE TABLE IF NOT EXISTS blueprints (
         id VARCHAR(64) PRIMARY KEY,
-        assessment_id VARCHAR(64) NOT NULL UNIQUE REFERENCES assessments(id) ON DELETE CASCADE,
-        criteria_matrix JSONB NOT NULL DEFAULT '[]',
-        fixed_question_ids JSONB NOT NULL DEFAULT '[]',
-        total_score NUMERIC(5,2) NOT NULL DEFAULT 10.00,
+        assessment_id VARCHAR(64) NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+        version_number INTEGER NOT NULL,
+        duration_minutes INTEGER NOT NULL DEFAULT 45,
+        passing_percentage INTEGER NOT NULL DEFAULT 50,
+        max_attempts INTEGER NOT NULL DEFAULT 1,
+        criteria JSONB NOT NULL DEFAULT '[]',
+        scoring_policy JSONB NOT NULL DEFAULT '{"strategyType": "STANDARD", "roundingDecimal": 2}',
+        is_locked BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_assessment_blueprint UNIQUE (assessment_id, version_number)
       );
     `);
     await seedAssessmentDatabase(asmDb as any);
@@ -217,6 +216,8 @@ export async function bootstrapEmbeddedMicroservices(): Promise<EmbeddedBootstra
       assessmentRepo,
       examRepo,
       attemptRepo,
+      examQClient,
+      examAsmClient,
     };
 
     return bootstrapResult;

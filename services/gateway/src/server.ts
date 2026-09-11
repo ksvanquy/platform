@@ -245,11 +245,13 @@ export async function ensureServicesInitialized(): Promise<void> {
         setTaxonomyRepository(repos.taxonomyRepo);
         setQuestionRepository(repos.questionRepo);
         setAssessmentRepository(repos.assessmentRepo);
-        setExamRepository(repos.examRepo);
-        setAttemptRepository(repos.attemptRepo);
+        setExamRepository(repos.examRepo, (repos as any).examQClient, (repos as any).examAsmClient);
+        const examClient = new DirectExamClientAdapter(repos.examRepo as any);
+        setAttemptRepository(repos.attemptRepo, examClient);
         console.log('✅ [Gateway] Embedded PostgreSQL databases initialized & seeded (Taxonomy, Question, Assessment, Exam, Attempt).');
       } catch (err: any) {
         console.error('❌ [Gateway] Failed to initialize embedded microservices:', err);
+        throw err;
       }
     })();
   }
@@ -393,7 +395,9 @@ export function setAttemptRepository(
   examClient?: any
 ): void {
   attemptRepoInstance = repo;
-  const examClientInstance = examClient || new DirectExamClientAdapter();
+  const examClientInstance =
+    examClient ||
+    (examRepoInstance ? new DirectExamClientAdapter(examRepoInstance as any) : new DirectExamClientAdapter());
   attemptRouterInstance = createAttemptServiceRouter({ attemptRepo: repo, examClient: examClientInstance });
   attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, examClientInstance);
 }
@@ -401,7 +405,9 @@ export function setAttemptRepository(
 function getAttemptRouter(): express.Router {
   if (!attemptRouterInstance) {
     const repo = getAttemptRepository();
-    const examClient = new DirectExamClientAdapter();
+    const examClient = examRepoInstance
+      ? new DirectExamClientAdapter(examRepoInstance as any)
+      : new DirectExamClientAdapter();
     attemptRouterInstance = createAttemptServiceRouter({ attemptRepo: repo || undefined, examClient });
     attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo || new DrizzleAttemptRepository(), examClient);
   }
@@ -600,13 +606,12 @@ app.get('/', (req: Request, res: Response) => {
 
 if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   const PORT = Number(process.env.GATEWAY_PORT || process.env.PORT || 3000);
-  ensureServicesInitialized()
-    .catch((err) => console.error('Error during embedded services initialization:', err))
-    .finally(() => {
-      app.listen(PORT, '0.0.0.0', () => {
-        console.log(`🚀 Platform API Gateway Server running on http://0.0.0.0:${PORT}`);
-      });
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Platform API Gateway Server running on http://0.0.0.0:${PORT}`);
+  });
 
+  ensureServicesInitialized()
+    .then(() => {
       // Initialize attempt sweeper daemon once services are ready
       try {
         const repo = getAttemptRepository();
@@ -617,7 +622,8 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
       } catch (err: any) {
         console.warn('⚠️ [attempt_db] Could not initialize sweeper daemon:', err?.message || err);
       }
-    });
+    })
+    .catch((err) => console.error('Error during embedded services initialization:', err));
 }
 
 export {
