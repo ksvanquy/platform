@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@platform/contracts': path.resolve(import.meta.dirname, 'packages/contracts/src/index.ts'),
+      '@platform/security': path.resolve(import.meta.dirname, 'packages/security/src/index.ts'),
       '@platform/auth-client': path.resolve(import.meta.dirname, 'packages/auth-client/src/index.ts'),
       '@platform/api-client': path.resolve(import.meta.dirname, 'packages/api-client/src/index.ts'),
       '@platform/auth-service': path.resolve(import.meta.dirname, 'services/auth/src/index.ts'),

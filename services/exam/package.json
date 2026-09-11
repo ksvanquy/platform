@@ -22,9 +22,9 @@
   },
   "dependencies": {
     "@platform/assessment-service": "workspace:*",
-    "@platform/auth-service": "workspace:*",
     "@platform/contracts": "workspace:*",
     "@platform/question-service": "workspace:*",
+    "@platform/security": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "postgres": "^3.4.9"

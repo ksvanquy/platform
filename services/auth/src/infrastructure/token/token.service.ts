@@ -35,6 +35,7 @@ export interface TokenServiceOptions {
   issuer?: string;
   audience?: string;
   keyId?: string;
+  rotatedKeys?: Array<{ keyId: string; publicKey: string }>;
   tokenStorage?: ITokenStorage;
 }
 
@@ -123,6 +124,7 @@ export class TokenService {
   private readonly issuer: string;
   private readonly audience: string;
   private readonly keyId: string;
+  private readonly rotatedKeys: Array<{ keyId: string; publicKey: string }>;
   private tokenStorage?: ITokenStorage;
 
   constructor(
@@ -147,6 +149,7 @@ export class TokenService {
     this.issuer = options.issuer || issuer;
     this.audience = options.audience || audience;
     this.keyId = options.keyId || 'quiz-auth-key-1';
+    this.rotatedKeys = options.rotatedKeys || [];
     this.tokenStorage = options.tokenStorage;
 
     const defaultKeys = getDefaultRsaKeyPair();
@@ -343,20 +346,43 @@ export class TokenService {
    */
   getJwks() {
     if (this.algorithm === 'RS256') {
-      const pubKeyObj = crypto.createPublicKey(this.publicKey);
-      const jwk = pubKeyObj.export({ format: 'jwk' });
-      return {
-        keys: [
-          {
+      const keys: Array<{ kty: string; use: string; alg: string; kid: string; n?: string; e?: string }> = [];
+
+      // Primary active key
+      try {
+        const pubKeyObj = crypto.createPublicKey(this.publicKey);
+        const jwk = pubKeyObj.export({ format: 'jwk' });
+        keys.push({
+          kty: 'RSA',
+          use: 'sig',
+          alg: 'RS256',
+          kid: this.keyId,
+          n: jwk.n,
+          e: jwk.e,
+        });
+      } catch {
+        // ignore if key export fails
+      }
+
+      // Rotated / grace period keys
+      for (const rotated of this.rotatedKeys) {
+        try {
+          const rotKeyObj = crypto.createPublicKey(rotated.publicKey);
+          const rotJwk = rotKeyObj.export({ format: 'jwk' });
+          keys.push({
             kty: 'RSA',
             use: 'sig',
             alg: 'RS256',
-            kid: this.keyId,
-            n: jwk.n,
-            e: jwk.e,
-          },
-        ],
-      };
+            kid: rotated.keyId,
+            n: rotJwk.n,
+            e: rotJwk.e,
+          });
+        } catch {
+          // ignore invalid rotated key
+        }
+      }
+
+      return { keys };
     }
 
     return {

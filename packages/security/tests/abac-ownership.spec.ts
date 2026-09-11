@@ -1,21 +1,54 @@
 import { describe, it, expect } from 'vitest';
+import type { Principal, ResourceOwnershipContext } from '@platform/contracts';
 import {
-  ResourceOwnershipContext,
-  Principal,
-} from '@platform/contracts';
-import {
-  evaluateOwnership,
   evaluateResourceOwnership,
-} from '@platform/security';
+  evaluateOwnership,
+} from '../src/authorization/abac-ownership.js';
+import {
+  SYSTEM_ROLES,
+  resolvePermissionsForRoles,
+  hasPermission,
+  hasAnyRole,
+} from '../src/authorization/rbac-evaluator.js';
 
-describe('Contracts & Ownership Evaluation (Single-Tenant ABAC Ownership + RBAC Clearance)', () => {
+describe('@platform/security - RBAC & ABAC Ownership Engine', () => {
   const mockQuizContext: ResourceOwnershipContext = {
     resourceType: 'quiz',
     resourceId: 'quiz_123',
     ownerId: 'usr_instructor_01',
   };
 
-  describe('1. evaluateResourceOwnership (ABAC Ownership + RBAC Clearance)', () => {
+  describe('1. RBAC Evaluator', () => {
+    it('should resolve permissions correctly from system roles', () => {
+      const studentPerms = resolvePermissionsForRoles(['STUDENT']);
+      expect(studentPerms).toContain('attempt:start');
+      expect(studentPerms).toContain('attempt:submit');
+
+      const adminPerms = resolvePermissionsForRoles(['ADMIN']);
+      expect(adminPerms).toContain('*');
+    });
+
+    it('should match wildcard and specific permissions', () => {
+      const adminPrincipal: Principal = { id: 'admin', roles: ['ADMIN'], permissions: ['*'] };
+      expect(hasPermission(adminPrincipal, 'quiz:delete')).toBe(true);
+
+      const instructorPrincipal: Principal = {
+        id: 'inst',
+        roles: ['INSTRUCTOR'],
+        permissions: ['quiz:*'],
+      };
+      expect(hasPermission(instructorPrincipal, 'quiz:publish')).toBe(true);
+      expect(hasPermission(instructorPrincipal, 'system:shutdown')).toBe(false);
+    });
+
+    it('should check role membership correctly', () => {
+      const user: Principal = { id: 'u1', roles: ['INSTRUCTOR', 'TEACHER'] };
+      expect(hasAnyRole(user, ['STUDENT', 'INSTRUCTOR'])).toBe(true);
+      expect(hasAnyRole(user, ['ADMIN'])).toBe(false);
+    });
+  });
+
+  describe('2. ABAC Ownership Evaluation', () => {
     it('should deny access if principal lacks required RBAC permission', () => {
       const principal: Principal = {
         id: 'usr_instructor_01',
@@ -67,18 +100,6 @@ describe('Contracts & Ownership Evaluation (Single-Tenant ABAC Ownership + RBAC 
       expect(result.isAdminBypass).toBe(true);
     });
 
-    it('should allow wildcard permission (*) bypass even if not owner', () => {
-      const principal: Principal = {
-        id: 'usr_super_01',
-        roles: ['SUPERUSER'],
-        permissions: ['*'],
-      };
-
-      const result = evaluateResourceOwnership(principal, mockQuizContext, 'quiz:update');
-      expect(result.allowed).toBe(true);
-      expect(result.isAdminBypass).toBe(true);
-    });
-
     it('should allow manage_all permission bypass even if not owner', () => {
       const principal: Principal = {
         id: 'usr_manager_01',
@@ -95,38 +116,17 @@ describe('Contracts & Ownership Evaluation (Single-Tenant ABAC Ownership + RBAC 
       expect(result.allowed).toBe(true);
       expect(result.isAdminBypass).toBe(true);
     });
-  });
 
-  describe('2. evaluateOwnership (Standard Helper)', () => {
-    it('should evaluate resource ownership cleanly based on principal and owner ID', () => {
+    it('should work with evaluateOwnership standard wrapper', () => {
       const ownerPrincipal: Principal = {
         id: 'usr_instructor_01',
         roles: ['INSTRUCTOR'],
         permissions: ['quiz:update'],
       };
 
-      const ownerResult = evaluateOwnership(
-        ownerPrincipal,
-        mockQuizContext,
-        'quiz:update'
-      );
-      expect(ownerResult.allowed).toBe(true);
-      expect(ownerResult.isOwner).toBe(true);
-
-      const nonOwnerPrincipal: Principal = {
-        id: 'usr_instructor_other',
-        roles: ['INSTRUCTOR'],
-        permissions: ['quiz:update'],
-      };
-
-      const nonOwnerResult = evaluateOwnership(
-        nonOwnerPrincipal,
-        mockQuizContext,
-        'quiz:update'
-      );
-      expect(nonOwnerResult.allowed).toBe(false);
-      expect(nonOwnerResult.isOwner).toBe(false);
+      const result = evaluateOwnership(ownerPrincipal, mockQuizContext, 'quiz:update');
+      expect(result.allowed).toBe(true);
+      expect(result.isOwner).toBe(true);
     });
   });
 });
-

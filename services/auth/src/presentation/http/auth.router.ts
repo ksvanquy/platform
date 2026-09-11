@@ -223,9 +223,17 @@ export function createAuthRouter(
     }
   });
 
-  // GET /v1/auth/jwks
-  router.get('/jwks', (_req: Request, res: Response) => {
-    res.json(tokenService.getJwks());
+  // GET /v1/auth/jwks & /v1/auth/.well-known/jwks.json (RFC 7517)
+  router.get(['/jwks', '/.well-known/jwks.json'], (_req: Request, res: Response) => {
+    const jwks = tokenService.getJwks();
+    const bodyString = JSON.stringify(jwks);
+    const etag = `W/"${Buffer.from(bodyString).length.toString(16)}-${bodyString.slice(0, 16)}"`;
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    res.setHeader('ETag', etag);
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.send(bodyString);
   });
 
   // GET /v1/auth/roles (List all roles with permissions directly from PostgreSQL SoT)

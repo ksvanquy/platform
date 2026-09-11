@@ -17,6 +17,7 @@
     "@platform/contracts": "workspace:*",
     "@platform/exam-service": "workspace:*",
     "@platform/question-service": "workspace:*",
+    "@platform/security": "workspace:*",
     "@platform/taxonomy-service": "workspace:*",
     "express": "^4.21.2"
   },

@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@platform/contracts": "workspace:*",
+    "@platform/security": "workspace:*",
     "drizzle-orm": "^0.45.1",
     "express": "^5.2.1",
     "postgres": "^3.4.5"

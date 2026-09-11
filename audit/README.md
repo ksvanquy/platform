@@ -40,6 +40,13 @@
    - Bóc tách 7 rủi ro vận hành chí mạng: Cold Start Delay & Container CrashLoopBackOff, Event Loop Blocking với `execSync`, Out-of-Memory (OOM) Kill, xung đột Read-only Filesystem, tê liệt Auto-scaling (HPA), và vi phạm Twelve-Factor App.
    - Giải pháp chuẩn hóa: Loại bỏ `execSync` khỏi Gateway, cấu hình Multi-stage Dockerfile và CI/CD Pipeline chuẩn Cloud-Native.
 
+7. **[Báo cáo Audit Phân quyền, Coupling & Tách tầng Security Package (authorization-coupling-and-security-package-audit.md)](./authorization-coupling-and-security-package-audit.md)**:
+   - Phân tích rủi ro Coupling khi đưa logic authorization vào gói hợp đồng lớn `@platform/contracts` và việc các microservice phụ thuộc trực tiếp vào `@platform/auth-service`.
+   - Bóc tách 5 Anti-patterns: God Contracts Package, IdP Source Leakage, Duplicate Middlewares, Broken PEP, và thiếu Remote JWKS dynamic key discovery.
+   - Thiết kế chuẩn hóa mô hình 3 tầng: `Service → @platform/security → @platform/contracts`, với `Auth-service` đóng vai trò Identity Provider độc lập tạo/quản lý danh tính, còn `@platform/security` kiểm tra và thực thi phân quyền.
+   - **Đánh giá độc lập & 5 Biện pháp đối phó cạm bẫy kiến trúc**: Tránh "Shared Library Hell", tối ưu Dual-mode CPU (Strict vs Mesh-Trust), phân định ABAC Pure Functions với tầng DB, xử lý Token Revocation tức thì, và quản trị phiên bản SemVer.
+   - Bản vẽ kiến trúc chi tiết, sơ đồ tuần tự (Sequence Diagram), ma trận so sánh Trước/Sau và Lộ trình di chuyển 5 bước.
+
 ---
 
 ## 🎯 Tóm tắt kết quả Audit (Executive Summary)

@@ -41,9 +41,17 @@ export function createAuthApp(
   const userRepository = customUserRepo || createUserRepository();
   const tokenService = customTokenService || new TokenService();
 
-  // Root JWKS discovery endpoint
-  app.get('/.well-known/jwks.json', (_req, res) => {
-    res.json(tokenService.getJwks());
+  // Root JWKS discovery endpoint (RFC 7517 & OpenID Connect Discovery)
+  app.get(['/.well-known/jwks.json', '/.well-known/openid-configuration/jwks'], (_req, res) => {
+    const jwks = tokenService.getJwks();
+    const bodyString = JSON.stringify(jwks);
+    const etag = `W/"${Buffer.from(bodyString).length.toString(16)}-${bodyString.slice(0, 16)}"`;
+    
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    res.setHeader('ETag', etag);
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.send(bodyString);
   });
 
   // Health check
