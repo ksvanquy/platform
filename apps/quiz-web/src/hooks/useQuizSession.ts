@@ -141,6 +141,46 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
         await savePromise;
         setSaveStatus('SAVED');
       } catch (err: any) {
+        // Giai đoạn 2: Phát hiện ca thi đã kết thúc / đã nộp (ATTEMPT_ALREADY_FINALIZED) -> Dừng ngay vòng lặp autosave
+        const isFinalizedConflict =
+          err.status === 409 && (
+            err.response?.errorCode === 'ATTEMPT_ALREADY_FINALIZED' ||
+            err.errorCode === 'ATTEMPT_ALREADY_FINALIZED' ||
+            err.response?.errorCode === 'ATTEMPT_ALREADY_SUBMITTED' ||
+            err.errorCode === 'ATTEMPT_ALREADY_SUBMITTED'
+          ) ||
+          (typeof err.message === 'string' && (
+            err.message.includes('already finalized') ||
+            err.message.includes('already submitted') ||
+            err.message.includes('cannot be modified')
+          ));
+
+        if (isFinalizedConflict) {
+          saveTimerMapRef.current.forEach((t) => clearTimeout(t));
+          saveTimerMapRef.current.clear();
+          pendingSavesRef.current.clear();
+          setSaveStatus('IDLE');
+          setSession((prev) => (prev ? { ...prev, status: 'SUBMITTED' } : null));
+          setErrorMessage('Bài thi đã hoàn tất hoặc đã được khóa trên máy chủ. Không thể tiếp tục cập nhật.');
+          return;
+        }
+
+        // Giai đoạn 2: Xử lý ngoại lệ mất mạng / offline -> Giữ trong pending queue để tự động xả FIFO khi có mạng
+        const isNetworkError =
+          (typeof navigator !== 'undefined' && !navigator.onLine) ||
+          (typeof err.message === 'string' && (
+            err.message.includes('Failed to fetch') ||
+            err.message.includes('NetworkError') ||
+            err.message.includes('Network request failed')
+          ));
+
+        if (isNetworkError) {
+          pendingSavesRef.current.set(questionId, pending);
+          setSaveStatus('ERROR');
+          setErrorMessage('Mất kết nối mạng. Đáp án đã được lưu tạm và sẽ tự động đồng bộ khi có mạng.');
+          return;
+        }
+
         // Giai đoạn 2: Tự động phục hồi khi gặp lỗi Sequence Conflict (HTTP 409 OUTDATED_ANSWER_SEQUENCE)
         const isSequenceConflict =
           err.status === 409 ||
@@ -261,10 +301,37 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
       flushPendingAutosaves();
     };
 
+    const handleOnline = () => {
+      if (pendingSavesRef.current.size > 0 && session?.id) {
+        setSaveStatus('SAVING');
+        const tasks = Array.from(pendingSavesRef.current.entries());
+        (async () => {
+          for (const [qId, pending] of tasks) {
+            try {
+              await quizApi.saveAnswer({
+                sessionId: session.id,
+                userId,
+                questionId: qId,
+                answer: pending.value,
+                sequenceNumber: pending.sequenceNumber,
+              });
+              pendingSavesRef.current.delete(qId);
+            } catch (err: any) {
+              console.warn('[QuizSession] Offline queue sync retry failed for', qId, err);
+            }
+          }
+          if (pendingSavesRef.current.size === 0) {
+            setSaveStatus('SAVED');
+          }
+        })();
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('visibilitychange', handleVisibilityChange);
       window.addEventListener('pagehide', handlePageHide);
       window.addEventListener('beforeunload', handlePageHide);
+      window.addEventListener('online', handleOnline);
     }
 
     return () => {
@@ -272,9 +339,10 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
         window.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('pagehide', handlePageHide);
         window.removeEventListener('beforeunload', handlePageHide);
+        window.removeEventListener('online', handleOnline);
       }
     };
-  }, [flushPendingAutosaves]);
+  }, [flushPendingAutosaves, session?.id, userId]);
 
   /**
    * Nộp bài thi: Flush toàn bộ debounced queue trước khi submit (Zero Data Loss)

@@ -1,11 +1,15 @@
 import type { AttemptRepositoryPort, ExamClientPort } from '../ports/attempt.repository.port.js';
 import { AttemptScoringEngine } from '../scoring/attempt-scoring.engine.js';
+import { AttemptMetrics } from '../../infrastructure/metrics/attempt.metrics.js';
+
+export const SWEEPER_LOCK_KEY = 987654321;
 
 export interface SweepResult {
   sweptCount: number;
   sweptAttemptIds: string[];
   errors: string[];
   timestamp: string;
+  skippedDueToLock?: boolean;
 }
 
 export interface SweeperDaemonStatus {
@@ -60,58 +64,82 @@ export class AttemptExpirySweeperService {
     };
   }
 
-  async sweep(now: Date = new Date(), gracePeriodMs = 60000): Promise<SweepResult> {
+  async sweep(now: Date = new Date(), gracePeriodMs = 15000, batchLimit = 50): Promise<SweepResult> {
     if (this.isSweeping) {
       return {
         sweptCount: 0,
         sweptAttemptIds: [],
-        errors: ['Sweeper is already running in parallel'],
+        errors: ['Sweeper is already running in parallel within this instance'],
         timestamp: now.toISOString(),
       };
     }
 
     this.isSweeping = true;
     this.lastRunAt = now;
-
-    const result: SweepResult = {
-      sweptCount: 0,
-      sweptAttemptIds: [],
-      errors: [],
-      timestamp: now.toISOString(),
-    };
+    AttemptMetrics.incrementSweeperRuns();
 
     try {
-      // 1. Tìm các bài thi đang làm dở đã quá hạn (deadline + gracePeriodMs < now)
-      const expiredAttempts = await this.attemptRepo.findExpiredInProgressAttempts(now, gracePeriodMs);
+      // Task CONC-4.1: Thử giành Distributed Advisory Lock (pg_try_advisory_xact_lock)
+      // Nếu một replica khác đang chạy chu kỳ quét, lập tức bỏ qua chu kỳ này một cách an toàn mà không block
+      const lockExecution = await this.attemptRepo.withAdvisoryLock(SWEEPER_LOCK_KEY, async () => {
+        const result: SweepResult = {
+          sweptCount: 0,
+          sweptAttemptIds: [],
+          errors: [],
+          timestamp: now.toISOString(),
+          skippedDueToLock: false,
+        };
 
-      for (const attempt of expiredAttempts) {
-        try {
-          // 2. Ép buộc nộp bài do quá hạn (TIMED_OUT_GRADED)
-          attempt.submit(now, gracePeriodMs);
+        // Task CONC-4.2: Tối ưu quét theo lô với FOR UPDATE SKIP LOCKED
+        const expiredAttempts = await this.attemptRepo.findExpiredInProgressAttempts(now, gracePeriodMs, batchLimit);
 
-          // 3. Lấy snapshot đề thi bất biến để chấm điểm
-          const snapshot = await this.examClient.getExamSnapshot(attempt.examId, attempt.variantCode);
-          if (snapshot && snapshot.frozenPayload?.questions) {
-            const scoreResult = AttemptScoringEngine.evaluate({
-              questions: snapshot.frozenPayload.questions,
-              answers: attempt.answers,
-              scoringPolicy: snapshot.frozenPayload.scoringPolicy,
-              passingScore: 0,
-            });
-            attempt.grade(scoreResult);
+        for (const attempt of expiredAttempts) {
+          try {
+            // Ép buộc nộp bài do quá hạn (TIMED_OUT_GRADED)
+            attempt.submit(now, gracePeriodMs);
+
+            // Lấy snapshot đề thi bất biến để chấm điểm
+            const snapshot = await this.examClient.getExamSnapshot(attempt.examId, attempt.variantCode);
+            if (snapshot && snapshot.frozenPayload?.questions) {
+              const scoreResult = AttemptScoringEngine.evaluate({
+                questions: snapshot.frozenPayload.questions,
+                answers: attempt.answers,
+                scoringPolicy: snapshot.frozenPayload.scoringPolicy,
+                passingScore: 0,
+              });
+              attempt.grade(scoreResult);
+            }
+
+            // Tăng version và lưu trạng thái mới
+            attempt.incrementVersion();
+            await this.attemptRepo.saveAttempt(attempt);
+
+            result.sweptCount++;
+            result.sweptAttemptIds.push(attempt.id);
+            this.totalSweptCount++;
+          } catch (itemErr: any) {
+            result.errors.push(`Attempt ${attempt.id}: ${itemErr.message}`);
           }
-
-          // 4. Lưu trạng thái mới vào database
-          await this.attemptRepo.saveAttempt(attempt);
-
-          result.sweptCount++;
-          result.sweptAttemptIds.push(attempt.id);
-          this.totalSweptCount++;
-        } catch (itemErr: any) {
-          result.errors.push(`Attempt ${attempt.id}: ${itemErr.message}`);
         }
+
+        return result;
+      });
+
+      if (!lockExecution.acquired) {
+        // Ghi nhận metrics replica bỏ qua quét do instance khác đang giữ lock
+        AttemptMetrics.incrementSweeperLockedSkips();
+        const skippedResult: SweepResult = {
+          sweptCount: 0,
+          sweptAttemptIds: [],
+          errors: ['Skipped: Sweeper advisory lock held by another active replica'],
+          timestamp: now.toISOString(),
+          skippedDueToLock: true,
+        };
+        this.lastResult = skippedResult;
+        return skippedResult;
       }
 
+      const result = lockExecution.result!;
       this.lastResult = result;
       return result;
     } finally {

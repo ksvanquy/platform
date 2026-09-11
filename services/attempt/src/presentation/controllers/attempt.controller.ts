@@ -8,6 +8,7 @@ import { GetAttemptUseCase } from '../../application/use-cases/get-attempt.use-c
 import { ListAttemptsUseCase } from '../../application/use-cases/list-attempts.use-case.js';
 import { ListAttemptEventsUseCase } from '../../application/use-cases/list-attempt-events.use-case.js';
 import { AttemptDomainError } from '../../domain/errors/attempt-domain.errors.js';
+import { AttemptMetrics } from '../../infrastructure/metrics/attempt.metrics.js';
 
 export class AttemptController {
   constructor(
@@ -154,6 +155,12 @@ export class AttemptController {
         return;
       }
 
+      const rawExpectedVersion = req.body.expectedVersion ?? req.headers['if-match'];
+      const expectedVersion =
+        rawExpectedVersion !== undefined && rawExpectedVersion !== null && !isNaN(Number(rawExpectedVersion))
+          ? Number(rawExpectedVersion)
+          : undefined;
+
       const result = await this.autosaveAnswerUseCase.execute({
         attemptId,
         userId,
@@ -161,6 +168,7 @@ export class AttemptController {
         answer,
         sequenceNumber,
         clientTimestamp,
+        expectedVersion,
         userRole: principal?.roles?.[0],
       });
 
@@ -261,6 +269,7 @@ export class AttemptController {
         data: result.attempt,
         scoreResult: result.scoreResult,
         status: result.status,
+        isDuplicateSubmission: result.isDuplicateSubmission ?? false,
       });
     } catch (err: any) {
       this.handleError(err, res);
@@ -346,6 +355,10 @@ export class AttemptController {
 
   private handleError(err: any, res: Response): void {
     if (err instanceof AttemptDomainError) {
+      if (err.errorCode === 'ATTEMPT_CONCURRENCY_CONFLICT' || err.errorCode === 'OUTDATED_ANSWER_SEQUENCE') {
+        AttemptMetrics.incrementOccConflicts();
+      }
+
       res.status(err.statusCode).json({
         success: false,
         message: err.message,

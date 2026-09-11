@@ -26,6 +26,7 @@ export async function runAttemptMigrations(customUrl?: string): Promise<void> {
         snapshot_id VARCHAR(64) NOT NULL,
         variant_code VARCHAR(32) NOT NULL DEFAULT 'DEFAULT',
         status VARCHAR(32) NOT NULL DEFAULT 'CREATED',
+        version INTEGER NOT NULL DEFAULT 1,
         started_at TIMESTAMPTZ,
         deadline TIMESTAMPTZ,
         submitted_at TIMESTAMPTZ,
@@ -36,9 +37,14 @@ export async function runAttemptMigrations(customUrl?: string): Promise<void> {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
+      -- Idempotent column addition & backfill for existing databases
+      ALTER TABLE attempts ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
+      UPDATE attempts SET version = 1 WHERE version IS NULL;
+
       CREATE INDEX IF NOT EXISTS idx_attempts_user_exam ON attempts(user_id, exam_id);
       CREATE INDEX IF NOT EXISTS idx_attempts_status_deadline ON attempts(status, deadline);
       CREATE INDEX IF NOT EXISTS idx_attempts_exam ON attempts(exam_id);
+      CREATE INDEX IF NOT EXISTS idx_attempts_id_version_status ON attempts(id, version, status);
 
       CREATE TABLE IF NOT EXISTS attempt_events (
         id VARCHAR(64) PRIMARY KEY,

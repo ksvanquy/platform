@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { AttemptExpirySweeperService } from '../../domain/services/attempt-expiry-sweeper.service.js';
+import { AttemptMetrics } from '../../infrastructure/metrics/attempt.metrics.js';
 
 export function createV1InternalRouter(sweeperService: AttemptExpirySweeperService): Router {
   const router = Router();
@@ -65,6 +66,18 @@ export function createV1InternalRouter(sweeperService: AttemptExpirySweeperServi
     res.status(200).json({
       success: true,
       data: status,
+    });
+  });
+
+  /**
+   * GET /v1/internal/attempts/metrics
+   * Task CONC-4.4: Endpoint giám sát Prometheus/Monitoring metrics cho Concurrency & Locks
+   */
+  router.get('/attempts/metrics', internalAuthMiddleware, (_req: Request, res: Response) => {
+    const metrics = AttemptMetrics.getSnapshot();
+    res.status(200).json({
+      success: true,
+      data: metrics,
     });
   });
 

@@ -12,6 +12,7 @@ import {
   ExamSnapshotNotFoundError,
 } from '../../domain/errors/attempt-domain.errors.js';
 import { AttemptScoringEngine } from '../../domain/scoring/attempt-scoring.engine.js';
+import { AttemptMetrics } from '../../infrastructure/metrics/attempt.metrics.js';
 
 export interface SubmitAttemptInput {
   attemptId: string;
@@ -24,6 +25,7 @@ export interface SubmitAttemptOutput {
   attempt: AttemptDTO;
   scoreResult: AttemptScoreResult | null;
   status: string;
+  isDuplicateSubmission?: boolean;
 }
 
 export class SubmitAttemptUseCase {
@@ -36,42 +38,61 @@ export class SubmitAttemptUseCase {
     const now = new Date();
     const { attemptId, userId, userRole, gracePeriodMs = 15000 } = input;
 
-    const attempt = await this.attemptRepo.findAttemptById(attemptId);
-    if (!attempt) {
-      throw new AttemptNotFoundError(attemptId);
-    }
+    // Task CONC-3.1: Thực thi trong Database Transaction với Row-Level Exclusive Lock (FOR UPDATE)
+    return await this.attemptRepo.withAttemptLock(attemptId, async (attempt, saveLocked) => {
+      // 1. Xác thực quyền sở hữu
+      if (attempt.userId !== userId && userRole !== 'ADMIN') {
+        throw new UnauthorizedAttemptAccessError('You can only submit your own attempt');
+      }
 
-    if (attempt.userId !== userId && userRole !== 'ADMIN') {
-      throw new UnauthorizedAttemptAccessError('You can only submit your own attempt');
-    }
+      // Task CONC-3.2: Cơ chế Idempotent Submission Guard
+      // Nếu ca thi đã ở trạng thái hoàn tất (SUBMITTED, GRADED, TIMED_OUT_GRADED), trả về ngay kết quả đã lưu mà không chấm lại
+      if (attempt.isFinalized()) {
+        AttemptMetrics.incrementDoubleSubmits();
+        const snapshot = await this.examClient.getExamSnapshot(attempt.examId, attempt.variantCode);
+        return {
+          attempt: attempt.toDTO(snapshot?.sanitizedManifest),
+          scoreResult: attempt.scoreResult,
+          status: attempt.status,
+          isDuplicateSubmission: true,
+        };
+      }
 
-    // 1. Chuyển trạng thái nộp bài (SUBMITTED hoặc TIMED_OUT_GRADED)
-    attempt.submit(now, gracePeriodMs);
+      // Task CONC-3.4: Xử lý Tranh chấp Giờ chót (Deadline vs. Grace Period Guard)
+      // - now <= deadline + gracePeriodMs (15s): Chuyển thành SUBMITTED và được chấm điểm
+      // - now > deadline + gracePeriodMs: Chuyển thành TIMED_OUT_GRADED
+      attempt.submit(now, gracePeriodMs);
 
-    // 2. Lấy snapshot để chấm thi tự động
-    const snapshot = await this.examClient.getExamSnapshot(attempt.examId, attempt.variantCode);
-    if (!snapshot) {
-      throw new ExamSnapshotNotFoundError(attempt.examId, attempt.variantCode);
-    }
+      // 2. Lấy snapshot để chấm thi tự động
+      const snapshot = await this.examClient.getExamSnapshot(attempt.examId, attempt.variantCode);
+      if (!snapshot) {
+        throw new ExamSnapshotNotFoundError(attempt.examId, attempt.variantCode);
+      }
 
-    if (snapshot.frozenPayload?.questions) {
-      const scoreResult = AttemptScoringEngine.evaluate({
-        questions: snapshot.frozenPayload.questions,
-        answers: attempt.answers,
-        scoringPolicy: snapshot.frozenPayload.scoringPolicy,
-        passingScore: 0,
-      });
+      if (snapshot.frozenPayload?.questions) {
+        const scoreResult = AttemptScoringEngine.evaluate({
+          questions: snapshot.frozenPayload.questions,
+          answers: attempt.answers,
+          scoringPolicy: snapshot.frozenPayload.scoringPolicy,
+          passingScore: 0,
+        });
 
-      attempt.grade(scoreResult);
-    }
+        attempt.grade(scoreResult);
+      }
 
-    // 3. Lưu attempt đã hoàn thành vào database
-    await this.attemptRepo.saveAttempt(attempt);
+      // Tăng version OCC cho sự kiện nộp bài
+      attempt.incrementVersion();
 
-    return {
-      attempt: attempt.toDTO(snapshot.sanitizedManifest),
-      scoreResult: attempt.scoreResult,
-      status: attempt.status,
-    };
+      // 3. Lưu attempt đã hoàn tất bên trong Transaction được khóa cứng
+      await saveLocked(attempt);
+      AttemptMetrics.incrementSubmissions();
+
+      return {
+        attempt: attempt.toDTO(snapshot.sanitizedManifest),
+        scoreResult: attempt.scoreResult,
+        status: attempt.status,
+        isDuplicateSubmission: false,
+      };
+    });
   }
 }

@@ -25,6 +25,7 @@ export interface AttemptProps {
   durationMinutes: number;
   answers?: Record<string, CandidateAnswerRecord>;
   scoreResult?: AttemptScoreResult | null;
+  version?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -42,6 +43,7 @@ export class Attempt {
   readonly durationMinutes: number;
   private _answers: Map<string, CandidateAnswerRecord>;
   private _scoreResult: AttemptScoreResult | null;
+  private _version: number;
   readonly createdAt: Date;
   private _updatedAt: Date;
 
@@ -63,6 +65,7 @@ export class Attempt {
     this._submittedAt = props.submittedAt ?? null;
     this.durationMinutes = props.durationMinutes;
     this._scoreResult = props.scoreResult ? { ...props.scoreResult } : null;
+    this._version = typeof props.version === 'number' && props.version >= 1 ? props.version : 1;
     this.createdAt = props.createdAt ?? new Date();
     this._updatedAt = props.updatedAt ?? new Date();
 
@@ -97,6 +100,14 @@ export class Attempt {
 
   get scoreResult(): AttemptScoreResult | null {
     return this._scoreResult;
+  }
+
+  get version(): number {
+    return this._version;
+  }
+
+  incrementVersion(): void {
+    this._version += 1;
   }
 
   get updatedAt(): Date {
@@ -219,15 +230,22 @@ export class Attempt {
   }
 
   /**
-   * Nộp bài thi
+   * Kiểm tra ca thi đã kết thúc / nộp / hoàn tất chưa (Finalized state)
    */
-  submit(now: Date = new Date(), gracePeriodMs = 60000): void {
-    if (
+  isFinalized(): boolean {
+    return (
       this._status === 'SUBMITTED' ||
       this._status === 'EXPIRED' ||
       (this._status as any) === 'GRADED' ||
       (this._status as any) === 'TIMED_OUT_GRADED'
-    ) {
+    );
+  }
+
+  /**
+   * Nộp bài thi
+   */
+  submit(now: Date = new Date(), gracePeriodMs = 15000): void {
+    if (this.isFinalized()) {
       return; // Idempotent
     }
 
@@ -264,6 +282,62 @@ export class Attempt {
     throw new InvalidAttemptStateTransitionError(this._status, 'GRADED');
   }
 
+  static fromPrimitives(raw: {
+    id: string;
+    userId: string;
+    examId: string;
+    snapshotId: string;
+    variantCode?: string;
+    status?: string;
+    startedAt?: string | Date | null;
+    deadline?: string | Date | null;
+    submittedAt?: string | Date | null;
+    durationMinutes: number;
+    answers?: Record<string, CandidateAnswerRecord>;
+    scoreResult?: AttemptScoreResult | null;
+    version?: number;
+    createdAt?: string | Date;
+    updatedAt?: string | Date;
+  }): Attempt {
+    return new Attempt({
+      id: raw.id,
+      userId: raw.userId,
+      examId: raw.examId,
+      snapshotId: raw.snapshotId,
+      variantCode: raw.variantCode,
+      status: (raw.status as AttemptStatus) ?? 'CREATED',
+      startedAt: raw.startedAt ? new Date(raw.startedAt) : null,
+      deadline: raw.deadline ? new Date(raw.deadline) : null,
+      submittedAt: raw.submittedAt ? new Date(raw.submittedAt) : null,
+      durationMinutes: raw.durationMinutes,
+      answers: raw.answers,
+      scoreResult: raw.scoreResult,
+      version: raw.version ?? 1,
+      createdAt: raw.createdAt ? new Date(raw.createdAt) : undefined,
+      updatedAt: raw.updatedAt ? new Date(raw.updatedAt) : undefined,
+    });
+  }
+
+  toPrimitives() {
+    return {
+      id: this.id,
+      userId: this.userId,
+      examId: this.examId,
+      snapshotId: this.snapshotId,
+      variantCode: this.variantCode,
+      status: this._status,
+      startedAt: this._startedAt,
+      deadline: this._deadline,
+      submittedAt: this._submittedAt,
+      durationMinutes: this.durationMinutes,
+      answers: this.answers,
+      scoreResult: this._scoreResult,
+      version: this._version,
+      createdAt: this.createdAt,
+      updatedAt: this._updatedAt,
+    };
+  }
+
   toDTO(manifest?: SanitizedExamManifest): AttemptDTO {
     return {
       id: this.id,
@@ -279,6 +353,7 @@ export class Attempt {
       manifest,
       answers: this.answers,
       scoreResult: this._scoreResult,
+      version: this._version,
       createdAt: this.createdAt.toISOString(),
       updatedAt: this._updatedAt.toISOString(),
     };

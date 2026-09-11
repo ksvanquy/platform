@@ -1,4 +1,4 @@
-import { eq, and, sql, inArray, lte, isNotNull } from 'drizzle-orm';
+import { eq, and, or, sql, inArray, lte, isNotNull, isNull } from 'drizzle-orm';
 import { getAttemptDb } from '../db/connection.js';
 import { attempts, attemptEvents } from '../db/schema.js';
 import { Attempt } from '../../domain/entities/attempt.entity.js';
@@ -6,8 +6,18 @@ import { AttemptEvent } from '../../domain/entities/attempt-event.entity.js';
 import type {
   AttemptRepositoryPort,
   AttemptFilterQuery,
+  PatchAnswerAtomicResult,
 } from '../../domain/ports/attempt.repository.port.js';
-import type { AntiCheatEventType, AttemptStatus } from '@platform/contracts';
+import type { AntiCheatEventType, AttemptStatus, CandidateAnswerRecord } from '@platform/contracts';
+import {
+  AttemptNotFoundError,
+  UnauthorizedAttemptAccessError,
+  AttemptAlreadyFinalizedError,
+  AttemptConcurrencyConflictError,
+  AttemptTimeExpiredError,
+  OutdatedAnswerSequenceError,
+  AttemptDomainError,
+} from '../../domain/errors/attempt-domain.errors.js';
 
 export class DrizzleAttemptRepository implements AttemptRepositoryPort {
   constructor(private customDb?: any) {}
@@ -28,6 +38,7 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
         snapshotId: attempt.snapshotId,
         variantCode: attempt.variantCode,
         status: attempt.status,
+        version: attempt.version,
         startedAt: attempt.startedAt,
         deadline: attempt.deadline,
         submittedAt: attempt.submittedAt,
@@ -41,6 +52,7 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
         target: attempts.id,
         set: {
           status: attempt.status,
+          version: attempt.version,
           startedAt: attempt.startedAt,
           deadline: attempt.deadline,
           submittedAt: attempt.submittedAt,
@@ -48,9 +60,55 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
           scoreResult: attempt.scoreResult,
           updatedAt: attempt.updatedAt,
         },
+        where: ['SUBMITTED', 'GRADED', 'TIMED_OUT_GRADED'].includes(attempt.status)
+          ? undefined
+          : sql`${attempts.status} NOT IN ('SUBMITTED', 'GRADED', 'TIMED_OUT_GRADED')`,
       });
 
     return attempt;
+  }
+
+  /**
+   * Task CONC-3.1: Row-Level Lock (FOR UPDATE) & Database Transaction cho Ca thi đang nộp
+   */
+  async withAttemptLock<T>(
+    attemptId: string,
+    operation: (attempt: Attempt, saveLocked: (updated: Attempt) => Promise<void>) => Promise<T>
+  ): Promise<T> {
+    const db = this.getDb();
+    return await db.transaction(async (tx: any) => {
+      // Khóa cứng hàng của Attempt đang nộp bằng SELECT ... FOR UPDATE (Row-Level Exclusive Lock)
+      const rows = await tx
+        .select()
+        .from(attempts)
+        .where(eq(attempts.id, attemptId))
+        .for('update');
+
+      if (rows.length === 0) {
+        throw new AttemptNotFoundError(attemptId);
+      }
+
+      const attempt = this.mapToAttemptEntity(rows[0]);
+
+      const saveLocked = async (updated: Attempt): Promise<void> => {
+        // Chặn tuyệt đối State Regression khi ghi đè trong transaction
+        await tx
+          .update(attempts)
+          .set({
+            status: updated.status,
+            version: updated.version,
+            startedAt: updated.startedAt,
+            deadline: updated.deadline,
+            submittedAt: updated.submittedAt,
+            answers: updated.answers,
+            scoreResult: updated.scoreResult,
+            updatedAt: updated.updatedAt,
+          })
+          .where(eq(attempts.id, updated.id));
+      };
+
+      return await operation(attempt, saveLocked);
+    });
   }
 
   async findAttemptById(id: string): Promise<Attempt | null> {
@@ -136,7 +194,39 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
     };
   }
 
-  async findExpiredInProgressAttempts(now: Date, gracePeriodMs: number): Promise<Attempt[]> {
+  /**
+   * Task CONC-4.1: Distributed PostgreSQL Advisory Lock (Transaction-scoped)
+   * Sử dụng pg_try_advisory_xact_lock để đảm bảo chỉ duy nhất 1 replica thực thi tác vụ nền
+   */
+  async withAdvisoryLock<T>(
+    lockKey: number,
+    operation: () => Promise<T>
+  ): Promise<{ acquired: boolean; result?: T }> {
+    const db = this.getDb();
+    return await db.transaction(async (tx: any) => {
+      const lockRes: any = await tx.execute(
+        sql`SELECT pg_try_advisory_xact_lock(${lockKey}) AS acquired`
+      );
+      const acquired = Boolean(
+        lockRes?.[0]?.acquired ??
+        lockRes?.rows?.[0]?.acquired ??
+        lockRes?.[0]?.rows?.[0]?.acquired
+      );
+
+      if (!acquired) {
+        return { acquired: false };
+      }
+
+      const result = await operation();
+      return { acquired: true, result };
+    });
+  }
+
+  /**
+   * Task CONC-4.2: Tối ưu Quét Theo Lô (Batching) với FOR UPDATE SKIP LOCKED
+   * Tự động bỏ qua các ca thi đang bị thí sinh nộp bài hoặc transaction khác khóa, loại bỏ deadlock
+   */
+  async findExpiredInProgressAttempts(now: Date, gracePeriodMs: number, limit = 50): Promise<Attempt[]> {
     const db = this.getDb();
     const thresholdDate = new Date(now.getTime() - gracePeriodMs);
 
@@ -149,7 +239,10 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
           isNotNull(attempts.deadline),
           lte(attempts.deadline, thresholdDate)
         )
-      );
+      )
+      .orderBy(sql`${attempts.deadline} ASC`)
+      .limit(limit)
+      .for('update', { skipLocked: true });
 
     return (rows as any[]).map((r: any) => this.mapToAttemptEntity(r));
   }
@@ -182,6 +275,99 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
     return (rows as any[]).map((r: any) => this.mapToEventEntity(r));
   }
 
+  async patchAnswerAtomic(
+    attemptId: string,
+    questionId: string,
+    answerRecord: CandidateAnswerRecord,
+    expectedVersion?: number,
+    userId?: string,
+    userRole?: string
+  ): Promise<PatchAnswerAtomicResult> {
+    const db = this.getDb();
+    const now = new Date();
+    const answerJson = JSON.stringify(answerRecord);
+
+    const conditions = [
+      eq(attempts.id, attemptId),
+      eq(attempts.status, 'IN_PROGRESS'),
+      or(
+        isNull(attempts.deadline),
+        sql`${attempts.deadline} + INTERVAL '15 seconds' >= ${now}`
+      ),
+      sql`(${attempts.answers}->${questionId} IS NULL OR (${attempts.answers}->${questionId}->>'sequenceNumber')::int < ${answerRecord.sequenceNumber})`
+    ];
+
+    if (userId && userRole !== 'ADMIN') {
+      conditions.push(eq(attempts.userId, userId));
+    }
+
+    if (expectedVersion !== undefined) {
+      conditions.push(eq(attempts.version, expectedVersion));
+    }
+
+    const updatedRows = await db
+      .update(attempts)
+      .set({
+        answers: sql`jsonb_set(COALESCE(${attempts.answers}, '{}'::jsonb), ARRAY[${questionId}]::text[], ${answerJson}::jsonb, true)`,
+        version: sql`${attempts.version} + 1`,
+        updatedAt: now,
+      })
+      .where(and(...conditions))
+      .returning({
+        id: attempts.id,
+        status: attempts.status,
+        version: attempts.version,
+        deadline: attempts.deadline,
+        startedAt: attempts.startedAt,
+        durationMinutes: attempts.durationMinutes,
+      });
+
+    if (updatedRows && updatedRows.length > 0) {
+      const updated = updatedRows[0];
+      let remainingTimeMs = 0;
+      if (updated.deadline) {
+        remainingTimeMs = Math.max(0, new Date(updated.deadline).getTime() - now.getTime());
+      } else if (updated.startedAt && updated.durationMinutes) {
+        const end = new Date(updated.startedAt).getTime() + updated.durationMinutes * 60 * 1000;
+        remainingTimeMs = Math.max(0, end - now.getTime());
+      }
+      return {
+        success: true,
+        newVersion: updated.version,
+        remainingTimeMs,
+        status: updated.status as AttemptStatus,
+      };
+    }
+
+    // Row was not updated - find root cause for precise domain error reporting
+    const existing = await this.findAttemptById(attemptId);
+    if (!existing) {
+      throw new AttemptNotFoundError(attemptId);
+    }
+    if (userId && existing.userId !== userId && userRole !== 'ADMIN') {
+      throw new UnauthorizedAttemptAccessError('You can only record answers for your own attempt');
+    }
+    if (existing.status !== 'IN_PROGRESS') {
+      throw new AttemptAlreadyFinalizedError(attemptId, existing.status);
+    }
+    if (expectedVersion !== undefined && existing.version !== expectedVersion) {
+      throw new AttemptConcurrencyConflictError(attemptId, existing.version, expectedVersion);
+    }
+    if (existing.isAnswerTimeExpired(now)) {
+      throw new AttemptTimeExpiredError(attemptId);
+    }
+    const currentAnswer = existing.answers[questionId];
+    if (currentAnswer && currentAnswer.sequenceNumber >= answerRecord.sequenceNumber) {
+      throw new OutdatedAnswerSequenceError(
+        questionId,
+        answerRecord.sequenceNumber,
+        currentAnswer.sequenceNumber
+      );
+    }
+
+    throw new AttemptDomainError(`Cannot patch answer atomically for attempt ${attemptId}`, 400);
+  }
+
   private mapToAttemptEntity(row: typeof attempts.$inferSelect): Attempt {
     return new Attempt({
       id: row.id,
@@ -190,6 +376,7 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
       snapshotId: row.snapshotId,
       variantCode: row.variantCode,
       status: row.status as AttemptStatus,
+      version: row.version ?? 1,
       startedAt: row.startedAt,
       deadline: row.deadline,
       submittedAt: row.submittedAt,

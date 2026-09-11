@@ -92,6 +92,7 @@ export interface AttemptDTO {
   manifest?: SanitizedExamManifest;
   answers: Record<string, CandidateAnswerRecord>;
   scoreResult?: AttemptScoreResult | null;
+  version?: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -11,6 +11,7 @@ export const attempts = pgTable('attempts', {
   snapshotId: varchar('snapshot_id', { length: 64 }).notNull(), // Logical reference to immutable exam_snapshot
   variantCode: varchar('variant_code', { length: 32 }).notNull().default('DEFAULT'),
   status: varchar('status', { length: 32 }).notNull().default('CREATED'), // CREATED, IN_PROGRESS, PAUSED, SUBMITTED, EXPIRED, GRADED, TIMED_OUT_GRADED
+  version: integer('version').notNull().default(1),
   startedAt: timestamp('started_at', { withTimezone: true }),
   deadline: timestamp('deadline', { withTimezone: true }),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
@@ -23,6 +24,7 @@ export const attempts = pgTable('attempts', {
   index('idx_attempts_user_exam').on(table.userId, table.examId),
   index('idx_attempts_status_deadline').on(table.status, table.deadline),
   index('idx_attempts_exam').on(table.examId),
+  index('idx_attempts_id_version_status').on(table.id, table.version, table.status),
 ]);
 
 export const attemptEvents = pgTable('attempt_events', {
