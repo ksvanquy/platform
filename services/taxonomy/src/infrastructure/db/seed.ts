@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getTaxonomyDb, closeTaxonomyDb, isTaxonomyDbConfigured } from './connection.js';
 export { isTaxonomyDbConfigured };
+import { runTaxonomyMigrations } from './migrate.js';
 import { taxonomies, taxonomyNodes, type NewTaxonomyRow, type NewTaxonomyNodeRow } from './schema.js';
 
 export const SEED_TAXONOMIES: NewTaxonomyRow[] = [
@@ -400,6 +401,10 @@ export const SEED_TAXONOMY_NODES: NewTaxonomyNodeRow[] = [
 ];
 
 export async function seedTaxonomyDatabase(customDb?: any): Promise<void> {
+  if (!customDb && isTaxonomyDbConfigured()) {
+    await runTaxonomyMigrations();
+  }
+
   const db = customDb || (isTaxonomyDbConfigured() ? getTaxonomyDb() : null);
 
   if (!db) {

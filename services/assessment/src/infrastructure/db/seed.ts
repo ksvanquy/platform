@@ -1,8 +1,13 @@
 import { assessments, blueprints } from './schema.js';
 import { getAssessmentDb, isAssessmentDbConfigured } from './connection.js';
 export { isAssessmentDbConfigured };
+import { runAssessmentMigrations } from './migrate.js';
 
 export async function seedAssessmentDatabase(dbInstance?: any): Promise<void> {
+  if (!dbInstance && isAssessmentDbConfigured()) {
+    await runAssessmentMigrations();
+  }
+
   const db = dbInstance || getAssessmentDb();
 
   console.log('🌱 [assessment_db] Seeding standardized assessments & blueprints into PostgreSQL...');

@@ -1,11 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { getTaxonomyDb, closeTaxonomyDb, isTaxonomyDbConfigured } from './connection.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const migrationsFolder = path.resolve(__dirname, '../../../drizzle/migrations');
+import postgres from 'postgres';
+import { getTaxonomyDatabaseUrl, sanitizePostgresUrl, closeTaxonomyDb, isTaxonomyDbConfigured } from './connection.js';
 
 export async function runTaxonomyMigrations(): Promise<void> {
   if (!isTaxonomyDbConfigured()) {
@@ -13,10 +9,47 @@ export async function runTaxonomyMigrations(): Promise<void> {
     return;
   }
 
-  console.log('🔄 Running Taxonomy Service PostgreSQL migrations...');
-  const db = getTaxonomyDb();
-  await migrate(db, { migrationsFolder });
-  console.log('✅ Taxonomy Service PostgreSQL migrations completed successfully.');
+  const rawUrl = getTaxonomyDatabaseUrl()!;
+  const connectionString = sanitizePostgresUrl(rawUrl);
+  const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
+
+  try {
+    await sql.unsafe(`
+      CREATE TABLE IF NOT EXISTS taxonomies (
+        id VARCHAR(64) PRIMARY KEY NOT NULL,
+        code VARCHAR(64) NOT NULL UNIQUE,
+        name VARCHAR(128) NOT NULL,
+        description TEXT,
+        is_hierarchical BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_taxonomies_code ON taxonomies(code);
+
+      CREATE TABLE IF NOT EXISTS taxonomy_nodes (
+        id VARCHAR(64) PRIMARY KEY NOT NULL,
+        taxonomy_id VARCHAR(64) NOT NULL REFERENCES taxonomies(id) ON DELETE CASCADE,
+        parent_id VARCHAR(64),
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL,
+        description TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'PUBLISHED',
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        deleted_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_nodes_taxonomy ON taxonomy_nodes(taxonomy_id);
+      CREATE INDEX IF NOT EXISTS idx_nodes_parent ON taxonomy_nodes(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_nodes_sort ON taxonomy_nodes(taxonomy_id, sort_order);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_nodes_active_slug ON taxonomy_nodes(taxonomy_id, slug) WHERE deleted_at IS NULL;
+    `);
+  } finally {
+    await sql.end();
+  }
 }
 
 // Allow direct execution (cross-platform Windows & POSIX support)

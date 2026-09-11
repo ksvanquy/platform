@@ -1,8 +1,13 @@
 import { questions, questionRevisions } from './schema.js';
 import { getQuestionDb, isQuestionDbConfigured } from './connection.js';
 export { isQuestionDbConfigured };
+import { runQuestionMigrations } from './migrate.js';
 
 export async function seedQuestionDatabase(dbInstance?: any): Promise<void> {
+  if (!dbInstance && isQuestionDbConfigured()) {
+    await runQuestionMigrations();
+  }
+
   const db = dbInstance || getQuestionDb();
 
   console.log('🌱 [question_db] Seeding comprehensive question bank into PostgreSQL...');

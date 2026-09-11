@@ -6,18 +6,23 @@
 
 import { seedAuthDb } from '../services/auth/src/infrastructure/db/seed.js';
 import { isAuthDbConfigured } from '../services/auth/src/infrastructure/db/connection.js';
+import { runAuthMigrations } from '../services/auth/src/infrastructure/db/migrate.js';
 
 import { seedTaxonomyDatabase } from '../services/taxonomy/src/infrastructure/db/seed.js';
 import { isTaxonomyDbConfigured } from '../services/taxonomy/src/infrastructure/db/connection.js';
+import { runTaxonomyMigrations } from '../services/taxonomy/src/infrastructure/db/migrate.js';
 
 import { seedQuestionDatabase } from '../services/question/src/infrastructure/db/seed.js';
 import { isQuestionDbConfigured } from '../services/question/src/infrastructure/db/connection.js';
+import { runQuestionMigrations } from '../services/question/src/infrastructure/db/migrate.js';
 
 import { seedAssessmentDatabase } from '../services/assessment/src/infrastructure/db/seed.js';
 import { isAssessmentDbConfigured } from '../services/assessment/src/infrastructure/db/connection.js';
+import { runAssessmentMigrations } from '../services/assessment/src/infrastructure/db/migrate.js';
 
 import { seedExamDatabase } from '../services/exam/src/infrastructure/db/seed.js';
 import { isExamDbConfigured } from '../services/exam/src/infrastructure/db/connection.js';
+import { runExamMigrations } from '../services/exam/src/infrastructure/db/migrate.js';
 
 import { seedAttemptDatabase } from '../services/attempt/src/infrastructure/db/seed.js';
 import { isAttemptDbConfigured } from '../services/attempt/src/infrastructure/db/connection.js';
@@ -35,6 +40,7 @@ async function bootstrapAllServices(): Promise<void> {
   console.log('👉 [1/6] Bootstrapping Auth Service (Users, Roles, Permissions)...');
   try {
     if (isAuthDbConfigured()) {
+      await runAuthMigrations();
       await seedAuthDb();
       console.log('   ✅ Auth Service seeded successfully.\n');
     } else {
@@ -48,6 +54,7 @@ async function bootstrapAllServices(): Promise<void> {
   console.log('👉 [2/6] Bootstrapping Taxonomy Service (Categories, Nodes, Trees)...');
   try {
     if (isTaxonomyDbConfigured()) {
+      await runTaxonomyMigrations();
       await seedTaxonomyDatabase();
       console.log('   ✅ Taxonomy Service seeded successfully.\n');
     } else {
@@ -61,6 +68,7 @@ async function bootstrapAllServices(): Promise<void> {
   console.log('👉 [3/6] Bootstrapping Question Bank Service (Bloom Taxonomy Questions)...');
   try {
     if (isQuestionDbConfigured()) {
+      await runQuestionMigrations();
       await seedQuestionDatabase();
       console.log('   ✅ Question Bank Service seeded successfully.\n');
     } else {
@@ -74,6 +82,7 @@ async function bootstrapAllServices(): Promise<void> {
   console.log('👉 [4/6] Bootstrapping Assessment Service (Blueprints & Criteria Matrices)...');
   try {
     if (isAssessmentDbConfigured()) {
+      await runAssessmentMigrations();
       await seedAssessmentDatabase();
       console.log('   ✅ Assessment Service seeded successfully.\n');
     } else {
@@ -87,6 +96,7 @@ async function bootstrapAllServices(): Promise<void> {
   console.log('👉 [5/6] Bootstrapping Exam Engine Service (MatrixSolver, Variants 101-104, Snapshots)...');
   try {
     if (isExamDbConfigured()) {
+      await runExamMigrations();
       await seedExamDatabase();
       console.log('   ✅ Exam Engine Service seeded successfully.\n');
     } else {
@@ -100,6 +110,7 @@ async function bootstrapAllServices(): Promise<void> {
   console.log('👉 [6/6] Bootstrapping Attempt Service (Runtime Sessions & Telemetry Logs)...');
   try {
     if (isAttemptDbConfigured()) {
+      await runAttemptMigrations();
       await seedAttemptDatabase();
       console.log('   ✅ Attempt Service seeded successfully.\n');
     } else {

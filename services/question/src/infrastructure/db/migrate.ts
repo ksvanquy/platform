@@ -17,25 +17,44 @@ export async function runQuestionMigrations(customUrl?: string): Promise<void> {
   const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
 
   try {
-    const migrationsDir = path.resolve(__dirname, '../../../drizzle/migrations');
-    if (!fs.existsSync(migrationsDir)) {
-      console.log('No migration folder found for Question Service.');
-      return;
-    }
+    await sql.unsafe(`
+      CREATE TABLE IF NOT EXISTS questions (
+        id VARCHAR(64) PRIMARY KEY NOT NULL,
+        code VARCHAR(64) NOT NULL UNIQUE,
+        type VARCHAR(32) NOT NULL,
+        topic_node_id VARCHAR(64),
+        grade_node_id VARCHAR(64),
+        difficulty VARCHAR(32) DEFAULT 'REMEMBER' NOT NULL,
+        default_points INTEGER DEFAULT 1 NOT NULL,
+        status VARCHAR(32) DEFAULT 'ACTIVE' NOT NULL,
+        current_revision_id VARCHAR(64),
+        owner_id VARCHAR(64) NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+      );
 
-    const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
-    for (const file of files) {
-      const filePath = path.join(migrationsDir, file);
-      const sqlContent = fs.readFileSync(filePath, 'utf-8');
-      const statements = sqlContent
-        .split('--> statement-breakpoint')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
+      CREATE TABLE IF NOT EXISTS question_revisions (
+        id VARCHAR(64) PRIMARY KEY NOT NULL,
+        question_id VARCHAR(64) NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+        revision_number INTEGER NOT NULL,
+        prompt TEXT NOT NULL,
+        options JSONB NOT NULL,
+        pairs JSONB,
+        explanation TEXT,
+        rubric JSONB,
+        media_assets JSONB,
+        created_by VARCHAR(64) NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+      );
 
-      for (const statement of statements) {
-        await sql.unsafe(statement);
-      }
-    }
+      CREATE INDEX IF NOT EXISTS idx_questions_topic ON questions(topic_node_id);
+      CREATE INDEX IF NOT EXISTS idx_questions_grade ON questions(grade_node_id);
+      CREATE INDEX IF NOT EXISTS idx_questions_difficulty ON questions(difficulty);
+      CREATE INDEX IF NOT EXISTS idx_questions_status ON questions(status);
+      CREATE INDEX IF NOT EXISTS idx_questions_owner ON questions(owner_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_question_revision ON question_revisions(question_id, revision_number);
+      CREATE INDEX IF NOT EXISTS idx_qrev_question ON question_revisions(question_id);
+    `);
   } finally {
     await sql.end();
   }

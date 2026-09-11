@@ -1,5 +1,6 @@
 import { isExamDbConfigured } from './connection.js';
 export { isExamDbConfigured };
+import { runExamMigrations } from './migrate.js';
 import { DrizzleExamRepository } from '../repositories/drizzle-exam.repository.js';
 import { DirectQuestionClientAdapter } from '../adapters/direct-question-client.adapter.js';
 import { DirectAssessmentClientAdapter } from '../adapters/direct-assessment-client.adapter.js';
@@ -11,6 +12,10 @@ export async function seedExamDatabase(
   customQClient?: DirectQuestionClientAdapter,
   customAsmClient?: DirectAssessmentClientAdapter
 ): Promise<void> {
+  if (!customExamRepo && isExamDbConfigured()) {
+    await runExamMigrations();
+  }
+
   const examRepo = customExamRepo || new DrizzleExamRepository();
   const questionClient = customQClient || new DirectQuestionClientAdapter();
   const assessmentClient = customAsmClient || new DirectAssessmentClientAdapter();

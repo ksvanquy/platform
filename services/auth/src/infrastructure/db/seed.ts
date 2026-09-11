@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getAuthDb, closeAuthDb, isAuthDbConfigured } from './connection.js';
 export { isAuthDbConfigured };
+import { runAuthMigrations } from './migrate.js';
 import { users, roles, permissions, rolePermissions, userRoles } from './schema.js';
 import { hashPassword } from '../crypto/password.js';
 import { DEFAULT_PERMISSIONS_DATA } from '../../domain/role/default-rbac.data.js';
@@ -89,6 +90,10 @@ export const SEED_USERS = [
 ];
 
 export async function seedAuthDb(targetDb?: any): Promise<void> {
+  if (!targetDb && isAuthDbConfigured()) {
+    await runAuthMigrations();
+  }
+
   const db = targetDb || (isAuthDbConfigured() ? getAuthDb() : null);
   if (!db) {
     console.warn('⚠️ AUTH_DATABASE_URL is not configured. Skipping PostgreSQL seeding.');

@@ -17,25 +17,43 @@ export async function runAssessmentMigrations(customUrl?: string): Promise<void>
   const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
 
   try {
-    const migrationsDir = path.resolve(__dirname, '../../../drizzle/migrations');
-    if (!fs.existsSync(migrationsDir)) {
-      console.log('No migration folder found for Assessment Service.');
-      return;
-    }
+    await sql.unsafe(`
+      CREATE TABLE IF NOT EXISTS assessments (
+        id VARCHAR(64) PRIMARY KEY NOT NULL,
+        code VARCHAR(64) NOT NULL UNIQUE,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        owner_id VARCHAR(64) NOT NULL,
+        primary_topic_node_id VARCHAR(64),
+        grade_node_id VARCHAR(64),
+        status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+        current_blueprint_id VARCHAR(64),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
 
-    const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
-    for (const file of files) {
-      const filePath = path.join(migrationsDir, file);
-      const sqlContent = fs.readFileSync(filePath, 'utf-8');
-      const statements = sqlContent
-        .split('--> statement-breakpoint')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
+      CREATE INDEX IF NOT EXISTS idx_assessments_topic ON assessments(primary_topic_node_id);
+      CREATE INDEX IF NOT EXISTS idx_assessments_grade ON assessments(grade_node_id);
+      CREATE INDEX IF NOT EXISTS idx_assessments_status ON assessments(status);
+      CREATE INDEX IF NOT EXISTS idx_assessments_owner ON assessments(owner_id);
 
-      for (const statement of statements) {
-        await sql.unsafe(statement);
-      }
-    }
+      CREATE TABLE IF NOT EXISTS blueprints (
+        id VARCHAR(64) PRIMARY KEY NOT NULL,
+        assessment_id VARCHAR(64) NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+        version_number INTEGER NOT NULL,
+        duration_minutes INTEGER NOT NULL DEFAULT 45,
+        passing_percentage INTEGER NOT NULL DEFAULT 50,
+        max_attempts INTEGER NOT NULL DEFAULT 1,
+        criteria JSONB NOT NULL DEFAULT '[]'::jsonb,
+        scoring_policy JSONB NOT NULL DEFAULT '{"strategyType":"STANDARD","roundingDecimal":2}'::jsonb,
+        is_locked BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_assessment_blueprint ON blueprints(assessment_id, version_number);
+      CREATE INDEX IF NOT EXISTS idx_bp_assessment ON blueprints(assessment_id);
+    `);
   } finally {
     await sql.end();
   }
