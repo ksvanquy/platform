@@ -14,7 +14,7 @@ export async function runAttemptMigrations(customUrl?: string): Promise<void> {
   }
 
   const connectionString = sanitizePostgresUrl(rawUrl);
-  const sql = postgres(connectionString, { max: 1 });
+  const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
 
   try {
     // 1. Ensure core schema tables exist

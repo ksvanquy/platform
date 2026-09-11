@@ -14,7 +14,10 @@ export class DirectExamClientAdapter implements ExamClientPort {
     if (!exam) {
       exam = await this.examRepo.findExamByCode(examIdOrCode);
     }
-    return exam ? exam.toDTO() : null;
+    if (!exam) return null;
+    const snapshots = await this.examRepo.listSnapshotsByExamId(exam.id);
+    const variants = snapshots.map((s) => s.toVariantSummary());
+    return exam.toDTO(variants);
   }
 
   async getExamSnapshot(examId: string, variantCode = 'DEFAULT'): Promise<ExamSnapshotDTO | null> {

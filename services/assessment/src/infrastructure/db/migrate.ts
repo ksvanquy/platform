@@ -14,7 +14,7 @@ export async function runAssessmentMigrations(customUrl?: string): Promise<void>
   }
 
   const connectionString = sanitizePostgresUrl(rawUrl);
-  const sql = postgres(connectionString, { max: 1 });
+  const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
 
   try {
     const migrationsDir = path.resolve(__dirname, '../../../drizzle/migrations');

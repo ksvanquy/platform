@@ -25,9 +25,9 @@ export async function seedAttemptDatabase(): Promise<void> {
   try {
     const examClient = new DirectExamClientAdapter();
     const exam = await examClient.getExam('EXM_TOAN10_HK1');
-    if (exam && exam.variants && exam.variants.length > 0) {
-      const variant = exam.variants[0];
-      const snapshot = await examClient.getExamSnapshot(exam.id, variant.variantCode);
+    if (exam) {
+      const variantCode = exam.variants && exam.variants.length > 0 ? exam.variants[0].variantCode : 'DEFAULT';
+      const snapshot = await examClient.getExamSnapshot(exam.id, variantCode);
       if (snapshot) {
         const now = new Date();
         const startedAt = new Date(now.getTime() - 40 * 60 * 1000);
@@ -40,7 +40,7 @@ export async function seedAttemptDatabase(): Promise<void> {
           userId: 'usr_student_01',
           examId: exam.id,
           snapshotId: snapshot.id,
-          variantCode: variant.variantCode,
+          variantCode: snapshot.variantCode,
           status: 'GRADED',
           startedAt,
           deadline,
