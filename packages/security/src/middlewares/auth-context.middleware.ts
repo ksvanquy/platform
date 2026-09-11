@@ -26,6 +26,7 @@ export interface AuthMiddlewareOptions {
 
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   const jwks = options.jwksClient || defaultJwksClient;
+  const allowPropagated = options.strictMode ? (options.allowPropagatedHeaders === true) : (options.allowPropagatedHeaders !== false);
 
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     // 1. Kiểm tra Authorization Header (Bearer Token)
@@ -57,7 +58,39 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     }
 
     // 2. Kiểm tra Header lan truyền nội bộ từ Gateway (Mesh-Trust Mode)
-    if (options.allowPropagatedHeaders !== false) {
+    if (allowPropagated) {
+      // 2a. Hỗ trợ x-principal serialized JSON header
+      const xPrincipalHeader = req.headers['x-principal'] as string | undefined;
+      if (xPrincipalHeader) {
+        try {
+          const parsed = typeof xPrincipalHeader === 'string' ? JSON.parse(xPrincipalHeader) : xPrincipalHeader;
+          if (parsed && parsed.id) {
+            const roles = Array.isArray(parsed.roles) ? parsed.roles : ['STUDENT'];
+            let permissions = Array.isArray(parsed.permissions) ? parsed.permissions : [];
+            if (permissions.length === 0 && roles.length > 0) {
+              permissions = [...resolvePermissionsForRoles(roles)];
+            }
+            const principal: Principal = {
+              id: parsed.id,
+              roles,
+              permissions,
+              metadata: {
+                ...parsed.metadata,
+                source: 'x_principal_header',
+              },
+            };
+            req.principal = principal;
+            req.context = { principal };
+            req.auth = principal;
+            next();
+            return;
+          }
+        } catch {
+          // Ignore parse errors, continue to individual headers
+        }
+      }
+
+      // 2b. Hỗ trợ individual x-user-id / x-user-roles headers
       const userId = (req.headers['x-user-id'] as string) || (req.headers['x-principal-id'] as string);
       if (userId) {
         const rawRoles =
@@ -104,8 +137,14 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   };
 }
 
-// Default export for drop-in replacement across microservices
+// Default export for drop-in replacement across microservices (Mesh-Trust Mode)
 export const authContextMiddleware = createAuthMiddleware({
   allowPropagatedHeaders: true,
   strictMode: false,
+});
+
+// Strict Zero-Trust export for Edge Gateway and public boundary routes
+export const strictAuthMiddleware = createAuthMiddleware({
+  allowPropagatedHeaders: false,
+  strictMode: true,
 });

@@ -80,6 +80,7 @@ export async function authContextMiddleware(
       if (req.principal.permissions?.length) {
         req.headers['x-user-permissions'] = req.principal.permissions.join(',');
       }
+      req.headers['x-principal'] = JSON.stringify(req.principal);
     }
 
     next();

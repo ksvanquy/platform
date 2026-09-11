@@ -56,6 +56,48 @@ describe('@platform/security - Express Middlewares & Guards', () => {
       expect(req.principal?.roles).toContain('STUDENT');
       expect(req.principal?.permissions).toContain('quiz:read');
     });
+
+    it('should extract principal from propagated x-principal JSON header', async () => {
+      const authMiddleware = createAuthMiddleware({ allowPropagatedHeaders: true });
+      const principalPayload = {
+        id: 'usr_mesh_01',
+        roles: ['INSTRUCTOR'],
+        permissions: ['quiz:create', 'quiz:publish'],
+      };
+      const { req, res } = createMockReqRes({
+        'x-principal': JSON.stringify(principalPayload),
+      });
+
+      let nextCalled = false;
+      await authMiddleware(req, res, () => {
+        nextCalled = true;
+      });
+
+      expect(nextCalled).toBe(true);
+      expect(req.principal).toBeDefined();
+      expect(req.principal?.id).toBe('usr_mesh_01');
+      expect(req.principal?.roles).toContain('INSTRUCTOR');
+      expect(req.principal?.permissions).toContain('quiz:create');
+    });
+  });
+
+  describe('strictAuthMiddleware (Zero-Trust Strict Mode)', () => {
+    it('should reject spoofed propagated headers when strictMode is enabled', async () => {
+      const strictMiddleware = createAuthMiddleware({ strictMode: true });
+      const { req, res } = createMockReqRes({
+        'x-user-id': 'usr_attacker_spoofing_admin',
+        'x-user-roles': 'ADMIN',
+      });
+
+      let nextCalled = false;
+      await strictMiddleware(req, res, () => {
+        nextCalled = true;
+      });
+
+      expect(nextCalled).toBe(true);
+      // Under strict mode, propagated headers must NOT be accepted
+      expect(req.principal).toBeUndefined();
+    });
   });
 
   describe('Guards (requireAuth, requireRole, requirePermission, requireAdmin)', () => {
