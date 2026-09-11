@@ -21,6 +21,7 @@ import { isExamDbConfigured } from '../services/exam/src/infrastructure/db/conne
 
 import { seedAttemptDatabase } from '../services/attempt/src/infrastructure/db/seed.js';
 import { isAttemptDbConfigured } from '../services/attempt/src/infrastructure/db/connection.js';
+import { runAttemptMigrations } from '../services/attempt/src/infrastructure/db/migrate.js';
 
 async function bootstrapAllServices(): Promise<void> {
   console.log('================================================================');

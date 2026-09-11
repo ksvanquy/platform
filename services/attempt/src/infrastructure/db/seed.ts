@@ -1,9 +1,18 @@
 import { getAttemptDb, isAttemptDbConfigured } from './connection.js';
 export { isAttemptDbConfigured };
+import { runAttemptMigrations } from './migrate.js';
 import { attempts, attemptEvents } from './schema.js';
 import { DirectExamClientAdapter } from '../adapters/direct-exam-client.adapter.js';
 
 export async function seedAttemptDatabase(): Promise<void> {
+  if (isAttemptDbConfigured()) {
+    try {
+      await runAttemptMigrations();
+    } catch (err: any) {
+      console.warn('⚠️ [attempt_db] Pre-seed migration notice:', err?.message || err);
+    }
+  }
+
   const db = getAttemptDb();
 
   const existing = await db.select().from(attempts).limit(1);
