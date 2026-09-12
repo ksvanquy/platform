@@ -65,17 +65,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Server-Authoritative Clock Synchronization Middleware (Zero-Trust Timing Defense)
-app.use((_req: Request, res: Response, next) => {
-  const now = new Date();
-  res.setHeader('X-Server-Time', now.toISOString());
-  res.setHeader('X-Server-Timestamp', now.getTime().toString());
-  next();
-});
-
-// Dedicated Precision Server Clock Synchronization Route (Cristian's Algorithm Target)
+// Standard Server Time Endpoint
 app.get('/v1/time', (_req: Request, res: Response) => {
   const now = new Date();
+  res.setHeader('X-Server-Time', now.toISOString());
   res.status(200).json({
     success: true,
     serverTime: now.toISOString(),

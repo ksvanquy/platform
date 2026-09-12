@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminApi } from '../api/index.js';
+import { apiClient } from '../api/index.js';
 import type { TaxonomyDTO, TaxonomyTreeNodeDTO } from '@platform/contracts';
 
 export const TaxonomyManagementSection: React.FC = () => {
@@ -36,7 +36,7 @@ export const TaxonomyManagementSection: React.FC = () => {
 
   const fetchTaxonomies = async () => {
     try {
-      const res = await adminApi.taxonomies.list();
+      const res = await apiClient.taxonomies.list();
       if (res.success && res.data) {
         setTaxonomies(res.data);
         if (res.data.length > 0 && !res.data.some((t) => t.code === selectedTaxonomy)) {
@@ -52,7 +52,7 @@ export const TaxonomyManagementSection: React.FC = () => {
     setLoading(true);
     setStatusMessage(null);
     try {
-      const res = await adminApi.taxonomies.getTree(taxCode);
+      const res = await apiClient.taxonomies.getTree(taxCode);
       if (res.success && res.data) {
         setTreeNodes(res.data.tree || []);
         setFlatNodes(flattenTree(res.data.tree || []));
@@ -91,7 +91,7 @@ export const TaxonomyManagementSection: React.FC = () => {
 
     setStatusMessage(null);
     try {
-      const res = await adminApi.taxonomies.createNode(selectedTaxonomy, {
+      const res = await apiClient.taxonomies.createNode(selectedTaxonomy, {
         name: createName.trim(),
         slug: createSlug.trim(),
         parentId: createParentId,
@@ -116,7 +116,7 @@ export const TaxonomyManagementSection: React.FC = () => {
 
     setStatusMessage(null);
     try {
-      const res = await adminApi.taxonomies.moveNode(moveNode.id, {
+      const res = await apiClient.taxonomies.moveNode(moveNode.id, {
         newParentId: targetParentId ? targetParentId : null,
       });
 
@@ -139,7 +139,7 @@ export const TaxonomyManagementSection: React.FC = () => {
 
     setStatusMessage(null);
     try {
-      const res = await adminApi.taxonomies.deleteNode(node.id);
+      const res = await apiClient.taxonomies.deleteNode(node.id);
       if (res.success) {
         setStatusMessage(`✅ Đã xóa node "${node.name}" thành công!`);
         await fetchTree(selectedTaxonomy);

@@ -27,4 +27,4 @@ export const apiClient: ApiClient = createApiClient({
   getToken: () => authClient.getAccessToken(),
 });
 
-export { authClient as auth, apiClient as api };
+export { authClient as auth, apiClient as api, apiClient as adminApi };

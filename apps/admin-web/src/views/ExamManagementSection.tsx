@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminApi } from '../api/index.js';
+import { apiClient } from '../api/index.js';
 import type {
   ExamDTO,
   ExamVariantSummary,
@@ -41,7 +41,7 @@ export const ExamManagementSection: React.FC = () => {
   const fetchExams = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await adminApi.exams.list(
+      const res = await apiClient.exams.list(
         filterAssessmentId ? { assessmentId: filterAssessmentId } : undefined
       );
       if (res.success && res.data) {
@@ -56,7 +56,7 @@ export const ExamManagementSection: React.FC = () => {
 
   const fetchAssessments = async () => {
     try {
-      const res = await adminApi.assessments.list();
+      const res = await apiClient.assessments.list();
       if (res.success && res.data) {
         setAssessments(res.data);
       }
@@ -96,7 +96,7 @@ export const ExamManagementSection: React.FC = () => {
     setGenerating(true);
     setStatusMessage(null);
     try {
-      const res = await adminApi.exams.generate({
+      const res = await apiClient.exams.generate({
         assessmentId: genAssessmentId,
         code: genCode.trim().toUpperCase(),
         title: genTitle.trim(),
@@ -122,10 +122,10 @@ export const ExamManagementSection: React.FC = () => {
   const handleTogglePublish = async (exam: ExamDTO) => {
     try {
       if (exam.isPublished) {
-        await adminApi.exams.unpublish(exam.id);
+        await apiClient.exams.unpublish(exam.id);
         setStatusMessage(`⏸️ Đã ngừng xuất bản kỳ thi [${exam.code}]!`);
       } else {
-        await adminApi.exams.publish(exam.id);
+        await apiClient.exams.publish(exam.id);
         setStatusMessage(`🚀 Đã xuất bản kỳ thi [${exam.code}] cho thí sinh tham dự!`);
       }
       await fetchExams();
@@ -139,7 +139,7 @@ export const ExamManagementSection: React.FC = () => {
       return;
     }
     try {
-      await adminApi.exams.delete(exam.id);
+      await apiClient.exams.delete(exam.id);
       setStatusMessage(`🗑️ Đã xóa kỳ thi [${exam.code}]!`);
       await fetchExams();
     } catch (err: any) {
@@ -153,7 +153,7 @@ export const ExamManagementSection: React.FC = () => {
     setLoadingManifest(true);
     setPreviewManifest(null);
     try {
-      const res = await adminApi.exams.getSanitizedManifest(exam.id, variantCode);
+      const res = await apiClient.exams.getSanitizedManifest(exam.id, variantCode);
       if (res.success && res.data) {
         setPreviewManifest(res.data);
       } else {
@@ -171,7 +171,7 @@ export const ExamManagementSection: React.FC = () => {
     setShowAttemptsModal(true);
     setLoadingAttempts(true);
     try {
-      const res = await adminApi.attempts.list({ examId: exam.id });
+      const res = await apiClient.attempts.list({ examId: exam.id });
       if (res.success && res.data) {
         setExamAttempts(res.data);
       }

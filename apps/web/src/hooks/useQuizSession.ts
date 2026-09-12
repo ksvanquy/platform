@@ -193,18 +193,3 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
     clearActiveSessionCache,
   };
 }
-
-  return {
-    userId,
-    session,
-    questions,
-    answers,
-    isSubmitting,
-    result,
-    errorMessage,
-    start,
-    setAnswer,
-    submit,
-    clearActiveSessionCache,
-  };
-}

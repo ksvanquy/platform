@@ -224,12 +224,10 @@ export class AttemptController {
 
   /**
    * GET /v1/time
-   * Đồng bộ đồng hồ máy chủ (Cristian's Precision Algorithm)
+   * Lấy thời gian máy chủ chuẩn
    */
   getServerTime = (_req: Request, res: Response): void => {
     const now = new Date();
-    res.setHeader('X-Server-Time', now.toISOString());
-    res.setHeader('X-Server-Timestamp', now.getTime().toString());
     res.status(200).json({
       success: true,
       serverTime: now.toISOString(),

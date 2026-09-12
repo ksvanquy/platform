@@ -8,10 +8,6 @@ export * from './assessment/index.js';
 export * from './exam/index.js';
 export * from './attempt/index.js';
 
-// Legacy Quiz Contracts for backward compatibility
-export * from './quiz/quiz.js';
-export type { QuizAttempt } from './quiz/attempt.js';
-
 export type SessionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'SUBMITTED' | 'EXPIRED';
 
 export interface ApiResponse<T = unknown> {

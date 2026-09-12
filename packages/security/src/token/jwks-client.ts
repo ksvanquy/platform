@@ -1,6 +1,4 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 
 export interface JwksClientOptions {
   jwksUrl?: string;
@@ -8,23 +6,6 @@ export interface JwksClientOptions {
   throttleIntervalMs?: number;
   timeoutMs?: number;
   defaultPublicKey?: string;
-}
-
-function getSharedDevKeyPath(): string {
-  try {
-    let dir = process.cwd();
-    for (let i = 0; i < 5; i++) {
-      if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml')) || fs.existsSync(path.join(dir, 'package.json'))) {
-        return path.join(dir, '.dev-keys.json');
-      }
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-  } catch {
-    // fallback
-  }
-  return path.resolve(process.cwd(), '.dev-keys.json');
 }
 
 export class JwksClient {
@@ -43,6 +24,9 @@ export class JwksClient {
     this.throttleIntervalMs = options.throttleIntervalMs ?? 5000; // 5s throttle on network requests
     this.timeoutMs = options.timeoutMs ?? 2000;
     this.defaultPublicKey = options.defaultPublicKey || process.env.JWT_PUBLIC_KEY;
+    if (this.defaultPublicKey) {
+      this.setCachedKey('latest', this.defaultPublicKey);
+    }
   }
 
   public setCachedKey(kid: string, pem: string): void {
@@ -59,18 +43,8 @@ export class JwksClient {
       }
     }
 
-    // Try reading local dev key file if exists
-    try {
-      const devKeyPath = getSharedDevKeyPath();
-      if (fs.existsSync(devKeyPath)) {
-        const content = JSON.parse(fs.readFileSync(devKeyPath, 'utf8'));
-        if (content?.publicKey) {
-          this.setCachedKey(kid || 'dev-key-1', content.publicKey);
-          return content.publicKey;
-        }
-      }
-    } catch {
-      // Ignore
+    if (this.defaultPublicKey) {
+      return this.defaultPublicKey;
     }
 
     return null;
@@ -112,20 +86,6 @@ export class JwksClient {
 
     if (this.defaultPublicKey) {
       return this.defaultPublicKey;
-    }
-
-    // Try dev key file
-    try {
-      const devKeyPath = getSharedDevKeyPath();
-      if (fs.existsSync(devKeyPath)) {
-        const content = JSON.parse(fs.readFileSync(devKeyPath, 'utf8'));
-        if (content?.publicKey) {
-          this.setCachedKey(kid || 'dev-key-1', content.publicKey);
-          return content.publicKey;
-        }
-      }
-    } catch {
-      // Ignore
     }
 
     return null;

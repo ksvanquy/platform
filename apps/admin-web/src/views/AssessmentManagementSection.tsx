@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminApi } from '../api/index.js';
+import { apiClient } from '../api/index.js';
 import type {
   AssessmentDTO,
   BlueprintCriterion,
@@ -63,11 +63,11 @@ export const AssessmentManagementSection: React.FC = () => {
 
   const fetchTaxonomies = async () => {
     try {
-      const topicRes = await adminApi.taxonomies.getTree('TOPIC');
+      const topicRes = await apiClient.taxonomies.getTree('TOPIC');
       if (topicRes.success && topicRes.data?.tree) {
         setTopicNodes(flattenTree(topicRes.data.tree));
       }
-      const gradeRes = await adminApi.taxonomies.getTree('GRADE');
+      const gradeRes = await apiClient.taxonomies.getTree('GRADE');
       if (gradeRes.success && gradeRes.data?.tree) {
         setGradeNodes(flattenTree(gradeRes.data.tree));
       }
@@ -79,7 +79,7 @@ export const AssessmentManagementSection: React.FC = () => {
   const fetchAssessments = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await adminApi.assessments.list({
+      const res = await apiClient.assessments.list({
         status: filterStatus ? (filterStatus as AssessmentStatus) : undefined,
         search: filterSearch.trim() || undefined,
       });
@@ -128,7 +128,7 @@ export const AssessmentManagementSection: React.FC = () => {
 
     try {
       if (editingAssessment) {
-        await adminApi.assessments.update(editingAssessment.id, {
+        await apiClient.assessments.update(editingAssessment.id, {
           title: formTitle.trim(),
           description: formDesc.trim() || undefined,
           primaryTopicNodeId: formPrimaryTopicNodeId || null,
@@ -136,7 +136,7 @@ export const AssessmentManagementSection: React.FC = () => {
         });
         setStatusMessage(`✅ Đã cập nhật bài đánh giá [${formCode}]!`);
       } else {
-        await adminApi.assessments.create({
+        await apiClient.assessments.create({
           code: formCode.trim().toUpperCase(),
           title: formTitle.trim(),
           description: formDesc.trim() || undefined,
@@ -179,7 +179,7 @@ export const AssessmentManagementSection: React.FC = () => {
   // Status Change Handler
   const handleChangeStatus = async (id: string, newStatus: AssessmentStatus) => {
     try {
-      await adminApi.assessments.updateStatus(id, newStatus);
+      await apiClient.assessments.updateStatus(id, newStatus);
       setStatusMessage(`✅ Đã chuyển trạng thái bài đánh giá sang [${newStatus}]!`);
       await fetchAssessments();
     } catch (err: any) {
@@ -253,7 +253,7 @@ export const AssessmentManagementSection: React.FC = () => {
     if (!activeBlueprintAssessment) return;
     setSavingBlueprint(true);
     try {
-      await adminApi.assessments.updateBlueprint(activeBlueprintAssessment.id, {
+      await apiClient.assessments.updateBlueprint(activeBlueprintAssessment.id, {
         durationMinutes: Number(bpDuration),
         passingPercentage: Number(bpPassingPercentage),
         maxAttempts: Number(bpMaxAttempts),
@@ -286,7 +286,7 @@ export const AssessmentManagementSection: React.FC = () => {
     }
 
     try {
-      await adminApi.assessments.lockBlueprint(activeBlueprintAssessment.id);
+      await apiClient.assessments.lockBlueprint(activeBlueprintAssessment.id);
       setStatusMessage(`🔒 Đã khóa thành công Ma trận Blueprint [${activeBlueprintAssessment.code}]!`);
       setBpIsLocked(true);
       await fetchAssessments();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminApi } from '../api/index.js';
+import { apiClient } from '../api/index.js';
 import type {
   QuestionDTO,
   QuestionRevisionDTO,
@@ -78,11 +78,11 @@ export const QuestionManagementSection: React.FC = () => {
 
   const fetchTaxonomies = async () => {
     try {
-      const topicRes = await adminApi.taxonomies.getTree('TOPIC');
+      const topicRes = await apiClient.taxonomies.getTree('TOPIC');
       if (topicRes.success && topicRes.data?.tree) {
         setTopicNodes(flattenTree(topicRes.data.tree));
       }
-      const gradeRes = await adminApi.taxonomies.getTree('GRADE');
+      const gradeRes = await apiClient.taxonomies.getTree('GRADE');
       if (gradeRes.success && gradeRes.data?.tree) {
         setGradeNodes(flattenTree(gradeRes.data.tree));
       }
@@ -94,7 +94,7 @@ export const QuestionManagementSection: React.FC = () => {
   const fetchQuestions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await adminApi.questions.list({
+      const res = await apiClient.questions.list({
         difficulty: filterDifficulty ? (filterDifficulty as QuestionDifficulty) : undefined,
         type: filterType ? (filterType as QuestionType) : undefined,
         status: filterStatus ? (filterStatus as QuestionStatus) : undefined,
@@ -182,7 +182,7 @@ export const QuestionManagementSection: React.FC = () => {
     try {
       if (editingQuestion) {
         // Cập nhật thông tin cơ bản
-        await adminApi.questions.update(editingQuestion.id, {
+        await apiClient.questions.update(editingQuestion.id, {
           difficulty: formDifficulty,
           defaultPoints: Number(formDefaultPoints),
           status: formStatus,
@@ -196,7 +196,7 @@ export const QuestionManagementSection: React.FC = () => {
         });
 
         // Tạo revision mới cho thay đổi nội dung
-        await adminApi.questions.addRevision(editingQuestion.id, {
+        await apiClient.questions.addRevision(editingQuestion.id, {
           prompt: formPrompt,
           options: formType !== 'MATCHING' ? formOptions : [],
           pairs: formType === 'MATCHING' ? formMatchingPairs : undefined,
@@ -207,7 +207,7 @@ export const QuestionManagementSection: React.FC = () => {
         setStatusMessage(`✅ Đã cập nhật câu hỏi [${formCode}] và ghi nhận Revision mới!`);
       } else {
         // Tạo câu hỏi mới
-        await adminApi.questions.create({
+        await apiClient.questions.create({
           code: formCode.trim().toUpperCase(),
           type: formType,
           difficulty: formDifficulty,
@@ -234,7 +234,7 @@ export const QuestionManagementSection: React.FC = () => {
   const handleDeleteQuestion = async (id: string, code: string) => {
     if (!confirm(`Bạn có chắc chắn muốn xóa câu hỏi "${code}"?`)) return;
     try {
-      await adminApi.questions.delete(id);
+      await apiClient.questions.delete(id);
       setStatusMessage(`✅ Đã xóa câu hỏi [${code}]!`);
       await fetchQuestions();
     } catch (err: any) {
@@ -246,7 +246,7 @@ export const QuestionManagementSection: React.FC = () => {
     setViewingRevisionsQuestion(q);
     setLoadingRevisions(true);
     try {
-      const res = await adminApi.questions.listRevisions(q.id);
+      const res = await apiClient.questions.listRevisions(q.id);
       if (res.success && res.data) {
         setRevisionsList(res.data);
       }

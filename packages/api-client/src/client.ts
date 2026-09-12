@@ -688,16 +688,9 @@ export class ApiClient {
   };
 
   /**
-   * v1Quizzes Resource (RESTful v1 Authoring alias)
+   * v1Quizzes Resource (RESTful v1 Authoring alias - alias to quizzes)
    */
-  readonly v1Quizzes = {
-    list: async (params?: Record<string, any>): Promise<ApiResponse<any[]>> => {
-      return this.get<ApiResponse<any[]>>('/v1/quizzes', params);
-    },
-    get: async (id: string): Promise<ApiResponse<any>> => {
-      return this.get<ApiResponse<any>>(`/v1/quizzes/${encodeURIComponent(id)}`);
-    },
-  };
+  readonly v1Quizzes = this.quizzes;
 
   /**
    * Delivery Domain Resource (Candidate Quiz & Exam runtime execution)
@@ -905,18 +898,6 @@ export class ApiClient {
       return this.attempts.getActive(userId);
     },
   };
-
-  get startQuiz() {
-    return this.delivery.startQuiz;
-  }
-
-  get submitQuiz() {
-    return this.delivery.submitQuiz;
-  }
-
-  get getActiveAttempt() {
-    return this.delivery.getActiveAttempt;
-  }
 }
 
 /**

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { quizApi } from '../src/api/quiz-api.js';
-import { apiClient } from '../src/api/client.js';
+import { quizApi, apiClient } from '../src/api/index.js';
 
 describe('Frontend Single Submission Flow', () => {
   beforeEach(() => {

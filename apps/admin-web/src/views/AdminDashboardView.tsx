@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authClient, adminApi } from '../api/index.js';
+import { authClient, apiClient } from '../api/index.js';
 import type { UserProfile } from '@platform/auth-client';
 import { TaxonomyManagementSection } from './TaxonomyManagementSection.js';
 import { QuestionManagementSection } from './QuestionManagementSection.js';
@@ -36,8 +36,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     if (!isAdmin) return;
     setLoadingUsers(true);
     try {
-      const list = await adminApi.listUsers();
-      setUserList(list);
+      const res = await apiClient.users.list();
+      setUserList(res.data || []);
     } catch {
       // ignore
     } finally {
@@ -57,7 +57,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     setUpdatingUserId(targetUser.id);
     setStatusMessage(null);
     try {
-      const res = await adminApi.updateUserStatus(targetUser.id, nextStatus);
+      const res = await apiClient.users.updateStatus(targetUser.id, nextStatus);
       if (res.success) {
         setStatusMessage(
           `✅ Đã ${nextStatus ? 'mở khóa' : 'khóa'} tài khoản ${targetUser.email}. Tất cả token của phiên cũ đã bị thu hồi!`
@@ -77,7 +77,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     setIsTestingApi(true);
     setApiTestStatus(null);
     try {
-      const exams = await adminApi.listExams();
+      const res = await apiClient.exams.list();
+      const exams = res.data;
       setApiTestStatus(
         `✅ Kết nối Gateway (Port 3000) thành công! Microservices phản hồi 200 OK. Đã tìm thấy ${exams?.length || 0} kỳ thi.`
       );

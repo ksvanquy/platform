@@ -18,16 +18,7 @@ export function createAttemptServer(): Express {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, x-user-role, x-internal-secret');
-    res.header('Access-Control-Expose-Headers', 'X-Server-Time, X-Server-Timestamp');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
-    next();
-  });
-
-  // Server-Authoritative Clock Synchronization Middleware
-  app.use((_req: Request, res: Response, next) => {
-    const now = new Date();
-    res.setHeader('X-Server-Time', now.toISOString());
-    res.setHeader('X-Server-Timestamp', now.getTime().toString());
     next();
   });
 
@@ -35,7 +26,7 @@ export function createAttemptServer(): Express {
     res.status(200).json({ status: 'ok', service: 'Attempt Service', timestamp: new Date() });
   });
 
-  // Precision Time Sync endpoint (Cristian's algorithm)
+  // Standard Server Time endpoint
   app.get('/v1/time', (_req: Request, res: Response) => {
     const now = new Date();
     res.status(200).json({

@@ -33,3 +33,8 @@ export const apiClient: ApiClient = createApiClient({
   },
 });
 
+/**
+ * Delivery API alias cho Web Client
+ */
+export const quizApi = apiClient.delivery;
+

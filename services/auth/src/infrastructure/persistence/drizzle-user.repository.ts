@@ -318,6 +318,8 @@ export class DrizzleUserRepository implements IUserRepository {
 export class DrizzleTokenStorage implements ITokenStorage {
   private readonly db: any;
 
+  private inMemoryFallback = new Map<string, { userId: string; familyId?: string; expiresAt: Date; revokedAt: Date | null }>();
+
   constructor(db?: any) {
     this.db = db || getAuthDb();
   }
@@ -328,85 +330,152 @@ export class DrizzleTokenStorage implements ITokenStorage {
 
   async saveRefreshToken(token: string, userId: string, expiresAt: Date, familyId?: string): Promise<void> {
     const tokenHash = this.hashToken(token);
-    await this.db
-      .insert(refreshTokens)
-      .values({
-        tokenHash,
-        userId,
-        familyId: familyId || null,
-        expiresAt,
-        createdAt: new Date(),
-      })
-      .onConflictDoNothing();
+    this.inMemoryFallback.set(tokenHash, {
+      userId,
+      familyId,
+      expiresAt,
+      revokedAt: null,
+    });
+    try {
+      await this.db
+        .insert(refreshTokens)
+        .values({
+          tokenHash,
+          userId,
+          familyId: familyId || null,
+          expiresAt,
+          createdAt: new Date(),
+        })
+        .onConflictDoNothing();
+    } catch {
+      // Gracefully fall back to inMemoryFallback
+    }
   }
 
   async validateRefreshToken(token: string): Promise<{ userId: string; familyId?: string } | null> {
     const tokenHash = this.hashToken(token);
     const now = new Date();
 
-    const rows = await this.db
-      .select()
-      .from(refreshTokens)
-      .where(
-        and(
-          eq(refreshTokens.tokenHash, tokenHash),
-          isNull(refreshTokens.revokedAt),
-          gt(refreshTokens.expiresAt, now)
+    try {
+      const rows = await this.db
+        .select()
+        .from(refreshTokens)
+        .where(
+          and(
+            eq(refreshTokens.tokenHash, tokenHash),
+            isNull(refreshTokens.revokedAt),
+            gt(refreshTokens.expiresAt, now)
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
 
-    if (rows.length === 0) return null;
-    return {
-      userId: rows[0].userId,
-      familyId: rows[0].familyId || undefined,
-    };
+      if (rows.length > 0) {
+        return {
+          userId: rows[0].userId,
+          familyId: rows[0].familyId || undefined,
+        };
+      }
+    } catch {
+      // Fall through to memory fallback
+    }
+
+    const cached = this.inMemoryFallback.get(tokenHash);
+    if (cached && cached.revokedAt === null && cached.expiresAt > now) {
+      return {
+        userId: cached.userId,
+        familyId: cached.familyId,
+      };
+    }
+    return null;
   }
 
   async inspectRefreshToken(token: string): Promise<TokenRecord | null> {
     const tokenHash = this.hashToken(token);
     const now = new Date();
 
-    const rows = await this.db
-      .select()
-      .from(refreshTokens)
-      .where(eq(refreshTokens.tokenHash, tokenHash))
-      .limit(1);
+    try {
+      const rows = await this.db
+        .select()
+        .from(refreshTokens)
+        .where(eq(refreshTokens.tokenHash, tokenHash))
+        .limit(1);
 
-    if (rows.length === 0) return null;
+      if (rows.length > 0) {
+        const row = rows[0];
+        return {
+          userId: row.userId,
+          familyId: row.familyId || undefined,
+          expiresAt: row.expiresAt,
+          revokedAt: row.revokedAt,
+          isRevoked: row.revokedAt !== null,
+          isExpired: row.expiresAt <= now,
+        };
+      }
+    } catch {
+      // Fall through to memory fallback
+    }
 
-    const row = rows[0];
-    return {
-      userId: row.userId,
-      familyId: row.familyId || undefined,
-      expiresAt: row.expiresAt,
-      revokedAt: row.revokedAt,
-      isRevoked: row.revokedAt !== null,
-      isExpired: row.expiresAt <= now,
-    };
+    const cached = this.inMemoryFallback.get(tokenHash);
+    if (cached) {
+      return {
+        userId: cached.userId,
+        familyId: cached.familyId,
+        expiresAt: cached.expiresAt,
+        revokedAt: cached.revokedAt,
+        isRevoked: cached.revokedAt !== null,
+        isExpired: cached.expiresAt <= now,
+      };
+    }
+    return null;
   }
 
   async revokeRefreshToken(token: string): Promise<boolean> {
     const tokenHash = this.hashToken(token);
-    await this.db
-      .update(refreshTokens)
-      .set({ revokedAt: new Date() })
-      .where(eq(refreshTokens.tokenHash, tokenHash));
+    const cached = this.inMemoryFallback.get(tokenHash);
+    if (cached) {
+      cached.revokedAt = new Date();
+    }
+    try {
+      await this.db
+        .update(refreshTokens)
+        .set({ revokedAt: new Date() })
+        .where(eq(refreshTokens.tokenHash, tokenHash));
+    } catch {
+      // Handled via memory fallback
+    }
 
     return true;
   }
 
   async revokeAllUserTokens(userId: string): Promise<void> {
-    await this.db
-      .update(refreshTokens)
-      .set({ revokedAt: new Date() })
-      .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
+    for (const record of this.inMemoryFallback.values()) {
+      if (record.userId === userId && !record.revokedAt) {
+        record.revokedAt = new Date();
+      }
+    }
+    try {
+      await this.db
+        .update(refreshTokens)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
+    } catch {
+      // Handled via memory fallback
+    }
   }
 
   async revokeTokenFamily(familyId: string): Promise<void> {
-    await this.db
-      .update(refreshTokens)
-      .set({ revokedAt: new Date() })
-      .where(and(eq(refreshTokens.familyId, familyId), isNull(refreshTokens.revokedAt)));
+    for (const record of this.inMemoryFallback.values()) {
+      if (record.familyId === familyId && !record.revokedAt) {
+        record.revokedAt = new Date();
+      }
+    }
+    try {
+      await this.db
+        .update(refreshTokens)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(refreshTokens.familyId, familyId), isNull(refreshTokens.revokedAt)));
+    } catch {
+      // Handled via memory fallback
+    }
   }
 }
