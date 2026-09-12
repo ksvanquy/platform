@@ -249,7 +249,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 ? 'Được phép tạo, sửa, xóa đề thi, quản lý người dùng và giám sát kết quả thi.'
                 : isInstructor
                 ? 'Được phép tạo bài thi, ngân hàng câu hỏi và xem điểm số của các bài thi đã giao.'
-                : 'Tài khoản này chỉ có quyền làm bài thi ở quiz-web, không có quyền quản trị.'}
+                : 'Tài khoản này chỉ có quyền làm bài thi ở web, không có quyền quản trị.'}
             </p>
           </div>
 

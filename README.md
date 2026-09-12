@@ -79,7 +79,7 @@ Sau khi hoàn tất kế hoạch phân rã nghiệp vụ khảo thí (**Quiz Dec
 │   └── ui/                           # 📦 Shared UI Component Library & Themes
 │
 ├── apps/
-│   ├── quiz-web/                     # 🎓 Web App Khảo thí cho Thí sinh (React 19 + Tailwind CSS + Vite)
+│   ├── web/                     # 🎓 Web App Khảo thí cho Thí sinh (React 19 + Tailwind CSS + Vite)
 │   │   └── src/
 │   │       ├── components/dashboard/ # TaxonomyTreeSidebar, QuizContentArea, StudentProfileModal
 │   │       ├── components/runner/    # QuizHeader, QuizFooter, QuizTimer, QuestionPalette
@@ -127,7 +127,7 @@ Hệ thống được thiết kế theo kiến trúc **Unified HTTP Gateway** t�
 ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────┐┌───────────────────┐ ┌───────────────────┐
 │     AUTH ROUTER       │ │   TAXONOMY ROUTER     │ │   QUESTION ROUTER     │ │ ASSESSMENT ROUTER ││  ADMIN WEB SPA    │ │  QUIZ WEB SPA     │
 │  /v1/auth/*           │ │  /v1/taxonomies/*     │ │  /v1/questions/*      │ │ /v1/assessments/* ││  Route: /admin/*  │ │  Route: /*        │
-│  /.well-known/jwks    │ │  /v1/nodes/*          │ │  (services/question)  │ │ (services/assess.)││  (apps/admin-web) │ │  (apps/quiz-web)  │
+│  /.well-known/jwks    │ │  /v1/nodes/*          │ │  (services/question)  │ │ (services/assess.)││  (apps/admin-web) │ │  (apps/web)  │
 │  (services/auth)      │ │  (services/taxonomy)  │ │  Database:            │ │ Database:         │└───────────────────┘ └───────────────────┘
 │  Database: auth_db    │ │  Database: taxonomy_db│ │    question_db        │ │   assessment_db   │
 └───────────────────────┘ └───────────────────────┘ └───────────────────────┘ └───────────────────┘
@@ -504,7 +504,7 @@ pnpm test
 5. **Packages & Frontend Tests**:
    - `packages/api-client/tests`: Type-safe SDK calls.
    - `packages/auth-client/tests`: Cookie & Session persistence.
-   - `apps/quiz-web/tests`: Kiểm tra đồng bộ đồng hồ Cristian's Algorithm (`time-sync.spec.ts`) và đếm ngược an toàn (`countdown.spec.ts`).
+   - `apps/web/tests`: Kiểm tra đồng bộ đồng hồ Cristian's Algorithm (`time-sync.spec.ts`) và đếm ngược an toàn (`countdown.spec.ts`).
 
 ---
 

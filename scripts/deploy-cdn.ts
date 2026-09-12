@@ -25,7 +25,7 @@ interface DeployConfig {
 
 const config: DeployConfig = {
   apiGatewayUrl: process.env.VITE_API_GATEWAY_URL || process.env.API_GATEWAY_URL || 'https://api.quizplatform.io',
-  cdnQuizBucket: process.env.CDN_QUIZ_BUCKET || 'gs://quiz-platform-frontend-cdn/quiz-web',
+  cdnQuizBucket: process.env.CDN_QUIZ_BUCKET || 'gs://quiz-platform-frontend-cdn/web',
   cdnAdminBucket: process.env.CDN_ADMIN_BUCKET || 'gs://quiz-platform-frontend-cdn/admin-web',
   cloudProvider: (process.env.CLOUD_PROVIDER as any) || 'gcp',
   dryRun: process.env.DRY_RUN === 'true' || !process.env.CI,
@@ -45,8 +45,8 @@ console.log('-------------------------------------------------------------------
 console.log('\n[1/4] 🔨 Biên dịch Frontend Assets (Build-Time)...');
 
 try {
-  console.log('  -> Building @platform/quiz-web...');
-  execSync('npm run build --workspace=@platform/quiz-web', {
+  console.log('  -> Building @platform/web...');
+  execSync('npm run build --workspace=@platform/web', {
     stdio: 'inherit',
     env: {
       ...process.env,
@@ -72,7 +72,7 @@ try {
 // Bước 2: Kiểm định Artifacts
 console.log('\n[2/4] 🔍 Kiểm tra tính toàn vẹn của artifacts...');
 
-const quizDist = path.resolve(process.cwd(), 'apps/quiz-web/dist');
+const quizDist = path.resolve(process.cwd(), 'apps/web/dist');
 const adminDist = path.resolve(process.cwd(), 'apps/admin-web/dist');
 
 function analyzeDist(name: string, distPath: string) {
@@ -120,14 +120,14 @@ if (config.cloudProvider === 'gcp') {
 } else if (config.cloudProvider === 'aws') {
   console.log('\n--- AWS S3 & CLOUDFRONT CDN ---');
   console.log('1. Upload Hashed Assets (Cache 1 năm):');
-  console.log(`   aws s3 sync ${quizDist}/assets s3://quiz-frontend/quiz-web/assets --cache-control "public,max-age=31536000,immutable"`);
+  console.log(`   aws s3 sync ${quizDist}/assets s3://quiz-frontend/web/assets --cache-control "public,max-age=31536000,immutable"`);
   console.log('2. Upload Entrypoint HTML (No-Cache):');
-  console.log(`   aws s3 cp ${quizDist}/index.html s3://quiz-frontend/quiz-web/index.html --cache-control "no-cache,no-store,must-revalidate"`);
+  console.log(`   aws s3 cp ${quizDist}/index.html s3://quiz-frontend/web/index.html --cache-control "no-cache,no-store,must-revalidate"`);
   console.log('3. CloudFront Invalidation:');
   console.log('   aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"');
 } else {
   console.log('\n--- CLOUDFLARE PAGES / R2 ---');
-  console.log(`   wrangler pages deploy ${quizDist} --project-name=quiz-web`);
+  console.log(`   wrangler pages deploy ${quizDist} --project-name=web`);
   console.log(`   wrangler pages deploy ${adminDist} --project-name=admin-web`);
 }
 

@@ -2,7 +2,7 @@
 
 > **Mã báo cáo:** AUDIT-AUTOSAVE-2026-001  
 > **Hệ thống:** Quiz Platform Microservices Architecture (pnpm workspace)  
-> **Phạm vi kiểm tra:** Frontend `quiz-web` (Hook `useQuizSession`), API Gateway (`services/gateway`), Attempt Service (`services/attempt`), Database Persistence Layer (PostgreSQL / Drizzle ORM).  
+> **Phạm vi kiểm tra:** Frontend `web` (Hook `useQuizSession`), API Gateway (`services/gateway`), Attempt Service (`services/attempt`), Database Persistence Layer (PostgreSQL / Drizzle ORM).  
 > **Trạng thái lỗi ghi nhận từ thực tế:** `PUT /v1/attempts/:id/answers/:questionId` phản hồi **500 (Internal Server Error)** và giao diện hiển thị **`⚠️ Lỗi lưu bài`**.
 
 ---
@@ -25,13 +25,13 @@ Dựa trên hình ảnh hiện trường thực tế và phân tích mã nguồn
 [Thí sinh chọn đáp án]
        │
        ▼
-[apps/quiz-web: useQuizSession.ts]
+[apps/web: useQuizSession.ts]
   - Cập nhật state lạc quan: setAnswers(prev => ({ ...prev, [qId]: val }))
   - Tăng sequence: nextSeq = (sequenceMapRef.get(qId) || 0) + 1
   - Debounce timer: 300ms (saveTimerMapRef)
        │
        ▼
-[apps/quiz-web: quizApi.saveAnswer / packages/api-client]
+[apps/web: quizApi.saveAnswer / packages/api-client]
   - Gửi HTTP PUT /v1/attempts/:id/answers/:questionId
   - Header: Authorization: Bearer <token> (hoặc x-user-id)
   - Body: { answer, sequenceNumber, clientTimestamp, userId }
@@ -98,7 +98,7 @@ Qua đối chiếu kiểm tra thực tế, có **3 nguyên nhân chính** dẫn 
 
 ## 4. CHI TIẾT ĐÁNH GIÁ MÃ NGUỒN TỪNG TẦNG (CODE AUDIT)
 
-### 4.1. Tầng Frontend: `apps/quiz-web/src/hooks/useQuizSession.ts`
+### 4.1. Tầng Frontend: `apps/web/src/hooks/useQuizSession.ts`
 * **Ưu điểm:**
   - Đã có cơ chế Debounce 300ms ngăn chặn spam request khi thí sinh thao tác nhanh.
   - Sử dụng `sequenceMapRef` đơn điệu tăng dần cho từng câu hỏi (`qId`) để chống hiện tượng Out-of-Order Delivery khi mạng trễ.

@@ -21,7 +21,7 @@ quiz-platform-monorepo/
 │                                   # (Domain Tenancy, Ownership Policy, State Machine, Auto-Submit)
 │
 ├── apps/                           # [2 CLIENTS PHÍA FRONTEND]
-│   ├── quiz-web/                   # @platform/quiz-web: Ứng dụng thi trực tuyến dành cho Học viên
+│   ├── web/                   # @platform/web: Ứng dụng thi trực tuyến dành cho Học viên
 │   └── admin-web/                  # @platform/admin-web: Cổng quản trị soạn đề dành cho Giảng viên & Admin
 │
 ├── packages/                       # [3 THƯ VIỆN DÙNG CHUNG - SHARED PACKAGES]
@@ -174,7 +174,7 @@ pnpm --filter @platform/auth-service db:seed
 | :--- | :--- | :--- | :--- | :--- |
 | `admin@quiz.com` | `admin123` | `["ADMIN"]` | `["*"]` | Quản trị viên toàn hệ thống, toàn quyền bypass |
 | `instructor@quiz.com` | `teacher123` | `["INSTRUCTOR"]` | `["user:read", "user:write"]` | Giảng viên, tác giả đề thi (soạn đề tại `admin-web`) |
-| `student@quiz.com` | `student123` | `["STUDENT"]` | `["user:read", "user:write"]` | Học viên, thí sinh (làm bài tại `quiz-web`) |
+| `student@quiz.com` | `student123` | `["STUDENT"]` | `["user:read", "user:write"]` | Học viên, thí sinh (làm bài tại `web`) |
 | `admin@quiz.local` | `admin123` | `["ADMIN"]` | `["*"]` | Tài khoản Admin dự phòng môi trường local |
 | `instructor@quiz.local`| `teacher123` | `["INSTRUCTOR"]` | `["user:read", "user:write"]` | Tài khoản Giảng viên dự phòng môi trường local |
 | `student@quiz.local` | `student123` | `["STUDENT"]` | `["user:read", "user:write"]` | Tài khoản Học viên dự phòng môi trường local |
@@ -229,7 +229,7 @@ Trong VS Code, bạn mở 4 tab Terminal song song:
    🚀 Assessment Engine API Server running on http://0.0.0.0:3000
    ```
 
-3. **Terminal 3 — Client Học Viên (`apps/quiz-web` - Port 5173):**
+3. **Terminal 3 — Client Học Viên (`apps/web` - Port 5173):**
    ```powershell
    pnpm run dev:web
    ```

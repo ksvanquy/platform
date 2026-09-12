@@ -330,7 +330,7 @@ Kiểm tra trạng thái hệ thống:
 ### 7.3. Khởi Động Giao Diện Web Dành Cho Học Viên & Giảng Viên
 Mở 2 tab terminal song song:
 
-1. **Tab 1 — Cổng học sinh thi trực tuyến (`apps/quiz-web` - Port 5173):**
+1. **Tab 1 — Cổng học sinh thi trực tuyến (`apps/web` - Port 5173):**
    ```powershell
    pnpm run dev:web
    ```

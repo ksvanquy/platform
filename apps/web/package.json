@@ -1,5 +1,5 @@
 {
-  "name": "@platform/quiz-web",
+  "name": "@platform/web",
   "private": true,
   "version": "1.0.0",
   "type": "module",

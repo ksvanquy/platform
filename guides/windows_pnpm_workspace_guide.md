@@ -86,7 +86,7 @@ pnpm add -w -D typescript @types/node
 
 # Cài đặt package vào MỘT service cụ thể (dùng --filter)
 pnpm --filter @platform/auth-service add bcrypt
-pnpm --filter @platform/quiz-web add lucide-react
+pnpm --filter @platform/web add lucide-react
 
 # Cài đặt dependency giữa các package nội bộ (Internal Workspace link)
 pnpm --filter @platform/auth-service add @platform/contracts
@@ -189,7 +189,7 @@ Nếu bạn muốn dùng Vite Dev Server với Hot-Module-Replacement (HMR) đ�
 # Chạy ứng dụng Quiz Web (mặc định cổng 5173):
 pnpm run dev:web
 # hoặc:
-pnpm --filter @platform/quiz-web dev
+pnpm --filter @platform/web dev
 
 # Chạy cổng quản trị Admin Web (mặc định cổng 5174):
 pnpm run dev:admin
@@ -233,7 +233,7 @@ pnpm run build:packages
 ```powershell
 pnpm run build:frontend:cdn
 ```
-*Lệnh này sẽ biên dịch `apps/quiz-web/dist` và `apps/admin-web/dist` để Gateway có thể phục vụ tĩnh.*
+*Lệnh này sẽ biên dịch `apps/web/dist` và `apps/admin-web/dist` để Gateway có thể phục vụ tĩnh.*
 
 ### 5.3. Build toàn bộ dự án
 ```powershell
@@ -289,7 +289,7 @@ Trong `pnpm-workspace.yaml`, tên định danh của từng package được đ�
 | `@platform/assessment-service` | `services/assessment` | `pnpm --filter @platform/assessment-service dev` | `pnpm --filter @platform/assessment-service test` |
 | `@platform/exam-service` | `services/exam` | `pnpm --filter @platform/exam-service dev` | `pnpm --filter @platform/exam-service test` |
 | `@platform/attempt-service` | `services/attempt` | `pnpm --filter @platform/attempt-service dev` | `pnpm --filter @platform/attempt-service test` |
-| `@platform/quiz-web` | `apps/quiz-web` | `pnpm --filter @platform/quiz-web dev` | `pnpm --filter @platform/quiz-web test` |
+| `@platform/web` | `apps/web` | `pnpm --filter @platform/web dev` | `pnpm --filter @platform/web test` |
 | `@platform/admin-web` | `apps/admin-web` | `pnpm --filter @platform/admin-web dev` | `pnpm --filter @platform/admin-web test` |
 | `@platform/contracts` | `packages/contracts` | `pnpm --filter @platform/contracts build` | - |
 

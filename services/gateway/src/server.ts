@@ -508,7 +508,7 @@ app.use('/v1', async (req: Request, res: Response, next: any) => {
 // Decoupled Static Hosting (Phương án A: CDN / Cloud Storage) & Local Serving
 // ============================================================================
 // Trong mô hình Decoupled Static Hosting (khuyến nghị cho quy mô lớn):
-// - Frontend tĩnh (quiz-web, admin-web) được lưu trữ trên Cloud Storage / CDN
+// - Frontend tĩnh (web, admin-web) được lưu trữ trên Cloud Storage / CDN
 // - Gateway hoạt động như Pure API Gateway và thông báo CDN topology qua /v1/hosting-config
 // - Vẫn hỗ trợ phục vụ tệp tĩnh local (nếu có dist) để tương thích môi trường Dev / Preview
 const FRONTEND_HOSTING_MODE =
@@ -516,7 +516,7 @@ const FRONTEND_HOSTING_MODE =
 const CDN_QUIZ_URL = process.env.CDN_QUIZ_URL || '';
 const CDN_ADMIN_URL = process.env.CDN_ADMIN_URL || '';
 
-const quizWebDist = path.resolve(process.cwd(), 'apps/quiz-web/dist');
+const quizWebDist = path.resolve(process.cwd(), 'apps/web/dist');
 const adminWebDist = path.resolve(process.cwd(), 'apps/admin-web/dist');
 
 const isQuizWebBuilt = fs.existsSync(path.join(quizWebDist, 'index.html'));
