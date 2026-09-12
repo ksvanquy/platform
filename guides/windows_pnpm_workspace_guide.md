@@ -331,7 +331,9 @@ Nếu Git trên Windows tự động đổi đuôi dòng gây cảnh báo linter
 ```powershell
 git config core.autocrlf true
 ```
-
+```powershell
+copy .env.example .env
+```
 ---
 
 *Tài liệu được cập nhật cho phiên bản hệ thống Microservices Monorepo với Drizzle ORM và PNPM Workspace.*
