@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import express, { Express } from 'express';
 import { TokenService } from '../src/infrastructure/token/token.service.js';
 import { createAuthApp } from '../src/presentation/server.js';
+import { InMemoryUserRepository } from '../src/infrastructure/persistence/in-memory-user.repository.js';
 import { JwksClient, verifyJwtTokenAsync } from '@platform/security';
 
 describe('Auth Service Phase 2: IdP & JWKS Standardization (RFC 7517)', () => {
@@ -10,7 +11,9 @@ describe('Auth Service Phase 2: IdP & JWKS Standardization (RFC 7517)', () => {
   let tokenService: TokenService;
 
   beforeAll(() => {
-    const instance = createAuthApp();
+    const instance = createAuthApp({
+      userRepository: new InMemoryUserRepository(),
+    });
     authApp = instance.app;
     tokenService = instance.tokenService;
   });

@@ -70,12 +70,11 @@ export async function setupTestPostgresDb(): Promise<TestPostgresContext> {
     );
 
     CREATE TABLE IF NOT EXISTS refresh_tokens (
-      id VARCHAR(64) PRIMARY KEY NOT NULL,
+      token_hash TEXT PRIMARY KEY NOT NULL,
       user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token_hash VARCHAR(128) NOT NULL UNIQUE,
-      family_id VARCHAR(64) NOT NULL,
-      is_revoked BOOLEAN DEFAULT FALSE NOT NULL,
+      family_id VARCHAR(64),
       expires_at TIMESTAMPTZ NOT NULL,
+      revoked_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
     );
   `);

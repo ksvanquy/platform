@@ -30,6 +30,8 @@ import {
   ExamRepositoryPort,
   DrizzleExamRepository,
   isExamDbConfigured,
+  DirectQuestionClientAdapter,
+  DirectAssessmentClientAdapter,
 } from '@platform/exam-service';
 import {
   createV1AttemptsRouter as createAttemptServiceRouter,
@@ -203,13 +205,15 @@ app.get('/health', (_req: Request, res: Response) => {
     status: 'ok',
     service: 'API Gateway',
     timestamp: new Date().toISOString(),
+    persistence: 'PostgreSQL (Single Source of Truth)',
+    embedded_pglite: 'permanently_removed',
     services: {
-      auth: isAuthDbConfigured() || Boolean(authUserRepository),
-      taxonomy: isTaxonomyDbConfigured() || Boolean(taxonomyRepoInstance),
-      question: isQuestionDbConfigured() || Boolean(questionRepoInstance),
-      assessment: isAssessmentDbConfigured() || Boolean(assessmentRepoInstance),
-      exam: isExamDbConfigured() || Boolean(examRepoInstance),
-      attempt: isAttemptDbConfigured() || Boolean(attemptRepoInstance),
+      auth: isAuthDbConfigured(),
+      taxonomy: isTaxonomyDbConfigured(),
+      question: isQuestionDbConfigured(),
+      assessment: isAssessmentDbConfigured(),
+      exam: isExamDbConfigured(),
+      attempt: isAttemptDbConfigured(),
     },
   });
 });
@@ -222,40 +226,22 @@ app.get('/v1/api-discovery', (_req: Request, res: Response) => {
   res.status(200).json(apiDiscovery);
 });
 
-// Automatic Microservices Initialization Helper
-let embeddedInitPromise: Promise<void> | null = null;
-
+// Single Source of Truth: PostgreSQL Microservices Diagnostics
 export async function ensureServicesInitialized(): Promise<void> {
-  const needsEmbedded =
-    !isTaxonomyDbConfigured() ||
-    !isQuestionDbConfigured() ||
-    !isAssessmentDbConfigured() ||
-    !isExamDbConfigured() ||
-    !isAttemptDbConfigured();
+  const missingUrls: string[] = [];
+  if (!isAuthDbConfigured()) missingUrls.push('AUTH_DATABASE_URL');
+  if (!isTaxonomyDbConfigured()) missingUrls.push('TAXONOMY_DATABASE_URL');
+  if (!isQuestionDbConfigured()) missingUrls.push('QUESTION_DATABASE_URL');
+  if (!isAssessmentDbConfigured()) missingUrls.push('ASSESSMENT_DATABASE_URL');
+  if (!isExamDbConfigured()) missingUrls.push('EXAM_DATABASE_URL');
+  if (!isAttemptDbConfigured()) missingUrls.push('ATTEMPT_DATABASE_URL');
 
-  if (!needsEmbedded) return;
-
-  if (!embeddedInitPromise) {
-    embeddedInitPromise = (async () => {
-      try {
-        console.log('📦 [Gateway] Dedicated database URLs not fully configured in environment.');
-        console.log('🚀 [Gateway] Bootstrapping embedded PostgreSQL microservices (PGlite) with clean seed data...');
-        const { bootstrapEmbeddedMicroservices } = await import('./embedded-bootstrap.js');
-        const repos = await bootstrapEmbeddedMicroservices();
-        setTaxonomyRepository(repos.taxonomyRepo);
-        setQuestionRepository(repos.questionRepo);
-        setAssessmentRepository(repos.assessmentRepo);
-        setExamRepository(repos.examRepo, (repos as any).examQClient, (repos as any).examAsmClient);
-        const examClient = new DirectExamClientAdapter(repos.examRepo as any);
-        setAttemptRepository(repos.attemptRepo, examClient);
-        console.log('✅ [Gateway] Embedded PostgreSQL databases initialized & seeded (Taxonomy, Question, Assessment, Exam, Attempt).');
-      } catch (err: any) {
-        console.error('❌ [Gateway] Failed to initialize embedded microservices:', err);
-        throw err;
-      }
-    })();
+  if (missingUrls.length > 0) {
+    console.warn(
+      `⚠️ [Gateway] PostgreSQL URLs missing or invalid: ${missingUrls.join(', ')}. ` +
+      'Embedded PGlite has been permanently removed. Real PostgreSQL is the ONLY source of truth.'
+    );
   }
-  return embeddedInitPromise;
 }
 
 // Taxonomy Module & Dynamic Router Delegation
@@ -369,7 +355,15 @@ export function setExamRepository(
 function getExamRouter(): express.Router {
   if (!examRouterInstance) {
     const repo = getExamRepository();
-    examRouterInstance = createExamRouter({ examRepo: repo || undefined });
+    const questionRepo = getQuestionRepository();
+    const assessmentRepo = getAssessmentRepository();
+    const questionClient = new DirectQuestionClientAdapter(questionRepo as any);
+    const assessmentClient = new DirectAssessmentClientAdapter(assessmentRepo as any);
+    examRouterInstance = createExamRouter({
+      examRepo: repo || undefined,
+      questionClient,
+      assessmentClient,
+    });
   }
   return examRouterInstance!;
 }
@@ -405,9 +399,8 @@ export function setAttemptRepository(
 function getAttemptRouter(): express.Router {
   if (!attemptRouterInstance) {
     const repo = getAttemptRepository();
-    const examClient = examRepoInstance
-      ? new DirectExamClientAdapter(examRepoInstance as any)
-      : new DirectExamClientAdapter();
+    const examRepo = getExamRepository();
+    const examClient = new DirectExamClientAdapter(examRepo as any);
     attemptRouterInstance = createAttemptServiceRouter({ attemptRepo: repo || undefined, examClient });
     attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo || new DrizzleAttemptRepository(), examClient);
   }
@@ -607,7 +600,7 @@ app.get('/', (req: Request, res: Response) => {
 if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   const PORT = 3000;
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Platform API Gateway Server running on http://0.0.0.0:${PORT}`);
+    console.log(`🚀 Platform API Gateway Server running on http://0.0.0.0:${PORT} [100% Real PostgreSQL - Embedded PGlite Removed]`);
   });
 
   ensureServicesInitialized()
@@ -615,15 +608,19 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
       // Initialize attempt sweeper daemon once services are ready
       try {
         const repo = getAttemptRepository();
+        const examRepo = getExamRepository();
         if (repo) {
-          attemptSweeperDaemonInstance = new AttemptSweeperDaemon(repo, new DirectExamClientAdapter());
+          attemptSweeperDaemonInstance = new AttemptSweeperDaemon(
+            repo,
+            new DirectExamClientAdapter(examRepo as any)
+          );
           attemptSweeperDaemonInstance.start(30000);
         }
       } catch (err: any) {
         console.warn('⚠️ [attempt_db] Could not initialize sweeper daemon:', err?.message || err);
       }
     })
-    .catch((err) => console.error('Error during embedded services initialization:', err));
+    .catch((err) => console.error('Error during PostgreSQL services verification:', err));
 }
 
 export {
