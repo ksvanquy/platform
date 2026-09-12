@@ -138,14 +138,14 @@ export const QuizActiveView: React.FC<QuizActiveViewProps> = ({
         </aside>
       )}
 
-      {/* Thanh định vị an tâm & chỉ dẫn thí sinh */}
+      {/* Thanh chỉ dẫn phím tắt */}
       {!isOffline && (
         <div className="bg-slate-900/40 border-b border-slate-800/60 px-4 py-1.5 text-slate-400 text-[11px] hidden sm:flex items-center justify-between max-w-5xl w-full mx-auto">
           <div className="flex items-center gap-2">
-            <span className="text-emerald-400">🛡️</span>
-            <span>Hệ thống tự động lưu từng câu làm bài. Bạn có thể yên tâm làm bài.</span>
+            <span className="text-sky-400">💡</span>
+            <span>Chọn đáp án và bấm "Nộp bài" khi bạn đã hoàn thành bài thi.</span>
           </div>
-          <span className="text-slate-500">Bấm số hoặc click trực tiếp để chọn đáp án</span>
+          <span className="text-slate-500">Bấm số (1, 2, 3...) hoặc click trực tiếp để chọn đáp án</span>
         </div>
       )}
 

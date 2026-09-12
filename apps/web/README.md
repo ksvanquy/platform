@@ -7,7 +7,7 @@
 ## 🚀 Tính Năng Nổi Bật
 
 1. **Kiến trúc Registry Pattern (`QuestionRegistry`)**: Hỗ trợ 6 dạng câu hỏi linh hoạt (`SINGLE`, `MULTIPLE`, `FILL_IN`, `MATCHING`, `ORDERING`, `NUMERIC`) với component độc lập.
-2. **Debounced Autosave (Optimistic UI)**: Tự động lưu bài sau 300ms, hiển thị trạng thái lưu trực quan (Đang lưu / Đã lưu / Lỗi).
+2. **Quy trình nộp bài trực tiếp (Single Submission)**: Lưu trữ câu trả lời tức thì tại giao diện và gửi toàn bộ bài làm lên Backend khi bấm Nộp bài.
 3. **Đồng hồ đếm ngược Server-Authoritative**: Đồng bộ thời gian với Server Time, tự động đổi màu cảnh báo khi còn dưới 2 phút và dưới 30 giây, tự động nộp bài khi hết giờ.
 4. **Mục lục câu hỏi thông minh (`QuestionPalette`)**: Theo dõi tiến độ câu hỏi (Đang làm, Đã trả lời, Chưa làm) và chuyển câu hỏi nhanh chóng.
 5. **Màn hình kết quả tổng kết trực quan (`ScoreSummaryCard` & `QuestionFeedbackList`)**: Tổng điểm, tỷ lệ %, huy hiệu Đạt/Không đạt và chi tiết từng câu hỏi.
