@@ -5,6 +5,7 @@ import { defineConfig } from 'drizzle-kit';
 function loadEnv(): void {
   const envCandidates = [
     path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), '.env.local'),
     path.resolve(process.cwd(), '../../.env'),
   ];
   for (const envPath of envCandidates) {
@@ -26,7 +27,7 @@ function loadEnv(): void {
           }
         }
       } catch {}
-      if (process.env.AUTH_DATABASE_URL) break;
+      if (process.env.AUTH_DATABASE_URL || process.env.DATABASE_URL) break;
     }
   }
 }
@@ -34,17 +35,16 @@ loadEnv();
 
 const isSubdir = process.cwd().replace(/\\/g, '/').endsWith('services/auth');
 const schema = isSubdir ? './src/infrastructure/db/schema.ts' : './services/auth/src/infrastructure/db/schema.ts';
-const out = isSubdir ? './drizzle/migrations' : './services/auth/drizzle/migrations';
 
 export default defineConfig({
   schema,
-  out,
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.AUTH_DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/auth_db',
+    url: process.env.AUTH_DATABASE_URL || process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/quiz_core',
   },
   verbose: true,
   strict: true,
 });
+
 
 

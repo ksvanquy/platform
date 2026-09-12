@@ -79,8 +79,8 @@ export function sanitizePostgresUrl(rawUrl: string): string {
 
 export function getExamDatabaseUrl(): string | undefined {
   loadEnvIfAvailable();
-  const url = process.env.EXAM_DATABASE_URL?.trim();
-  if (!url || url === 'EXAM_DATABASE_URL') return undefined;
+  const url = (process.env.EXAM_DATABASE_URL || process.env.DATABASE_URL)?.trim();
+  if (!url || url === 'EXAM_DATABASE_URL' || url === 'DATABASE_URL') return undefined;
   if (!url.startsWith('postgres://') && !url.startsWith('postgresql://')) {
     return undefined;
   }
