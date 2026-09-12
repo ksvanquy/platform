@@ -119,8 +119,8 @@ export function getDefaultRsaKeyPair(): { privateKey: string; publicKey: string 
 export class TokenService {
   private readonly algorithm: 'RS256' | 'HS256';
   private readonly secret: string;
-  private readonly privateKey: string;
-  private readonly publicKey: string;
+  private privateKey?: string;
+  private publicKey?: string;
   private readonly issuer: string;
   private readonly audience: string;
   private readonly keyId: string;
@@ -144,7 +144,8 @@ export class TokenService {
       options = secretOrOptions;
     }
 
-    this.algorithm = options.algorithm || 'RS256';
+    // Default to standardized HMAC-SHA256 (HS256) with shared secret key
+    this.algorithm = options.algorithm || 'HS256';
     this.secret = options.secret || process.env.JWT_SECRET || 'dev-quiz-platform-secret-key-32-chars-min';
     this.issuer = options.issuer || issuer;
     this.audience = options.audience || audience;
@@ -152,9 +153,15 @@ export class TokenService {
     this.rotatedKeys = options.rotatedKeys || [];
     this.tokenStorage = options.tokenStorage;
 
-    const defaultKeys = getDefaultRsaKeyPair();
-    this.privateKey = options.privateKey || defaultKeys.privateKey;
-    this.publicKey = options.publicKey || defaultKeys.publicKey;
+    // Only load/generate RSA keys lazily if RS256 is explicitly configured
+    if (this.algorithm === 'RS256') {
+      const defaultKeys = getDefaultRsaKeyPair();
+      this.privateKey = options.privateKey || defaultKeys.privateKey;
+      this.publicKey = options.publicKey || defaultKeys.publicKey;
+    } else {
+      this.privateKey = options.privateKey;
+      this.publicKey = options.publicKey;
+    }
   }
 
   private getTokenStorage(): ITokenStorage {
@@ -166,10 +173,7 @@ export class TokenService {
 
   private base64UrlEncode(str: string): string {
     return Buffer.from(str)
-      .toString('base64')
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
+      .toString('base64url');
   }
 
   private base64UrlDecode(str: string): string {
@@ -181,6 +185,9 @@ export class TokenService {
   }
 
   getPublicKeyPem(): string {
+    if (!this.publicKey) {
+      this.publicKey = getDefaultRsaKeyPair().publicKey;
+    }
     return this.publicKey;
   }
 
@@ -219,18 +226,18 @@ export class TokenService {
     const dataToSign = `${encodedHeader}.${encodedPayload}`;
 
     let signature: string;
-    if (this.algorithm === 'RS256') {
-      const sign = crypto.createSign('RSA-SHA256');
-      sign.update(dataToSign);
-      signature = sign.sign(this.privateKey, 'base64url');
-    } else {
+    if (this.algorithm === 'HS256') {
       signature = crypto
         .createHmac('sha256', this.secret)
         .update(dataToSign)
-        .digest('base64')
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
+        .digest('base64url');
+    } else {
+      if (!this.privateKey) {
+        this.privateKey = getDefaultRsaKeyPair().privateKey;
+      }
+      const sign = crypto.createSign('RSA-SHA256');
+      sign.update(dataToSign);
+      signature = sign.sign(this.privateKey, 'base64url');
     }
 
     const accessToken = `${dataToSign}.${signature}`;
@@ -267,24 +274,22 @@ export class TokenService {
       const header = JSON.parse(this.base64UrlDecode(encodedHeader));
       const dataToVerify = `${encodedHeader}.${encodedPayload}`;
 
-      if (header.alg === 'RS256') {
-        const verify = crypto.createVerify('RSA-SHA256');
-        verify.update(dataToVerify);
-        const isValid = verify.verify(this.publicKey, signature, 'base64url');
-        if (!isValid) return null;
-      } else if (header.alg === 'HS256') {
+      if (header.alg === 'HS256') {
         const expectedSignature = crypto
           .createHmac('sha256', this.secret)
           .update(dataToVerify)
-          .digest('base64')
-          .replace(/=/g, '')
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_');
+          .digest('base64url');
 
         if (signature.length !== expectedSignature.length) return null;
         if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
           return null;
         }
+      } else if (header.alg === 'RS256') {
+        const pubKey = this.publicKey || getDefaultRsaKeyPair().publicKey;
+        const verify = crypto.createVerify('RSA-SHA256');
+        verify.update(dataToVerify);
+        const isValid = verify.verify(pubKey, signature, 'base64url');
+        if (!isValid) return null;
       } else {
         return null;
       }
@@ -350,7 +355,8 @@ export class TokenService {
 
       // Primary active key
       try {
-        const pubKeyObj = crypto.createPublicKey(this.publicKey);
+        const pubKeyPem = this.publicKey || getDefaultRsaKeyPair().publicKey;
+        const pubKeyObj = crypto.createPublicKey(pubKeyPem);
         const jwk = pubKeyObj.export({ format: 'jwk' });
         keys.push({
           kty: 'RSA',

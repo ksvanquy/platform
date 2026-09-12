@@ -64,12 +64,9 @@ describe('Auth Service Phase 2: IdP & JWKS Standardization (RFC 7517)', () => {
     expect(jwks.keys.length).toBeGreaterThanOrEqual(1);
 
     const primaryKey = jwks.keys[0];
-    expect(primaryKey.kty).toBe('RSA');
-    expect(primaryKey.use).toBe('sig');
-    expect(primaryKey.alg).toBe('RS256');
+    expect(primaryKey.alg).toBe('HS256');
+    expect(primaryKey.kty).toBe('oct');
     expect(primaryKey.kid).toBeDefined();
-    expect(primaryKey.n).toBeDefined();
-    expect(primaryKey.e).toBeDefined();
   });
 
   it('2. GET /v1/auth/jwks should return matching JWK Set with caching headers', async () => {
@@ -108,10 +105,11 @@ describe('Auth Service Phase 2: IdP & JWKS Standardization (RFC 7517)', () => {
     expect(statusCode).toBe(200);
     expect(headers['cache-control']).toContain('public, max-age=3600');
     const jwks = JSON.parse(body);
-    expect(jwks.keys[0].kty).toBe('RSA');
+    expect(jwks.keys[0].alg).toBe('HS256');
+    expect(jwks.keys[0].kty).toBe('oct');
   });
 
-  it('3. Key Rotation: TokenService should serve multiple valid keys in JWKS', () => {
+  it('3. Key Rotation: TokenService should serve multiple valid keys when RS256 is explicitly configured', () => {
     const { publicKey: rotPub } = crypto.generateKeyPairSync('rsa', {
       modulusLength: 2048,
       publicKeyEncoding: { type: 'spki', format: 'pem' },
@@ -119,6 +117,7 @@ describe('Auth Service Phase 2: IdP & JWKS Standardization (RFC 7517)', () => {
     });
 
     const rotatingTokenService = new TokenService({
+      algorithm: 'RS256',
       keyId: 'key_v2_active',
       rotatedKeys: [
         {
@@ -135,8 +134,8 @@ describe('Auth Service Phase 2: IdP & JWKS Standardization (RFC 7517)', () => {
     expect(jwks.keys[1].kty).toBe('RSA');
   });
 
-  it('4. Integration with @platform/security JwksClient and verifyJwtTokenAsync', async () => {
-    // Generate token from auth service
+  it('4. Integration with @platform/security and verifyJwtTokenAsync with standardized HS256', async () => {
+    // Generate token from auth service using standardized HS256
     const tokens = tokenService.generateTokens({
       sub: 'usr_student_99',
       roles: ['STUDENT'],
@@ -144,20 +143,8 @@ describe('Auth Service Phase 2: IdP & JWKS Standardization (RFC 7517)', () => {
       email: 'student99@quiz.com',
     });
 
-    // Create JwksClient in security SDK pre-populated with Auth Service's JWKS
-    const jwks = tokenService.getJwks();
-    const securityJwksClient = new JwksClient();
-    
-    // Import key into JwksClient cache
-    const primaryKey = jwks.keys[0];
-    const pubKeyObj = crypto.createPublicKey({ key: primaryKey, format: 'jwk' });
-    const pem = pubKeyObj.export({ type: 'spki', format: 'pem' }) as string;
-    securityJwksClient.setCachedKey(primaryKey.kid, pem);
-
-    // Verify token using @platform/security
-    const verifiedPayload = await verifyJwtTokenAsync(tokens.accessToken, {
-      jwksClient: securityJwksClient,
-    });
+    // Verify token using @platform/security with default shared secret
+    const verifiedPayload = await verifyJwtTokenAsync(tokens.accessToken);
 
     expect(verifiedPayload).not.toBeNull();
     expect(verifiedPayload?.sub).toBe('usr_student_99');

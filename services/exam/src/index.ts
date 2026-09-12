@@ -11,6 +11,7 @@ export * from './domain/errors/exam-domain.errors.js';
 export * from './domain/ports/exam.repository.port.js';
 export * from './domain/services/prng.service.js';
 export * from './domain/services/matrix-solver.service.js';
+export * from './domain/services/permutation-hydrator.service.js';
 
 // Application
 export * from './application/use-cases/generate-exam.use-case.js';

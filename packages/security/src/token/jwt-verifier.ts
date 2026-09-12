@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import type { Principal } from '@platform/contracts';
 import { defaultJwksClient, JwksClient } from './jwks-client.js';
 
+export const DEFAULT_SHARED_JWT_SECRET = process.env.JWT_SECRET || 'dev-quiz-platform-secret-key-32-chars-min';
+
 export interface JwtHeader {
   alg: string;
   typ?: string;
@@ -51,6 +53,25 @@ export function decodeJwtUnverified<T = JwtPayload>(token: string): { header: Jw
   }
 }
 
+/**
+ * Standardized HS256 HMAC-SHA256 signature verification with timing-safe comparison
+ */
+function verifyHs256Signature(dataToVerify: string, signature: string, secret: string): boolean {
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(dataToVerify)
+      .digest('base64url');
+
+    if (signature.length !== expectedSignature.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+  } catch {
+    return false;
+  }
+}
+
 export async function verifyJwtTokenAsync(
   token: string,
   options: VerifyJwtOptions = {}
@@ -63,7 +84,14 @@ export async function verifyJwtTokenAsync(
     const header = JSON.parse(base64UrlDecode(encodedHeader)) as JwtHeader;
     const dataToVerify = `${encodedHeader}.${encodedPayload}`;
 
-    if (header.alg === 'RS256') {
+    // 1. Primary Unified Algorithm: HMAC-SHA256 (HS256)
+    if (header.alg === 'HS256') {
+      const secret = options.secret || DEFAULT_SHARED_JWT_SECRET;
+      if (!verifyHs256Signature(dataToVerify, signature, secret)) {
+        return null;
+      }
+    } else if (header.alg === 'RS256') {
+      // Backward-compatible fallback for RS256
       let pubKey = options.publicKey;
       if (!pubKey) {
         const client = options.jwksClient || defaultJwksClient;
@@ -74,7 +102,6 @@ export async function verifyJwtTokenAsync(
       }
 
       if (!pubKey) {
-        // Fallback to process.env.JWT_PUBLIC_KEY
         if (process.env.JWT_PUBLIC_KEY?.includes('BEGIN')) {
           pubKey = process.env.JWT_PUBLIC_KEY;
         }
@@ -88,23 +115,6 @@ export async function verifyJwtTokenAsync(
       verify.update(dataToVerify);
       const isValid = verify.verify(pubKey, signature, 'base64url');
       if (!isValid) return null;
-    } else if (header.alg === 'HS256') {
-      const secret = options.secret || process.env.JWT_SECRET || 'dev-quiz-platform-secret-key-32-chars-min';
-      const expectedSignature = crypto
-        .createHmac('sha256', secret)
-        .update(dataToVerify)
-        .digest('base64')
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-
-      if (signature.length !== expectedSignature.length) {
-        return null;
-      }
-
-      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
-        return null;
-      }
     } else {
       return null;
     }
@@ -143,7 +153,14 @@ export function verifyJwtTokenSync(
     const header = JSON.parse(base64UrlDecode(encodedHeader)) as JwtHeader;
     const dataToVerify = `${encodedHeader}.${encodedPayload}`;
 
-    if (header.alg === 'RS256') {
+    // 1. Primary Unified Algorithm: HMAC-SHA256 (HS256)
+    if (header.alg === 'HS256') {
+      const secret = options.secret || DEFAULT_SHARED_JWT_SECRET;
+      if (!verifyHs256Signature(dataToVerify, signature, secret)) {
+        return null;
+      }
+    } else if (header.alg === 'RS256') {
+      // Backward-compatible fallback for RS256
       let pubKey = options.publicKey || process.env.JWT_PUBLIC_KEY;
       if (!pubKey) {
         const cached = (options.jwksClient || defaultJwksClient).getCachedKey(header.kid);
@@ -156,18 +173,6 @@ export function verifyJwtTokenSync(
       verify.update(dataToVerify);
       const isValid = verify.verify(pubKey, signature, 'base64url');
       if (!isValid) return null;
-    } else if (header.alg === 'HS256') {
-      const secret = options.secret || process.env.JWT_SECRET || 'dev-quiz-platform-secret-key-32-chars-min';
-      const expectedSignature = crypto
-        .createHmac('sha256', secret)
-        .update(dataToVerify)
-        .digest('base64')
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-
-      if (signature.length !== expectedSignature.length) return null;
-      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) return null;
     } else {
       return null;
     }

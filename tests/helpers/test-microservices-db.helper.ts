@@ -60,13 +60,20 @@ export async function setupFullMicroservicesDb(): Promise<FullMicroservicesConte
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS exam_master_payloads (
+      exam_id VARCHAR(64) PRIMARY KEY REFERENCES exams(id) ON DELETE CASCADE,
+      master_payload JSONB NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS exam_snapshots (
       id VARCHAR(64) PRIMARY KEY,
       exam_id VARCHAR(64) NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
       variant_code VARCHAR(32) NOT NULL,
       content_hash VARCHAR(64) NOT NULL,
-      frozen_payload JSONB NOT NULL,
-      sanitized_manifest JSONB NOT NULL,
+      permutation_mapping JSONB,
+      frozen_payload JSONB,
+      sanitized_manifest JSONB,
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       CONSTRAINT uq_exam_variant UNIQUE (exam_id, variant_code)
     );

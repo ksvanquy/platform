@@ -353,5 +353,113 @@ describe('Bước 5 — packages/api-client', () => {
       );
       expect(updateRes.data.isActive).toBe(false);
     });
+
+    it('should support candidate delivery: startQuiz, submitQuiz, getActiveAttempt', async () => {
+      // 1. startQuiz mock response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: {
+            id: 'att_777',
+            examId: 'exam_math_01',
+            status: 'IN_PROGRESS',
+            userId: 'student_1',
+            startedAt: '2026-09-12T10:00:00.000Z',
+          },
+          manifest: {
+            durationMinutes: 30,
+            questions: [
+              {
+                id: 'q_single',
+                type: 'single-choice',
+                prompt: 'What is 2+2?',
+                points: 5,
+                options: [
+                  { id: '1', text: '3' },
+                  { id: '2', text: '4' },
+                ],
+              },
+            ],
+          },
+          serverTime: '2026-09-12T10:00:00.000Z',
+        }),
+      });
+
+      const startRes = await api.delivery.startQuiz('exam_math_01', { variantCode: 'V1', userId: 'student_1' });
+      expect(startRes.session.id).toBe('att_777');
+      expect(startRes.session.status).toBe('IN_PROGRESS');
+      expect(startRes.questions).toHaveLength(1);
+      expect(startRes.questions[0].type).toBe('SINGLE');
+      expect(startRes.questions[0].metadata?.options).toHaveLength(2);
+
+      // 2. submitQuiz mock response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: {
+            scoreResult: {
+              score: 9.5,
+              maxScore: 10,
+              percentage: 95,
+              passed: true,
+              breakdown: {
+                q_single: { isCorrect: true, scoreAwarded: 5, maxScore: 5 },
+              },
+            },
+          },
+        }),
+      });
+
+      const submitRes = await api.delivery.submitQuiz({
+        sessionId: 'att_777',
+        userId: 'student_1',
+        answers: { q_single: '2' },
+      });
+
+      expect(submitRes.totalScoreAwarded).toBe(9.5);
+      expect(submitRes.percentage).toBe(95);
+      expect(submitRes.isPassed).toBe(true);
+
+      // 3. getActiveAttempt mock response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          success: true,
+          data: [
+            {
+              id: 'att_active',
+              status: 'IN_PROGRESS',
+              deadline: new Date(Date.now() + 600000).toISOString(),
+            },
+          ],
+        }),
+      });
+
+      const activeAttempt = await api.delivery.getActiveAttempt('student_1');
+      expect(activeAttempt?.id).toBe('att_active');
+    });
+
+    it('should track clock offset and invoke onTimeSync', async () => {
+      let syncCalledWith: any = null;
+      const clientWithSync = createApiClient({
+        baseUrl: 'http://quiz.api.local',
+        onTimeSync: (serverTime, offset) => {
+          syncCalledWith = { serverTime, offset };
+        },
+      });
+
+      const futureTime = Date.now() + 10000;
+      clientWithSync.syncFromTimestamp(futureTime);
+
+      expect(syncCalledWith).not.toBeNull();
+      expect(syncCalledWith.offset).toBeGreaterThanOrEqual(9000);
+      expect(clientWithSync.getServerNow()).toBeGreaterThanOrEqual(Date.now() + 9000);
+      expect(clientWithSync.getClockOffsetMs()).toBeGreaterThanOrEqual(9000);
+    });
   });
 });

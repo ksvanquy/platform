@@ -35,7 +35,7 @@ export class GenerateVariantsUseCase {
       status: 'ACTIVE',
     });
 
-    const { snapshots } = MatrixSolverService.solveMatrix({
+    const { snapshots, masterPayload } = MatrixSolverService.solveMatrix({
       examId: exam.id,
       examCode: exam.code,
       examTitle: exam.title,
@@ -49,8 +49,15 @@ export class GenerateVariantsUseCase {
 
     // Delete existing snapshots and replace with new variant set
     await this.examRepo.deleteSnapshotsByExamId(exam.id);
-    for (const snapshot of snapshots) {
-      await this.examRepo.saveSnapshot(snapshot);
+    if (this.examRepo.saveSnapshots) {
+      await this.examRepo.saveSnapshots(snapshots, masterPayload);
+    } else {
+      if (this.examRepo.saveMasterPayload) {
+        await this.examRepo.saveMasterPayload(exam.id, masterPayload);
+      }
+      for (const snapshot of snapshots) {
+        await this.examRepo.saveSnapshot(snapshot);
+      }
     }
 
     const variants = snapshots.map((s) => s.toVariantSummary());

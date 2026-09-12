@@ -3,12 +3,13 @@ import type {
   BlueprintCriterion,
   ScoringPolicyConfig,
   FrozenQuestionItem,
-  SanitizedQuestionItem,
-  SanitizedExamManifest,
+  ExamMasterPayload,
+  ExamPermutationMapping,
 } from '@platform/contracts';
 import { DeterministicPRNG } from './prng.service.js';
 import { ExamSnapshot } from '../entities/exam.entity.js';
 import { ExamMatrixResolutionError } from '../errors/exam-domain.errors.js';
+import { PermutationHydrator } from './permutation-hydrator.service.js';
 
 export interface MatrixSolverInput {
   examId: string;
@@ -23,6 +24,7 @@ export interface MatrixSolverInput {
 }
 
 export interface ResolvedMatrixResult {
+  masterPayload: ExamMasterPayload;
   snapshots: ExamSnapshot[];
   totalQuestions: number;
   totalPoints: number;
@@ -111,7 +113,40 @@ export class MatrixSolverService {
     const totalQuestions = selectedQuestionItems.length;
     const totalPoints = selectedQuestionItems.reduce((sum, item) => sum + item.points, 0);
 
-    // Generate Snapshots for each requested variant
+    // 1. Build Master Question Items & Master Payload (single source of truth for the exam)
+    const masterQuestions: FrozenQuestionItem[] = selectedQuestionItems.map(({ question, points }) => {
+      const rev = question.currentRevision;
+      const prompt = rev?.prompt || `Question ${question.code}`;
+      const rawOptions = rev?.options || [];
+      return {
+        id: question.id,
+        revisionId: question.currentRevisionId || rev?.id || `rev_${question.id}`,
+        type: question.type,
+        prompt: prompt,
+        options: rawOptions.map((opt) => ({
+          id: opt.id,
+          content: opt.content,
+          isCorrect: Boolean(opt.isCorrect),
+          explanation: opt.explanation,
+        })),
+        pairs: rev?.pairs,
+        points: points,
+        explanation: rev?.explanation,
+        rubric: rev?.rubric,
+      };
+    });
+
+    const masterPayload: ExamMasterPayload = {
+      examId,
+      examTitle,
+      durationMinutes,
+      totalQuestions,
+      totalPoints,
+      scoringPolicy,
+      questions: masterQuestions,
+    };
+
+    // 2. Generate Snapshots for each requested variant using compact Permutation Mappings
     const snapshots: ExamSnapshot[] = [];
     const count = Math.max(1, variantsCount || 1);
 
@@ -122,92 +157,52 @@ export class MatrixSolverService {
 
       // Shuffle question order deterministically
       const variantQuestions = variantPRNG.shuffle(selectedQuestionItems);
+      const questionOrder = variantQuestions.map((item) => item.question.id);
+      const optionOrders: Record<string, string[]> = {};
 
-      const frozenQuestions: FrozenQuestionItem[] = [];
-      const sanitizedQuestions: SanitizedQuestionItem[] = [];
-
-      for (const { question, points } of variantQuestions) {
+      for (const { question } of variantQuestions) {
         const rev = question.currentRevision;
-        const prompt = rev?.prompt || `Question ${question.code}`;
         const rawOptions = rev?.options || [];
-
-        // Shuffle options for choice questions
         const shouldShuffleOptions =
           question.type === 'SINGLE' || question.type === 'MULTIPLE';
         const orderedOptions = shouldShuffleOptions
           ? variantPRNG.shuffle(rawOptions)
           : [...rawOptions];
 
-        // 1. Frozen Question Item (Full academic answer keys & explanations)
-        frozenQuestions.push({
-          id: question.id,
-          revisionId: question.currentRevisionId || rev?.id || `rev_${question.id}`,
-          type: question.type,
-          prompt: prompt,
-          options: orderedOptions.map((opt) => ({
-            id: opt.id,
-            content: opt.content,
-            isCorrect: Boolean(opt.isCorrect),
-            explanation: opt.explanation,
-          })),
-          pairs: rev?.pairs,
-          points: points,
-          explanation: rev?.explanation,
-          rubric: rev?.rubric,
-        });
-
-        // 2. Sanitized Question Item (STRIPPED of isCorrect & explanation)
-        sanitizedQuestions.push({
-          id: question.id,
-          type: question.type,
-          prompt: prompt,
-          options: orderedOptions.map((opt) => ({
-            id: opt.id,
-            content: opt.content,
-          })),
-          pairs: rev?.pairs?.map((p: any) => ({
-            leftId: p.leftId,
-            leftText: p.leftText,
-            rightId: p.rightId,
-            rightText: p.rightText,
-          })),
-          points: points,
-          mediaAssets: rev?.mediaAssets,
-        });
+        optionOrders[question.id] = orderedOptions.map((opt) => opt.id);
       }
 
-      const frozenPayload = {
-        questions: frozenQuestions,
-        scoringPolicy: scoringPolicy,
+      const permutationMapping: ExamPermutationMapping = {
+        variantCode,
+        seed: variantSeed,
+        questionOrder,
+        optionOrders,
       };
 
-      const sanitizedManifest: SanitizedExamManifest = {
-        examId: examId,
-        variantCode: variantCode,
-        title: examTitle,
-        durationMinutes: durationMinutes,
-        totalQuestions: totalQuestions,
-        totalPoints: totalPoints,
-        questions: sanitizedQuestions,
-        serverTimestamp: Date.now(),
-      };
+      // Hydrate variant snapshot deterministically using PermutationHydrator
+      const { frozenPayload, sanitizedManifest, contentHash } = PermutationHydrator.hydrate(
+        masterPayload,
+        permutationMapping
+      );
 
-      const contentHash = DeterministicPRNG.computeContentHash(frozenPayload);
       const snapshotId = `snp_${examId}_${variantCode}`;
 
       snapshots.push(
         new ExamSnapshot({
           id: snapshotId,
-          examId: examId,
-          variantCode: variantCode,
-          contentHash: contentHash,
-          frozenPayload: frozenPayload,
-          sanitizedManifest: sanitizedManifest,
+          examId,
+          variantCode,
+          contentHash,
+          permutationMapping,
+          masterPayload,
+          frozenPayload,
+          sanitizedManifest,
         })
       );
     }
 
     return {
+      masterPayload,
       snapshots,
       totalQuestions,
       totalPoints,

@@ -3,6 +3,8 @@ import type {
   FrozenQuestionItem,
   SanitizedExamManifest,
   ScoringPolicyConfig,
+  ExamMasterPayload,
+  ExamPermutationMapping,
 } from '@platform/contracts';
 
 export const exams = pgTable('exams', {
@@ -22,16 +24,23 @@ export const exams = pgTable('exams', {
   index('idx_exams_status').on(table.status),
 ]);
 
+export const examMasterPayloads = pgTable('exam_master_payloads', {
+  examId: varchar('exam_id', { length: 64 }).primaryKey().references(() => exams.id, { onDelete: 'cascade' }),
+  masterPayload: jsonb('master_payload').$type<ExamMasterPayload>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const examSnapshots = pgTable('exam_snapshots', {
   id: varchar('id', { length: 64 }).primaryKey(), // snp_xxxx
   examId: varchar('exam_id', { length: 64 }).notNull().references(() => exams.id, { onDelete: 'cascade' }),
   variantCode: varchar('variant_code', { length: 32 }).notNull(), // "DEFAULT", "101", "102"
   contentHash: varchar('content_hash', { length: 64 }).notNull(), // SHA-256 tamper-proof hash
+  permutationMapping: jsonb('permutation_mapping').$type<ExamPermutationMapping>(),
   frozenPayload: jsonb('frozen_payload').$type<{
     questions: FrozenQuestionItem[];
     scoringPolicy: ScoringPolicyConfig;
-  }>().notNull(),
-  sanitizedManifest: jsonb('sanitized_manifest').$type<SanitizedExamManifest>().notNull(),
+  }>(),
+  sanitizedManifest: jsonb('sanitized_manifest').$type<SanitizedExamManifest>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('uq_exam_variant').on(table.examId, table.variantCode),

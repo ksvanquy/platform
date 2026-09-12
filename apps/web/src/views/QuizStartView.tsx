@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { UserProfile } from '@platform/auth-client';
 import type { TaxonomyTreeNodeDTO } from '@platform/contracts';
-import { quizApi } from '../api/quiz-api.js';
+import { quizApi } from '../api/index.js';
 import { TopBar } from '../components/dashboard/TopBar.js';
 import { StudentProfileModal } from '../components/dashboard/StudentProfileModal.js';
 import { TaxonomyTreeSidebar } from '../components/dashboard/TaxonomyTreeSidebar.js';

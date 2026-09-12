@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { quizApi } from '../api/quiz-api.js';
+import { quizApi } from '../api/index.js';
 import { SessionDTO, QuestionDTO } from '../types/quiz.types.js';
 import { EvaluationResult, ResultRevealPolicy } from '../types/scoring.types.js';
 

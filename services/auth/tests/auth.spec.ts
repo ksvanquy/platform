@@ -260,27 +260,27 @@ describe('Auth Service Core & Use Cases', () => {
     });
   });
 
-  describe('JWKS & Asymmetric Key Discovery (RFC 7517)', () => {
-    it('should return valid RFC 7517 RSA key discovery info by default (RS256)', () => {
+  describe('JWKS & Key Discovery (RFC 7517)', () => {
+    it('should return valid RFC 7517 key discovery info by default (HS256)', () => {
       const jwks = tokenService.getJwks();
       expect(jwks.keys).toHaveLength(1);
       expect(jwks.keys[0].kid).toBe('quiz-auth-key-1');
+      expect(jwks.keys[0].alg).toBe('HS256');
+      expect(jwks.keys[0].kty).toBe('oct');
+      expect(jwks.keys[0].use).toBe('sig');
+    });
+
+    it('should support RS256 JWKS when explicitly configured', () => {
+      const rsService = new TokenService({ algorithm: 'RS256', tokenStorage });
+      const jwks = rsService.getJwks();
+      expect(jwks.keys).toHaveLength(1);
       expect(jwks.keys[0].alg).toBe('RS256');
       expect(jwks.keys[0].kty).toBe('RSA');
-      expect(jwks.keys[0].use).toBe('sig');
       expect((jwks.keys[0] as any).n).toBeDefined();
       expect((jwks.keys[0] as any).e).toBeDefined();
     });
 
-    it('should support legacy HS256 JWKS when explicitly configured', () => {
-      const hsService = new TokenService({ algorithm: 'HS256', secret: 'test-secret', tokenStorage });
-      const jwks = hsService.getJwks();
-      expect(jwks.keys).toHaveLength(1);
-      expect(jwks.keys[0].alg).toBe('HS256');
-      expect(jwks.keys[0].kty).toBe('oct');
-    });
-
-    it('should verify RS256 token signature using asymmetric cryptography', () => {
+    it('should verify standardized HS256 token signature using symmetric cryptography', () => {
       const tokens = tokenService.generateTokens({
         sub: 'usr_student_01',
         roles: ['STUDENT'],

@@ -1,5 +1,6 @@
 import { createAuthClient, AuthClient } from '@platform/auth-client';
 import { createApiClient, ApiClient } from '@platform/api-client';
+import { TimeSyncManager } from '../utils/TimeSyncManager.js';
 
 /**
  * Singleton AuthClient phục vụ toàn bộ Frontend:
@@ -18,7 +19,8 @@ export const authClient: AuthClient = createAuthClient({
 /**
  * Singleton ApiClient kết nối tới Quiz Service / API Gateway:
  * - Tự động inject header "Authorization: Bearer <token>" từ authClient
- * - Cung cấp generic HTTP methods và typed domain resources (quizzes, sessions)
+ * - Cung cấp generic HTTP methods, typed domain resources (exams, attempts, delivery)
+ * - Tự động đồng bộ đồng hồ máy chủ (Cristian Algorithm clock offset)
  * - Tương thích Decoupled Static Hosting khi frontend chạy trên CDN độc lập
  */
 export const apiClient: ApiClient = createApiClient({
@@ -26,4 +28,8 @@ export const apiClient: ApiClient = createApiClient({
     (import.meta as any).env?.VITE_QUIZ_API_URL ||
     (gatewayBaseUrl ? gatewayBaseUrl.replace(/\/$/, '') : ''),
   getToken: () => authClient.getAccessToken(),
+  onTimeSync: (serverTime) => {
+    TimeSyncManager.getInstance().syncFromTimestamp(serverTime);
+  },
 });
+

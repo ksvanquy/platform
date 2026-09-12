@@ -4,6 +4,7 @@ import type {
   QuestionDTO,
   AssessmentDTO,
   BlueprintDTO,
+  ExamMasterPayload,
 } from '@platform/contracts';
 
 export interface ExamFilterQuery {
@@ -22,7 +23,10 @@ export interface ExamRepositoryPort {
   listExams(filter?: ExamFilterQuery): Promise<{ exams: Exam[]; total: number }>;
   deleteExam(id: string): Promise<boolean>;
 
+  saveMasterPayload?(examId: string, masterPayload: ExamMasterPayload): Promise<void>;
+  findMasterPayload?(examId: string): Promise<ExamMasterPayload | null>;
   saveSnapshot(snapshot: ExamSnapshot): Promise<ExamSnapshot>;
+  saveSnapshots?(snapshots: ExamSnapshot[], masterPayload?: ExamMasterPayload): Promise<ExamSnapshot[]>;
   findSnapshotById(id: string): Promise<ExamSnapshot | null>;
   findSnapshotByExamAndVariant(examId: string, variantCode: string): Promise<ExamSnapshot | null>;
   listSnapshotsByExamId(examId: string): Promise<ExamSnapshot[]>;

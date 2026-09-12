@@ -7,8 +7,11 @@ import type {
   FrozenQuestionItem,
   ScoringPolicyConfig,
   ExamAssessmentMeta,
+  ExamPermutationMapping,
+  ExamMasterPayload,
 } from '@platform/contracts';
 import { InvalidExamDataError } from '../errors/exam-domain.errors.js';
+import { PermutationHydrator } from '../services/permutation-hydrator.service.js';
 
 export interface ExamProps {
   id: string;
@@ -160,11 +163,13 @@ export interface ExamSnapshotProps {
   examId: string;
   variantCode: string;
   contentHash: string;
-  frozenPayload: {
+  permutationMapping?: ExamPermutationMapping;
+  masterPayload?: ExamMasterPayload;
+  frozenPayload?: {
     questions: FrozenQuestionItem[];
     scoringPolicy: ScoringPolicyConfig;
-  };
-  sanitizedManifest: SanitizedExamManifest;
+  } | null;
+  sanitizedManifest?: SanitizedExamManifest | null;
   createdAt?: Date;
 }
 
@@ -173,11 +178,13 @@ export class ExamSnapshot {
   readonly examId: string;
   readonly variantCode: string;
   readonly contentHash: string;
-  readonly frozenPayload: {
+  readonly permutationMapping?: ExamPermutationMapping;
+  private _masterPayload?: ExamMasterPayload;
+  private _frozenPayload: {
     questions: FrozenQuestionItem[];
     scoringPolicy: ScoringPolicyConfig;
-  };
-  readonly sanitizedManifest: SanitizedExamManifest;
+  } | null;
+  private _sanitizedManifest: SanitizedExamManifest | null;
   readonly createdAt: Date;
 
   constructor(props: ExamSnapshotProps) {
@@ -185,16 +192,71 @@ export class ExamSnapshot {
     if (!props.examId) throw new InvalidExamDataError('Exam ID is required');
     if (!props.variantCode) throw new InvalidExamDataError('Variant code is required');
     if (!props.contentHash) throw new InvalidExamDataError('Content hash is required');
-    if (!props.frozenPayload) throw new InvalidExamDataError('Frozen payload is required');
-    if (!props.sanitizedManifest) throw new InvalidExamDataError('Sanitized manifest is required');
+    if (!props.frozenPayload && !props.permutationMapping) {
+      throw new InvalidExamDataError('Either frozen payload or permutation mapping is required');
+    }
 
     this.id = props.id;
     this.examId = props.examId;
     this.variantCode = props.variantCode;
     this.contentHash = props.contentHash;
-    this.frozenPayload = props.frozenPayload;
-    this.sanitizedManifest = props.sanitizedManifest;
+    this.permutationMapping = props.permutationMapping;
+    this._masterPayload = props.masterPayload;
+    this._frozenPayload = props.frozenPayload ?? null;
+    this._sanitizedManifest = props.sanitizedManifest ?? null;
     this.createdAt = props.createdAt ?? new Date();
+
+    // If frozenPayload is not present but masterPayload + permutationMapping are provided, hydrate immediately
+    if (!this._frozenPayload && this._masterPayload && this.permutationMapping) {
+      this.hydrateFromMaster(this._masterPayload);
+    }
+  }
+
+  attachMasterPayload(master: ExamMasterPayload): void {
+    this._masterPayload = master;
+    if (!this._frozenPayload && this.permutationMapping) {
+      this.hydrateFromMaster(master);
+    }
+  }
+
+  private hydrateFromMaster(master: ExamMasterPayload): void {
+    if (!this.permutationMapping) return;
+    const hydrated = PermutationHydrator.hydrate(master, this.permutationMapping, this.createdAt.getTime());
+    this._frozenPayload = hydrated.frozenPayload;
+    this._sanitizedManifest = hydrated.sanitizedManifest;
+  }
+
+  get frozenPayload(): {
+    questions: FrozenQuestionItem[];
+    scoringPolicy: ScoringPolicyConfig;
+  } {
+    if (!this._frozenPayload) {
+      if (this._masterPayload && this.permutationMapping) {
+        this.hydrateFromMaster(this._masterPayload);
+      } else {
+        throw new InvalidExamDataError(
+          `Snapshot ${this.id} (${this.variantCode}) has not been hydrated with master payload.`
+        );
+      }
+    }
+    return this._frozenPayload!;
+  }
+
+  get sanitizedManifest(): SanitizedExamManifest {
+    if (!this._sanitizedManifest) {
+      if (this._masterPayload && this.permutationMapping) {
+        this.hydrateFromMaster(this._masterPayload);
+      } else {
+        throw new InvalidExamDataError(
+          `Snapshot ${this.id} (${this.variantCode}) has not been hydrated with master payload.`
+        );
+      }
+    }
+    return this._sanitizedManifest!;
+  }
+
+  get masterPayload(): ExamMasterPayload | undefined {
+    return this._masterPayload;
   }
 
   toDTO(): ExamSnapshotDTO {
@@ -203,6 +265,7 @@ export class ExamSnapshot {
       examId: this.examId,
       variantCode: this.variantCode,
       contentHash: this.contentHash,
+      permutationMapping: this.permutationMapping,
       frozenPayload: this.frozenPayload,
       sanitizedManifest: this.sanitizedManifest,
       createdAt: this.createdAt.toISOString(),
@@ -214,8 +277,9 @@ export class ExamSnapshot {
       variantCode: this.variantCode,
       contentHash: this.contentHash,
       questionCount:
-        this.sanitizedManifest?.totalQuestions ??
-        this.sanitizedManifest?.questions?.length ??
+        this._sanitizedManifest?.totalQuestions ??
+        this._sanitizedManifest?.questions?.length ??
+        this.permutationMapping?.questionOrder?.length ??
         0,
     };
   }

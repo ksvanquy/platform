@@ -58,7 +58,7 @@ export class GenerateExamUseCase {
     // 4. Generate Exam ID and solve matrix
     const examId = `exm_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 
-    const { snapshots } = MatrixSolverService.solveMatrix({
+    const { snapshots, masterPayload } = MatrixSolverService.solveMatrix({
       examId: examId,
       examCode: input.code.trim(),
       examTitle: input.title.trim(),
@@ -85,10 +85,17 @@ export class GenerateExamUseCase {
       createdAt: new Date(),
     });
 
-    // 6. Persist Exam and Snapshots
+    // 6. Persist Exam and Snapshots with permutation mapping to minimize DB I/O
     await this.examRepo.saveExam(exam);
-    for (const snapshot of snapshots) {
-      await this.examRepo.saveSnapshot(snapshot);
+    if (this.examRepo.saveSnapshots) {
+      await this.examRepo.saveSnapshots(snapshots, masterPayload);
+    } else {
+      if (this.examRepo.saveMasterPayload) {
+        await this.examRepo.saveMasterPayload(examId, masterPayload);
+      }
+      for (const snapshot of snapshots) {
+        await this.examRepo.saveSnapshot(snapshot);
+      }
     }
 
     const variants = snapshots.map((s) => s.toVariantSummary());

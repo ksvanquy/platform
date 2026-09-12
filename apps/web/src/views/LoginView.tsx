@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { authClient } from '../api/client.js';
+import { authClient } from '../api/index.js';
 import type { UserProfile } from '@platform/auth-client';
 
 interface LoginViewProps {

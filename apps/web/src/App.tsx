@@ -4,8 +4,7 @@ import { QuizStartView, ActiveAttemptBannerInfo } from './views/QuizStartView.js
 import { QuizActiveView } from './views/QuizActiveView.js';
 import { QuizResultView } from './views/QuizResultView.js';
 import { LoginView } from './views/LoginView.js';
-import { authClient } from './api/client.js';
-import { quizApi } from './api/quiz-api.js';
+import { authClient, quizApi } from './api/index.js';
 import type { UserProfile } from '@platform/auth-client';
 
 const App: React.FC = () => {
@@ -135,8 +134,8 @@ const App: React.FC = () => {
                 id: serverAttempt.id,
                 examId: serverAttempt.examId,
                 quizId: serverAttempt.examId,
-                title: serverAttempt.examTitle || serverAttempt.examId,
-                deadline: serverAttempt.deadline,
+                title: (serverAttempt as any).examTitle || serverAttempt.examId,
+                deadline: serverAttempt.deadline || undefined,
                 remainingMinutes,
               });
             }

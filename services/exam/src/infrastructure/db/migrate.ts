@@ -36,15 +36,26 @@ export async function runExamMigrations(customUrl?: string): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_exams_assessment ON exams(assessment_id);
       CREATE INDEX IF NOT EXISTS idx_exams_status ON exams(status);
 
+      CREATE TABLE IF NOT EXISTS exam_master_payloads (
+        exam_id VARCHAR(64) PRIMARY KEY REFERENCES exams(id) ON DELETE CASCADE,
+        master_payload JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS exam_snapshots (
         id VARCHAR(64) PRIMARY KEY,
         exam_id VARCHAR(64) NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
         variant_code VARCHAR(32) NOT NULL,
         content_hash VARCHAR(64) NOT NULL,
-        frozen_payload JSONB NOT NULL,
-        sanitized_manifest JSONB NOT NULL,
+        permutation_mapping JSONB,
+        frozen_payload JSONB,
+        sanitized_manifest JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE exam_snapshots ADD COLUMN IF NOT EXISTS permutation_mapping JSONB;
+      ALTER TABLE exam_snapshots ALTER COLUMN frozen_payload DROP NOT NULL;
+      ALTER TABLE exam_snapshots ALTER COLUMN sanitized_manifest DROP NOT NULL;
 
       CREATE UNIQUE INDEX IF NOT EXISTS uq_exam_variant ON exam_snapshots(exam_id, variant_code);
       CREATE INDEX IF NOT EXISTS idx_exam_snapshots_exam ON exam_snapshots(exam_id);

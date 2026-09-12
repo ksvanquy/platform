@@ -46,11 +46,30 @@ export interface FrozenQuestionItem {
   rubric?: Record<string, unknown>;
 }
 
+export interface ExamPermutationMapping {
+  variantCode: string;
+  seed: number;
+  questionOrder: string[]; // Ordered list of question IDs for this variant
+  optionOrders: Record<string, string[]>; // questionId -> Ordered list of option IDs
+  pairOrders?: Record<string, number[]>; // questionId -> Ordered list of pair indices
+}
+
+export interface ExamMasterPayload {
+  examId: string;
+  examTitle: string;
+  durationMinutes: number;
+  totalQuestions: number;
+  totalPoints: number;
+  scoringPolicy: ScoringPolicyConfig;
+  questions: FrozenQuestionItem[];
+}
+
 export interface ExamSnapshotDTO {
   id: string;
   examId: string;
   variantCode: string;
   contentHash: string;
+  permutationMapping?: ExamPermutationMapping;
   frozenPayload: {
     questions: FrozenQuestionItem[];
     scoringPolicy: ScoringPolicyConfig;

@@ -83,10 +83,14 @@ app.get('/v1/time', (_req: Request, res: Response) => {
   });
 });
 
-// Authentication Services Initialization (In-Process Integration on Port 3000)
+// Authentication Services Initialization (Standardized HMAC-SHA256 HS256 Shared Secret)
 let authUserRepository: any = null;
 let authRouterInstance: express.Router | null = null;
-const authTokenService = new TokenService();
+const SHARED_JWT_SECRET = process.env.JWT_SECRET || 'dev-quiz-platform-secret-key-32-chars-min';
+const authTokenService = new TokenService({
+  algorithm: 'HS256',
+  secret: SHARED_JWT_SECRET,
+});
 
 export function setAuthRepository(repo: any): void {
   authUserRepository = repo;

@@ -33,6 +33,101 @@ import type {
   SubmitAttemptInput,
 } from '@platform/contracts';
 
+export type CandidateQuestionType =
+  | 'SINGLE'
+  | 'MULTIPLE'
+  | 'FILL_IN'
+  | 'MATCHING'
+  | 'ORDERING'
+  | 'NUMERIC';
+
+export interface CandidateQuestionOption {
+  readonly id: string;
+  readonly content: string;
+}
+
+export interface CandidateMatchingPair {
+  readonly id: string;
+  readonly left: string;
+  readonly right: string;
+}
+
+export interface CandidateOrderItem {
+  readonly id: string;
+  readonly content: string;
+}
+
+export interface CandidateQuestionMetadata {
+  readonly options?: readonly CandidateQuestionOption[];
+  readonly pairs?: readonly CandidateMatchingPair[];
+  readonly itemsToOrder?: readonly CandidateOrderItem[];
+  readonly [key: string]: unknown;
+}
+
+export interface CandidateQuestionDTO {
+  readonly id: string;
+  readonly type: CandidateQuestionType;
+  readonly prompt: string;
+  readonly points: number;
+  readonly metadata?: CandidateQuestionMetadata;
+}
+
+export type CandidateSessionStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'PAUSED'
+  | 'SUBMITTED'
+  | 'TIMED_OUT_GRADED'
+  | 'GRADED'
+  | 'EXPIRED';
+
+export interface CandidateSessionDTO {
+  readonly id: string;
+  readonly userId: string;
+  readonly quizId: string;
+  readonly durationMinutes: number;
+  readonly status: CandidateSessionStatus;
+  readonly startedAt: string;
+  readonly deadline?: string;
+  readonly submissionDeadline?: string;
+  readonly remainingSeconds?: number;
+  readonly serverTime?: string;
+  readonly answers?: Record<string, unknown>;
+}
+
+export interface CandidateStartQuizResponse {
+  readonly session: CandidateSessionDTO;
+  readonly questions: readonly CandidateQuestionDTO[];
+}
+
+export interface CandidateQuestionEvaluationDetail {
+  readonly isCorrect: boolean;
+  readonly scoreAwarded: number;
+  readonly maxScore: number;
+  readonly feedback?: string;
+}
+
+export interface CandidateEvaluationResult {
+  readonly totalScoreAwarded: number;
+  readonly totalMaxScore: number;
+  readonly percentage: number;
+  readonly isPassed?: boolean;
+  readonly details?: Record<string, CandidateQuestionEvaluationDetail>;
+}
+
+export interface CandidateResultRevealPolicy {
+  readonly showDetails?: boolean;
+  readonly showTotalScoreOnly?: boolean;
+  readonly showPassFailOnly?: boolean;
+}
+
+export interface CandidateSubmitPayload {
+  readonly sessionId: string;
+  readonly userId: string;
+  readonly answers?: Record<string, unknown>;
+  readonly policy?: CandidateResultRevealPolicy;
+}
+
 export interface ApiClientConfig {
   baseUrl: string;
   getToken?: () => string | null | undefined | Promise<string | null | undefined>;
@@ -40,6 +135,7 @@ export interface ApiClientConfig {
   headers?: Record<string, string>;
   fetchFn?: typeof fetch;
   onUnauthorized?: (error: ApiClientError) => void;
+  onTimeSync?: (serverTime: string | number, offsetMs: number) => void;
 }
 
 export interface RequestOptions extends Omit<RequestInit, 'body'> {
@@ -65,6 +161,8 @@ export class ApiClient {
   private defaultHeaders: Record<string, string>;
   private fetchFn: typeof fetch;
   private onUnauthorized?: (error: ApiClientError) => void;
+  private onTimeSync?: (serverTime: string | number, offsetMs: number) => void;
+  private serverClockOffsetMs: number = 0;
 
   constructor(config: ApiClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
@@ -73,6 +171,39 @@ export class ApiClient {
     this.defaultHeaders = config.headers ?? {};
     this.fetchFn = config.fetchFn ?? (typeof fetch !== 'undefined' ? fetch.bind(globalThis) : (undefined as any));
     this.onUnauthorized = config.onUnauthorized;
+    this.onTimeSync = config.onTimeSync;
+  }
+
+  /**
+   * Đồng bộ độ lệch đồng hồ máy chủ từ mốc thời gian (timestamp hoặc ISO string)
+   */
+  syncFromTimestamp(serverTimestamp: number | string): void {
+    const serverTimeMs = typeof serverTimestamp === 'string'
+      ? new Date(serverTimestamp).getTime()
+      : serverTimestamp;
+
+    if (!isNaN(serverTimeMs)) {
+      this.serverClockOffsetMs = serverTimeMs - Date.now();
+      if (this.onTimeSync) {
+        try {
+          this.onTimeSync(serverTimestamp, this.serverClockOffsetMs);
+        } catch {}
+      }
+    }
+  }
+
+  /**
+   * Trả về mốc thời gian ước lượng hiện tại của server (Client Date.now() + offsetMs)
+   */
+  getServerNow(): number {
+    return Date.now() + this.serverClockOffsetMs;
+  }
+
+  /**
+   * Lấy độ lệch thời gian (ms) so với máy chủ
+   */
+  getClockOffsetMs(): number {
+    return this.serverClockOffsetMs;
   }
 
   getBaseUrl(): string {
@@ -279,6 +410,33 @@ export class ApiClient {
     getTime: async (): Promise<ApiResponse<{ serverTime: string; timestampMs: number }>> => {
       return this.get<ApiResponse<{ serverTime: string; timestampMs: number }>>('/v1/time');
     },
+
+    /**
+     * Tự động truy vấn ca thi IN_PROGRESS còn hiệu lực của thí sinh (Auto-discovery & Rehydration)
+     */
+    getActive: async (userId?: string): Promise<AttemptDTO | null> => {
+      if (!userId) return null;
+      try {
+        const res = await this.attempts.list({
+          status: 'IN_PROGRESS',
+          userId,
+          studentId: userId,
+        });
+        const attempts = Array.isArray(res.data) ? res.data : (res as any).attempts || [];
+        if (attempts && attempts.length > 0) {
+          const now = this.getServerNow();
+          const valid = attempts.find((a: any) => {
+            if (a.status !== 'IN_PROGRESS') return false;
+            const dl = a.deadline ? new Date(a.deadline).getTime() : 0;
+            return dl === 0 || dl > now;
+          });
+          return valid || null;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
   };
 
   /**
@@ -294,12 +452,19 @@ export class ApiClient {
     const res = await this.get<{ success: boolean; serverTime: string; timestampMs?: number }>('/v1/time');
     const t3 = Date.now();
     const serverTimestampMs = res.timestampMs ?? new Date(res.serverTime).getTime();
+    const clockOffsetMs = serverTimestampMs - t3;
+    this.serverClockOffsetMs = clockOffsetMs;
+    if (this.onTimeSync) {
+      try {
+        this.onTimeSync(res.serverTime, clockOffsetMs);
+      } catch {}
+    }
 
     return {
       serverTime: res.serverTime,
       serverTimestampMs,
       rttMs: Math.max(0, t3 - t1),
-      clockOffsetMs: serverTimestampMs - t3,
+      clockOffsetMs,
     };
   }
 
@@ -533,6 +698,225 @@ export class ApiClient {
       return this.get<ApiResponse<any>>(`/v1/quizzes/${encodeURIComponent(id)}`);
     },
   };
+
+  /**
+   * Delivery Domain Resource (Candidate Quiz & Exam runtime execution)
+   */
+  readonly delivery = {
+    /**
+     * Lấy danh sách các đề thi/kỳ thi đã xuất bản
+     */
+    listQuizzes: async (_params?: { nodeId?: string; gradeNodeId?: string }): Promise<any[]> => {
+      try {
+        const response = await this.exams.list();
+        return (response.data || []).map((exam) => ({
+          id: exam.id,
+          code: exam.code,
+          title: exam.title,
+          description: `Kỳ thi ${exam.code} (${exam.durationMinutes} phút)`,
+          isPublic: exam.isPublished || exam.status === 'READY' || exam.status === 'ACTIVE',
+          questionsCount: exam.variants?.[0]?.questionCount || 10,
+          durationMinutes: exam.durationMinutes || 45,
+          totalPoints: 10,
+        }));
+      } catch {
+        return [];
+      }
+    },
+
+    /**
+     * Lấy chi tiết đề thi/kỳ thi
+     */
+    getQuizDetails: async (quizId: string) => {
+      try {
+        const response = await this.exams.get(quizId);
+        const exam = response.data;
+        if (!exam) return null;
+        return {
+          id: exam.id,
+          code: exam.code,
+          title: exam.title,
+          description: `Kỳ thi ${exam.code} (${exam.durationMinutes} phút)`,
+          durationMinutes: exam.durationMinutes || 45,
+          totalPoints: 10,
+          isPublic: exam.isPublished || exam.status === 'READY' || exam.status === 'ACTIVE',
+          questionsCount: exam.variants?.[0]?.questionCount || 10,
+        };
+      } catch {
+        return null;
+      }
+    },
+
+    /**
+     * Lấy cây phân loại tri thức / chủ đề cho thí sinh lọc đề thi
+     */
+    getTaxonomyTree: async (codeOrId: string = 'TOPIC') => {
+      const response = await this.taxonomies.getTree(codeOrId);
+      return response.data;
+    },
+
+    /**
+     * Lấy danh sách các kỳ thi đã xuất bản
+     */
+    listExams: async (params?: { assessmentId?: string }): Promise<any[]> => {
+      try {
+        const response = await this.exams.list(params);
+        return response.data || [];
+      } catch {
+        return [];
+      }
+    },
+
+    /**
+     * Bắt đầu hoặc khôi phục phiên làm bài theo chuẩn RESTful Delivery:
+     * 1. POST /v1/attempts (Khởi tạo / resume attempt với examId hoặc quizId)
+     * 2. POST /v1/attempts/:id/start (Kích hoạt tính giờ & nhận sanitized manifest)
+     */
+    startQuiz: async (
+      quizOrExamId: string,
+      optionsOrVariantCode?: string | { variantCode?: string; userId?: string },
+      maybeUserId?: string
+    ): Promise<CandidateStartQuizResponse> => {
+      const variantCode = typeof optionsOrVariantCode === 'string'
+        ? optionsOrVariantCode
+        : optionsOrVariantCode?.variantCode;
+      const userId = typeof optionsOrVariantCode === 'object' && optionsOrVariantCode !== null
+        ? optionsOrVariantCode.userId ?? maybeUserId
+        : maybeUserId;
+
+      // 1. Tạo hoặc khôi phục attempt từ máy chủ
+      const createRes: any = await this.attempts.createOrRecover({
+        examId: quizOrExamId,
+        quizId: quizOrExamId,
+        variantCode,
+        autoStart: true,
+        userId,
+      });
+      const attempt = createRes.data;
+      const initialManifest = createRes.manifest;
+
+      // 2. Bắt đầu ca thi và nhận câu hỏi đã khử khuẩn cùng timing metadata
+      let startedAttempt = attempt;
+      let manifest = initialManifest;
+      let rawQuestions = initialManifest?.questions || [];
+      let serverTime = createRes.serverTime;
+      let remainingSeconds: number | undefined;
+
+      if (!initialManifest?.questions || initialManifest.questions.length === 0) {
+        try {
+          const startRes: any = await this.attempts.start(attempt.id, { userId });
+          const startData = startRes.data || {};
+          startedAttempt = startData.attempt || startData;
+          manifest = startRes.manifest || startData.manifest;
+          rawQuestions = startData.questions || manifest?.questions || [];
+          serverTime = startRes.serverTime || startData.serverTime;
+          if (startRes.remainingTimeMs !== undefined) {
+            remainingSeconds = Math.round(startRes.remainingTimeMs / 1000);
+          } else if (startData.remainingSeconds !== undefined) {
+            remainingSeconds = startData.remainingSeconds;
+          }
+        } catch {
+          // In case start was already performed by autoStart
+        }
+      }
+
+      // Tự động đồng bộ mốc thời gian máy chủ trả về
+      if (serverTime) {
+        this.syncFromTimestamp(serverTime);
+      }
+
+      // 3. Chuẩn hóa câu hỏi theo CandidateQuestionDTO
+      const questions: CandidateQuestionDTO[] = (rawQuestions || []).map((q: any) => {
+        let type = q.type;
+        if (type === 'single-choice' || type === 'true-false') type = 'SINGLE';
+        else if (type === 'multiple-choice') type = 'MULTIPLE';
+        else if (type === 'fill-in') type = 'FILL_IN';
+        else if (type === 'matching') type = 'MATCHING';
+        else if (type === 'ordering') type = 'ORDERING';
+        else if (type === 'numeric') type = 'NUMERIC';
+
+        const rawOptions = q.options || q.metadata?.options || (
+          q.type === 'true-false'
+            ? [
+                { id: 'true', text: 'Đúng (True)' },
+                { id: 'false', text: 'Sai (False)' },
+              ]
+            : []
+        );
+
+        const options = rawOptions.map((opt: any) => ({
+          id: String(opt.id),
+          content: opt.content || opt.text || String(opt),
+        }));
+
+        return {
+          id: q.id,
+          type: type as any,
+          prompt: q.prompt,
+          points: q.points,
+          metadata: {
+            ...q.metadata,
+            options,
+          },
+        };
+      });
+
+      const session: CandidateSessionDTO = {
+        id: startedAttempt.id,
+        userId: startedAttempt.userId,
+        quizId: startedAttempt.examId || startedAttempt.quizId || quizOrExamId,
+        durationMinutes: manifest?.durationMinutes || manifest?.timeLimitMinutes || 15,
+        status: startedAttempt.status,
+        startedAt: startedAttempt.startedAt || new Date().toISOString(),
+        deadline: startedAttempt.deadline || manifest?.deadline,
+        submissionDeadline: startedAttempt.submissionDeadline,
+        remainingSeconds: startedAttempt.remainingSeconds ?? remainingSeconds,
+        serverTime: serverTime || startedAttempt.startedAt,
+        answers: startedAttempt.answers || {},
+      };
+
+      return { session, questions };
+    },
+
+    /**
+     * Nộp bài thi và nhận kết quả đánh giá theo chuẩn RESTful:
+     * POST /v1/attempts/:id/submit
+     */
+    submitQuiz: async (payload: CandidateSubmitPayload): Promise<CandidateEvaluationResult> => {
+      const res = await this.attempts.submit(payload.sessionId, {
+        userId: payload.userId,
+        answers: payload.answers,
+      });
+      const { scoreResult } = res.data;
+
+      return {
+        totalScoreAwarded: scoreResult.score,
+        totalMaxScore: scoreResult.maxScore,
+        percentage: scoreResult.percentage,
+        isPassed: scoreResult.passed,
+        details: scoreResult.breakdown,
+      };
+    },
+
+    /**
+     * Tự động truy vấn ca thi đang diễn ra của thí sinh (Auto-Discovery & Rehydration)
+     */
+    getActiveAttempt: async (userId?: string): Promise<AttemptDTO | null> => {
+      return this.attempts.getActive(userId);
+    },
+  };
+
+  get startQuiz() {
+    return this.delivery.startQuiz;
+  }
+
+  get submitQuiz() {
+    return this.delivery.submitQuiz;
+  }
+
+  get getActiveAttempt() {
+    return this.delivery.getActiveAttempt;
+  }
 }
 
 /**

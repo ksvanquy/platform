@@ -287,11 +287,12 @@ describe('Gói WP-7: Endpoints Quản trị RBAC & Token Service', () => {
       expect(refreshRes.body.errorCode).toBe('TOKEN_REUSE_DETECTED');
     });
 
-    it('GET /.well-known/jwks.json and GET /v1/auth/jwks should provide public RSA keys', async () => {
+    it('GET /.well-known/jwks.json and GET /v1/auth/jwks should provide standardized HS256 key discovery info', async () => {
       const res1 = await request(app).get('/.well-known/jwks.json');
       expect(res1.status).toBe(200);
       expect(Array.isArray(res1.body.keys)).toBe(true);
-      expect(res1.body.keys[0].kty).toBe('RSA');
+      expect(res1.body.keys[0].alg).toBe('HS256');
+      expect(res1.body.keys[0].kty).toBe('oct');
       expect(res1.body.keys[0].use).toBe('sig');
 
       const res2 = await request(app).get('/v1/auth/jwks');
