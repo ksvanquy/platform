@@ -65,17 +65,11 @@ export interface StartAttemptInput {
   userId?: string;
 }
 
-export interface AutosaveAnswerInput {
-  questionId: string;
-  answer: unknown;
-  sequenceNumber: number;
-  clientTimestamp?: number;
-  userId?: string;
-}
-
 export interface SubmitAttemptInput {
   reason?: 'MANUAL' | 'TIME_EXPIRED' | 'VIOLATION';
   userId?: string;
+  answers?: Record<string, unknown>;
+  clientTimestamp?: string;
 }
 
 export interface AttemptDTO {

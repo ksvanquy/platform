@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { CreateOrRecoverAttemptUseCase } from '../../application/use-cases/create-or-recover-attempt.use-case.js';
 import { StartAttemptUseCase } from '../../application/use-cases/start-attempt.use-case.js';
-import { AutosaveAnswerUseCase } from '../../application/use-cases/autosave-answer.use-case.js';
 import { RecordAntiCheatEventUseCase } from '../../application/use-cases/record-anti-cheat-event.use-case.js';
 import { SubmitAttemptUseCase } from '../../application/use-cases/submit-attempt.use-case.js';
 import { GetAttemptUseCase } from '../../application/use-cases/get-attempt.use-case.js';
@@ -14,7 +13,6 @@ export class AttemptController {
   constructor(
     private readonly createOrRecoverAttemptUseCase: CreateOrRecoverAttemptUseCase,
     private readonly startAttemptUseCase: StartAttemptUseCase,
-    private readonly autosaveAnswerUseCase: AutosaveAnswerUseCase,
     private readonly recordAntiCheatEventUseCase: RecordAntiCheatEventUseCase,
     private readonly submitAttemptUseCase: SubmitAttemptUseCase,
     private readonly getAttemptUseCase: GetAttemptUseCase,
@@ -131,57 +129,6 @@ export class AttemptController {
   };
 
   /**
-   * POST /v1/attempts/:id/answers
-   * PUT /v1/attempts/:id/answers/:questionId
-   * Lưu câu trả lời tự động siêu tốc (<25ms SLA)
-   */
-  autosaveAnswer = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const attemptId = req.params.id as string;
-      const questionId = (req.params.questionId || req.body.questionId) as string;
-      const answer = req.body.answer !== undefined ? req.body.answer : req.body.candidateAnswer;
-      const sequenceNumber = Number(req.body.sequenceNumber ?? 1);
-      const clientTimestamp = req.body.clientTimestamp ? Number(req.body.clientTimestamp) : undefined;
-      const principal = req.principal;
-      const userId = principal?.id || req.body.userId;
-
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Authentication required' });
-        return;
-      }
-
-      if (!questionId) {
-        res.status(400).json({ success: false, message: 'questionId is required' });
-        return;
-      }
-
-      const rawExpectedVersion = req.body.expectedVersion ?? req.headers['if-match'];
-      const expectedVersion =
-        rawExpectedVersion !== undefined && rawExpectedVersion !== null && !isNaN(Number(rawExpectedVersion))
-          ? Number(rawExpectedVersion)
-          : undefined;
-
-      const result = await this.autosaveAnswerUseCase.execute({
-        attemptId,
-        userId,
-        questionId,
-        answer,
-        sequenceNumber,
-        clientTimestamp,
-        expectedVersion,
-        userRole: principal?.roles?.[0],
-      });
-
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
-    } catch (err: any) {
-      this.handleError(err, res);
-    }
-  };
-
-  /**
    * POST /v1/attempts/:id/events
    * Ghi nhận sự kiện telemetry chống gian lận (Tab Switch, Fullscreen Exit, v.v.)
    */
@@ -258,10 +205,13 @@ export class AttemptController {
         return;
       }
 
+      const answers = req.body.answers;
+
       const result = await this.submitAttemptUseCase.execute({
         attemptId,
         userId,
         userRole: principal?.roles?.[0],
+        answers,
       });
 
       res.status(200).json({

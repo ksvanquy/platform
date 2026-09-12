@@ -9,7 +9,6 @@ export * from './domain/services/attempt-expiry-sweeper.service.js';
 // Application Layer Exports
 export * from './application/use-cases/create-or-recover-attempt.use-case.js';
 export * from './application/use-cases/start-attempt.use-case.js';
-export * from './application/use-cases/autosave-answer.use-case.js';
 export * from './application/use-cases/record-anti-cheat-event.use-case.js';
 export * from './application/use-cases/submit-attempt.use-case.js';
 export * from './application/use-cases/get-attempt.use-case.js';

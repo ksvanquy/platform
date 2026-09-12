@@ -22,6 +22,7 @@ export interface ResultRevealPolicy {
 export interface SubmitQuizPayload {
   readonly sessionId: string;
   readonly userId: string;
+  readonly answers?: Record<string, unknown>;
   readonly policy?: ResultRevealPolicy;
 }
 

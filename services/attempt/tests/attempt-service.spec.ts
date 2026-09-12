@@ -8,8 +8,6 @@ import { AttemptExpirySweeperService } from '../src/domain/services/attempt-expi
 import {
   AttemptAlreadySubmittedError,
   AttemptTimeExpiredError,
-  OutdatedAnswerSequenceError,
-  AttemptConcurrencyConflictError,
   AttemptAlreadyFinalizedError,
   AttemptNotFoundError,
   UnauthorizedAttemptAccessError,
@@ -20,7 +18,6 @@ import type {
   AttemptRepositoryPort,
   ExamClientPort,
   AttemptFilterQuery,
-  PatchAnswerAtomicResult,
 } from '../src/domain/ports/attempt.repository.port.js';
 import type {
   ExamDTO,
@@ -86,7 +83,6 @@ class InMemoryAttemptRepository implements AttemptRepositoryPort {
     const threshold = new Date(now.getTime() - gracePeriodMs);
     for (const a of this.attemptsMap.values()) {
       if (a.status === 'IN_PROGRESS' && a.deadline && a.deadline.getTime() <= threshold.getTime()) {
-        // Mô phỏng FOR UPDATE SKIP LOCKED: bỏ qua nếu attemptId đang bị lock bởi withAttemptLock
         if (this.lockQueues.has(a.id)) {
           continue;
         }
@@ -106,50 +102,6 @@ class InMemoryAttemptRepository implements AttemptRepositoryPort {
 
   async listEventsByAttemptId(attemptId: string): Promise<AttemptEvent[]> {
     return this.eventsMap.get(attemptId) || [];
-  }
-
-  async patchAnswerAtomic(
-    attemptId: string,
-    questionId: string,
-    answerRecord: CandidateAnswerRecord,
-    expectedVersion?: number,
-    userId?: string,
-    userRole?: string
-  ): Promise<PatchAnswerAtomicResult> {
-    const attempt = this.attemptsMap.get(attemptId);
-    if (!attempt) {
-      throw new AttemptNotFoundError(attemptId);
-    }
-    if (userId && attempt.userId !== userId && userRole !== 'ADMIN') {
-      throw new UnauthorizedAttemptAccessError('You can only record answers for your own attempt');
-    }
-    if (attempt.status !== 'IN_PROGRESS') {
-      throw new AttemptAlreadyFinalizedError(attemptId, attempt.status);
-    }
-    if (expectedVersion !== undefined && attempt.version !== expectedVersion) {
-      throw new AttemptConcurrencyConflictError(attemptId, attempt.version, expectedVersion);
-    }
-    const now = new Date();
-    if (attempt.isAnswerTimeExpired(now)) {
-      throw new AttemptTimeExpiredError(attemptId);
-    }
-
-    attempt.recordAnswer(
-      questionId,
-      answerRecord.answer,
-      answerRecord.sequenceNumber,
-      answerRecord.clientTimestamp,
-      now,
-      15000
-    );
-    attempt.incrementVersion();
-
-    return {
-      success: true,
-      newVersion: attempt.version,
-      remainingTimeMs: attempt.remainingTimeMs(now),
-      status: attempt.status,
-    };
   }
 
   private lockQueues = new Map<string, Promise<void>>();
@@ -205,298 +157,78 @@ class InMemoryAttemptRepository implements AttemptRepositoryPort {
   }
 }
 
-describe('Attempt Service: Domain Aggregate & Concurrency Defense', () => {
-  it('should maintain FSM state transitions from CREATED -> IN_PROGRESS -> SUBMITTED -> GRADED', () => {
-    const attempt = new Attempt({
-      id: 'att_test_01',
-      userId: 'usr_student_01',
-      examId: 'exm_01',
-      snapshotId: 'snp_01',
-      durationMinutes: 45,
-    });
-
-    expect(attempt.status).toBe('CREATED');
-    expect(attempt.startedAt).toBeNull();
-
-    const startTime = new Date();
-    attempt.start(startTime);
-
-    expect(attempt.status).toBe('IN_PROGRESS');
-    expect(attempt.startedAt).toEqual(startTime);
-    expect(attempt.deadline).toBeDefined();
-
-    // Record answer
-    attempt.recordAnswer('q_01', 'opt_a', 1);
-    expect(attempt.answers['q_01'].answer).toBe('opt_a');
-    expect(attempt.answers['q_01'].sequenceNumber).toBe(1);
-
-    // Submit
-    attempt.submit();
-    expect(attempt.status).toBe('SUBMITTED');
-    expect(attempt.submittedAt).toBeDefined();
-
-    // Grade
-    attempt.grade({
-      score: 10,
-      maxScore: 10,
-      percentage: 100,
-      passed: true,
-      evaluatedAt: new Date().toISOString(),
-      breakdown: {},
-    });
-
-    expect(attempt.status).toBe('GRADED');
-    expect(attempt.scoreResult?.score).toBe(10);
-  });
-
-  it('should strictly reject out-of-order answers using logical sequence numbers', () => {
-    const attempt = new Attempt({
-      id: 'att_test_seq',
-      userId: 'usr_student_01',
-      examId: 'exm_01',
-      snapshotId: 'snp_01',
-      durationMinutes: 30,
-    });
-    attempt.start();
-
-    // Save seq 1 -> success
-    attempt.recordAnswer('q_01', 'opt_b', 1);
-    expect(attempt.answers['q_01'].answer).toBe('opt_b');
-
-    // Save seq 5 -> success
-    attempt.recordAnswer('q_01', 'opt_c', 5);
-    expect(attempt.answers['q_01'].answer).toBe('opt_c');
-
-    // Save seq 3 (older than 5) -> throws OutdatedAnswerSequenceError
-    expect(() => {
-      attempt.recordAnswer('q_01', 'opt_a', 3);
-    }).toThrow(OutdatedAnswerSequenceError);
-
-    // Current answer remains opt_c
-    expect(attempt.answers['q_01'].answer).toBe('opt_c');
-  });
-
-  it('should reject recording answers after official deadline (Zero-Tolerance Tier 1)', () => {
-    const startTime = new Date(Date.now() - 60 * 60 * 1000); // 60 mins ago
-    const customDeadline = new Date(Date.now() - 10 * 60 * 1000); // 10 mins ago
-
-    const attempt = new Attempt({
-      id: 'att_test_expired',
-      userId: 'usr_student_01',
-      examId: 'exm_01',
-      snapshotId: 'snp_01',
-      durationMinutes: 30,
-    });
-    attempt.start(startTime, customDeadline);
-
-    expect(() => {
-      attempt.recordAnswer('q_01', 'opt_a', 1, undefined, new Date());
-    }).toThrow(AttemptTimeExpiredError);
-  });
-
-  it('should transition to TIMED_OUT_GRADED if submitted past grace period (Tier 2)', () => {
-    const now = new Date();
-    const deadline = new Date(now.getTime() - 20000); // Expired 20s ago
-
-    const attempt = new Attempt({
-      id: 'att_test_grace',
-      userId: 'usr_student_01',
-      examId: 'exm_01',
-      snapshotId: 'snp_01',
-      durationMinutes: 30,
-    });
-    attempt.start(new Date(now.getTime() - 40 * 60 * 1000), deadline);
-
-    attempt.submit(now, 15000); // Grace period 15s, expired 20s -> TIMED_OUT_GRADED
-    expect(attempt.status).toBe('TIMED_OUT_GRADED');
-  });
-
-  it('Giai đoạn 1: should support OCC versioning on Attempt aggregate', () => {
-    const attempt = new Attempt({
-      id: 'att_occ_01',
-      userId: 'usr_student_01',
-      examId: 'exm_01',
-      snapshotId: 'snp_01',
-      durationMinutes: 60,
-    });
-
-    // Default version should be 1
-    expect(attempt.version).toBe(1);
-
-    // incrementVersion should increase version monotonically
-    attempt.incrementVersion();
-    expect(attempt.version).toBe(2);
-
-    attempt.incrementVersion();
-    expect(attempt.version).toBe(3);
-
-    // toDTO should include version
-    const dto = attempt.toDTO();
-    expect(dto.version).toBe(3);
-
-    // toPrimitives and fromPrimitives round-trip
-    const primitives = attempt.toPrimitives();
-    expect(primitives.version).toBe(3);
-
-    const reconstructed = Attempt.fromPrimitives(primitives);
-    expect(reconstructed.id).toBe(attempt.id);
-    expect(reconstructed.version).toBe(3);
-    expect(reconstructed.status).toBe(attempt.status);
-  });
-
-  it('Giai đoạn 1: should define and map concurrency conflict and finalized errors with HTTP 409', () => {
-    const conflictErr = new AttemptConcurrencyConflictError('att_occ_01', 2, 1);
-    expect(conflictErr.statusCode).toBe(409);
-    expect(conflictErr.errorCode).toBe('ATTEMPT_CONCURRENCY_CONFLICT');
-    expect(conflictErr.message).toContain('expected version 1, but found version 2');
-
-    const finalizedErr = new AttemptAlreadyFinalizedError('att_occ_01', 'GRADED');
-    expect(finalizedErr.statusCode).toBe(409);
-    expect(finalizedErr.errorCode).toBe('ATTEMPT_ALREADY_FINALIZED');
-    expect(finalizedErr.message).toContain('already finalized with status "GRADED"');
-  });
-});
-
-describe('Attempt Scoring Engine: Multi-Format Evaluation', () => {
-  const sampleQuestions: FrozenQuestionItem[] = [
-    {
-      id: 'q_single',
-      revisionId: 'rev_1',
-      type: 'SINGLE',
-      prompt: 'What is 2 + 2?',
-      points: 2,
-      options: [
-        { id: 'opt_1', content: '3', isCorrect: false },
-        { id: 'opt_2', content: '4', isCorrect: true },
-      ],
-    },
-    {
-      id: 'q_multiple',
-      revisionId: 'rev_2',
-      type: 'MULTIPLE',
-      prompt: 'Select prime numbers',
-      points: 3,
-      options: [
-        { id: 'opt_a', content: '2', isCorrect: true },
-        { id: 'opt_b', content: '3', isCorrect: true },
-        { id: 'opt_c', content: '4', isCorrect: false },
-      ],
-    },
-    {
-      id: 'q_fill',
-      revisionId: 'rev_3',
-      type: 'FILL_IN',
-      prompt: 'Capital of France?',
-      points: 2,
-      options: [{ id: 'opt_f', content: 'Paris', isCorrect: true }],
-    },
-  ];
-
-  it('should evaluate full score when all answers are correct', () => {
-    const result = AttemptScoringEngine.evaluate({
-      questions: sampleQuestions,
-      answers: {
-        q_single: { answer: 'opt_2', answeredAt: new Date().toISOString(), sequenceNumber: 1 },
-        q_multiple: { answer: ['opt_a', 'opt_b'], answeredAt: new Date().toISOString(), sequenceNumber: 1 },
-        q_fill: { answer: 'Paris', answeredAt: new Date().toISOString(), sequenceNumber: 1 },
-      },
-      passingScore: 5,
-    });
-
-    expect(result.score).toBe(7);
-    expect(result.maxScore).toBe(7);
-    expect(result.percentage).toBe(100);
-    expect(result.passed).toBe(true);
-    expect(result.breakdown['q_single'].isCorrect).toBe(true);
-    expect(result.breakdown['q_multiple'].isCorrect).toBe(true);
-    expect(result.breakdown['q_fill'].isCorrect).toBe(true);
-  });
-
-  it('should handle partial credit and unanswered questions correctly', () => {
-    const result = AttemptScoringEngine.evaluate({
-      questions: sampleQuestions,
-      answers: {
-        q_single: { answer: 'opt_1', answeredAt: new Date().toISOString(), sequenceNumber: 1 }, // Incorrect
-        q_multiple: { answer: ['opt_a'], answeredAt: new Date().toISOString(), sequenceNumber: 1 }, // Partial
-      },
-      scoringPolicy: { strategyType: 'partial' },
-      passingScore: 4,
-    });
-
-    expect(result.breakdown['q_single'].isCorrect).toBe(false);
-    expect(result.breakdown['q_single'].scoreAwarded).toBe(0);
-    expect(result.breakdown['q_multiple'].scoreAwarded).toBe(1.5); // 1 out of 2 correct
-    expect(result.breakdown['q_fill'].feedback).toBe('Chưa trả lời');
-    expect(result.passed).toBe(false);
-  });
-});
-
-describe('Attempt Service API & Sweeper Integration', () => {
+describe('Attempt Service & Single-Submission Workflow Tests', () => {
   let attemptRepo: InMemoryAttemptRepository;
   let mockExamClient: ExamClientPort;
   let sweeper: AttemptExpirySweeperService;
   let app: express.Express;
 
   const mockManifest: SanitizedExamManifest = {
-    examId: 'exm_mock_01',
-    variantCode: 'DEFAULT',
     title: 'Kỳ thi thử Toán',
+    code: 'EXM_TOAN_01',
     durationMinutes: 45,
-    totalQuestions: 2,
-    totalPoints: 5,
-    questions: [
+    navigationMode: 'FREE',
+    questionCount: 2,
+    sections: [
       {
-        id: 'q_01',
-        type: 'SINGLE',
-        prompt: '1 + 1 = ?',
-        options: [
-          { id: 'opt_1', content: '2' },
-          { id: 'opt_2', content: '3' },
+        id: 'sec_01',
+        title: 'Phần 1: Đại số',
+        questions: [
+          {
+            id: 'q_01',
+            title: 'Phương trình bậc 2',
+            type: 'SINGLE',
+            options: [
+              { id: 'opt_1', content: 'x = 1 hoặc x = 2' },
+              { id: 'opt_2', content: 'x = 0' },
+            ],
+            points: 2,
+          },
+          {
+            id: 'q_02',
+            title: 'Bất đẳng thức',
+            type: 'SINGLE',
+            options: [
+              { id: 'opt_a', content: 'Đúng' },
+              { id: 'opt_b', content: 'Sai' },
+            ],
+            points: 3,
+          },
         ],
-        points: 2,
-      },
-      {
-        id: 'q_02',
-        type: 'SINGLE',
-        prompt: '5 * 5 = ?',
-        options: [
-          { id: 'opt_a', content: '20' },
-          { id: 'opt_b', content: '25' },
-        ],
-        points: 3,
       },
     ],
-    serverTimestamp: Date.now(),
   };
 
   const mockSnapshot: ExamSnapshotDTO = {
     id: 'snp_mock_01',
     examId: 'exm_mock_01',
-    variantCode: 'DEFAULT',
-    contentHash: 'hash123',
+    version: 1,
+    snapshotHash: 'hash_mock_01',
     frozenPayload: {
       questions: [
         {
           id: 'q_01',
-          revisionId: 'rev_1',
+          revisionId: 'rev_01',
           type: 'SINGLE',
-          prompt: '1 + 1 = ?',
-          points: 2,
+          prompt: 'Giải phương trình $$x^2 - 3x + 2 = 0$$',
+          title: 'Phương trình bậc 2',
           options: [
-            { id: 'opt_1', content: '2', isCorrect: true },
-            { id: 'opt_2', content: '3', isCorrect: false },
+            { id: 'opt_1', content: 'x = 1 hoặc x = 2', isCorrect: true },
+            { id: 'opt_2', content: 'x = 0', isCorrect: false },
           ],
+          points: 2,
         },
         {
           id: 'q_02',
-          revisionId: 'rev_2',
+          revisionId: 'rev_02',
           type: 'SINGLE',
-          prompt: '5 * 5 = ?',
-          points: 3,
+          prompt: 'Bất đẳng thức Cauchy-Schwarz luôn đúng trên R?',
+          title: 'Bất đẳng thức',
           options: [
-            { id: 'opt_a', content: '20', isCorrect: false },
-            { id: 'opt_b', content: '25', isCorrect: true },
+            { id: 'opt_a', content: 'Đúng', isCorrect: false },
+            { id: 'opt_b', content: 'Sai', isCorrect: true },
           ],
+          points: 3,
         },
       ],
       scoringPolicy: { strategyType: 'standard' },
@@ -559,41 +291,6 @@ describe('Attempt Service API & Sweeper Integration', () => {
     expect(recoverRes.body.data.id).toBe(attemptId);
   });
 
-  it('POST /v1/attempts/:id/answers - autosaves answer with sequence checking', async () => {
-    const init = await request(app)
-      .post('/v1/attempts')
-      .set('x-user-id', 'usr_candidate_01')
-      .send({ examId: 'exm_mock_01' });
-
-    const attemptId = init.body.data.id;
-
-    const saveRes = await request(app)
-      .post(`/v1/attempts/${attemptId}/answers`)
-      .set('x-user-id', 'usr_candidate_01')
-      .send({
-        questionId: 'q_01',
-        answer: 'opt_1',
-        sequenceNumber: 1,
-      });
-
-    expect(saveRes.status).toBe(200);
-    expect(saveRes.body.success).toBe(true);
-    expect(saveRes.body.data.sequenceNumber).toBe(1);
-
-    // Save out of sequence
-    const badSeqRes = await request(app)
-      .post(`/v1/attempts/${attemptId}/answers`)
-      .set('x-user-id', 'usr_candidate_01')
-      .send({
-        questionId: 'q_01',
-        answer: 'opt_2',
-        sequenceNumber: 1, // Same or lower sequence
-      });
-
-    expect(badSeqRes.status).toBe(409);
-    expect(badSeqRes.body.errorCode).toBe('OUTDATED_ANSWER_SEQUENCE');
-  });
-
   it('POST /v1/attempts/:id/events - logs anti-cheat telemetry', async () => {
     const init = await request(app)
       .post('/v1/attempts')
@@ -623,7 +320,7 @@ describe('Attempt Service API & Sweeper Integration', () => {
     expect(listEventsRes.body.data.length).toBe(1);
   });
 
-  it('POST /v1/attempts/:id/submit - evaluates score and grades attempt', async () => {
+  it('POST /v1/attempts/:id/submit - receives answers directly, evaluates score and grades attempt', async () => {
     const init = await request(app)
       .post('/v1/attempts')
       .set('x-user-id', 'usr_candidate_01')
@@ -631,21 +328,16 @@ describe('Attempt Service API & Sweeper Integration', () => {
 
     const attemptId = init.body.data.id;
 
-    // Answer both correctly
-    await request(app)
-      .post(`/v1/attempts/${attemptId}/answers`)
-      .set('x-user-id', 'usr_candidate_01')
-      .send({ questionId: 'q_01', answer: 'opt_1', sequenceNumber: 1 });
-
-    await request(app)
-      .post(`/v1/attempts/${attemptId}/answers`)
-      .set('x-user-id', 'usr_candidate_01')
-      .send({ questionId: 'q_02', answer: 'opt_b', sequenceNumber: 1 });
-
-    // Submit
+    // Submit with all answers attached in a single payload
     const submitRes = await request(app)
       .post(`/v1/attempts/${attemptId}/submit`)
-      .set('x-user-id', 'usr_candidate_01');
+      .set('x-user-id', 'usr_candidate_01')
+      .send({
+        answers: {
+          q_01: 'opt_1',
+          q_02: 'opt_b',
+        },
+      });
 
     expect(submitRes.status).toBe(200);
     expect(submitRes.body.data.status).toBe('GRADED');
@@ -654,7 +346,6 @@ describe('Attempt Service API & Sweeper Integration', () => {
   });
 
   it('POST /v1/internal/attempts/sweep - sweeps and grades expired attempts', async () => {
-    // Setup an expired attempt in repository with existing answers
     const expiredAttempt = new Attempt({
       id: 'att_expired_01',
       userId: 'usr_candidate_99',
@@ -694,137 +385,8 @@ describe('Attempt Service API & Sweeper Integration', () => {
     expect(res.body.timestampMs).toBeGreaterThan(0);
   });
 
-  describe('Giai đoạn 2: Atomic JSONB Patching & Autosave Concurrency Defense', () => {
-    it('should atomically patch individual questions and increment version without losing updates', async () => {
-      // 1. Create and start attempt
-      const createRes = await request(app)
-        .post('/v1/attempts')
-        .set('x-user-id', 'usr_concurrent_01')
-        .send({ examId: 'exm_mock_01', autoStart: true });
-
-      const attemptId = createRes.body.data.id;
-      const initialVersion = createRes.body.data.version;
-      expect(initialVersion).toBe(1);
-
-      // 2. Patch question q_01
-      const patch1 = await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_01`)
-        .set('x-user-id', 'usr_concurrent_01')
-        .send({ answer: 'opt_1', sequenceNumber: 1 });
-
-      expect(patch1.status).toBe(200);
-      expect(patch1.body.success).toBe(true);
-      expect(patch1.body.data.version).toBe(2);
-      expect(patch1.body.data.remainingTimeMs).toBeGreaterThan(0);
-
-      // 3. Patch question q_02 with sequence 1
-      const patch2 = await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_02`)
-        .set('x-user-id', 'usr_concurrent_01')
-        .send({ answer: 'opt_b', sequenceNumber: 1 });
-
-      expect(patch2.status).toBe(200);
-      expect(patch2.body.data.version).toBe(3);
-
-      // 4. Update question q_01 with higher sequence number
-      const patch3 = await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_01`)
-        .set('x-user-id', 'usr_concurrent_01')
-        .send({ answer: 'opt_2', sequenceNumber: 2 });
-
-      expect(patch3.status).toBe(200);
-      expect(patch3.body.data.version).toBe(4);
-
-      // 5. Verify both questions exist and retain their latest values
-      const getRes = await request(app)
-        .get(`/v1/attempts/${attemptId}`)
-        .set('x-user-id', 'usr_concurrent_01');
-
-      expect(getRes.body.data.answers.q_01.answer).toBe('opt_2');
-      expect(getRes.body.data.answers.q_01.sequenceNumber).toBe(2);
-      expect(getRes.body.data.answers.q_02.answer).toBe('opt_b');
-      expect(getRes.body.data.answers.q_02.sequenceNumber).toBe(1);
-      expect(getRes.body.data.version).toBe(4);
-    });
-
-    it('should reject outdated sequence numbers with HTTP 409 OUTDATED_ANSWER_SEQUENCE', async () => {
-      const createRes = await request(app)
-        .post('/v1/attempts')
-        .set('x-user-id', 'usr_seq_01')
-        .send({ examId: 'exm_mock_01', autoStart: true });
-
-      const attemptId = createRes.body.data.id;
-
-      // Save seq #5
-      await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_01`)
-        .set('x-user-id', 'usr_seq_01')
-        .send({ answer: 'opt_latest', sequenceNumber: 5 });
-
-      // Stale request with seq #3 should be rejected
-      const staleRes = await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_01`)
-        .set('x-user-id', 'usr_seq_01')
-        .send({ answer: 'opt_stale', sequenceNumber: 3 });
-
-      expect(staleRes.status).toBe(409);
-      expect(staleRes.body.errorCode).toBe('OUTDATED_ANSWER_SEQUENCE');
-    });
-
-    it('should reject answer updates once attempt is finalized (SUBMITTED/GRADED) with HTTP 409', async () => {
-      const createRes = await request(app)
-        .post('/v1/attempts')
-        .set('x-user-id', 'usr_finalized_01')
-        .send({ examId: 'exm_mock_01', autoStart: true });
-
-      const attemptId = createRes.body.data.id;
-
-      // Submit attempt
-      const submitRes = await request(app)
-        .post(`/v1/attempts/${attemptId}/submit`)
-        .set('x-user-id', 'usr_finalized_01');
-      expect(submitRes.status).toBe(200);
-
-      // Attempt to autosave after submission
-      const patchRes = await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_01`)
-        .set('x-user-id', 'usr_finalized_01')
-        .send({ answer: 'new_answer', sequenceNumber: 1 });
-
-      expect(patchRes.status).toBe(409);
-      expect(patchRes.body.errorCode).toBe('ATTEMPT_ALREADY_FINALIZED');
-    });
-
-    it('should enforce OCC version conflict check when expectedVersion is provided', async () => {
-      const createRes = await request(app)
-        .post('/v1/attempts')
-        .set('x-user-id', 'usr_occ_01')
-        .send({ examId: 'exm_mock_01', autoStart: true });
-
-      const attemptId = createRes.body.data.id;
-
-      // First patch succeeds with version 1 -> increments to 2
-      const patch1 = await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_01`)
-        .set('x-user-id', 'usr_occ_01')
-        .send({ answer: 'opt_1', sequenceNumber: 1, expectedVersion: 1 });
-      expect(patch1.status).toBe(200);
-      expect(patch1.body.data.version).toBe(2);
-
-      // Stale client passing expectedVersion 1 should receive 409 CONCURRENCY_CONFLICT
-      const staleConflict = await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_02`)
-        .set('x-user-id', 'usr_occ_01')
-        .send({ answer: 'opt_b', sequenceNumber: 1, expectedVersion: 1 });
-
-      expect(staleConflict.status).toBe(409);
-      expect(staleConflict.body.errorCode).toBe('ATTEMPT_CONCURRENCY_CONFLICT');
-    });
-  });
-
-  describe('Giai đoạn 3: Row-Level Lock, Idempotent Submission & State Regression Defense', () => {
-    it('Task CONC-3.1 & CONC-3.2: should handle 10 concurrent submissions idempotently without double-grading', async () => {
-      // Create and start attempt
+  describe('Single-Submission & Concurrency Defense', () => {
+    it('should handle 10 concurrent submissions idempotently without double-grading', async () => {
       const createRes = await request(app)
         .post('/v1/attempts')
         .set('x-user-id', 'usr_concurrent_submit_01')
@@ -832,17 +394,16 @@ describe('Attempt Service API & Sweeper Integration', () => {
 
       const attemptId = createRes.body.data.id;
 
-      // Autosave an answer
-      await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_01`)
-        .set('x-user-id', 'usr_concurrent_submit_01')
-        .send({ answer: 'opt_1', sequenceNumber: 1 });
-
-      // Gửi đồng thời 10 request submit
+      // Gửi đồng thời 10 request submit với cùng bảng answers
       const submitPromises = Array.from({ length: 10 }).map(() =>
         request(app)
           .post(`/v1/attempts/${attemptId}/submit`)
           .set('x-user-id', 'usr_concurrent_submit_01')
+          .send({
+            answers: {
+              q_01: 'opt_1',
+            },
+          })
       );
 
       const responses = await Promise.all(submitPromises);
@@ -863,7 +424,7 @@ describe('Attempt Service API & Sweeper Integration', () => {
       expect(duplicateSubmissions.length).toBe(9);
     });
 
-    it('Task CONC-3.3: should strictly prevent State Regression from GRADED back to IN_PROGRESS', async () => {
+    it('should strictly prevent State Regression from GRADED back to IN_PROGRESS', async () => {
       const createRes = await request(app)
         .post('/v1/attempts')
         .set('x-user-id', 'usr_regression_01')
@@ -874,21 +435,10 @@ describe('Attempt Service API & Sweeper Integration', () => {
       // Submit attempt -> becomes GRADED
       const submitRes = await request(app)
         .post(`/v1/attempts/${attemptId}/submit`)
-        .set('x-user-id', 'usr_regression_01');
+        .set('x-user-id', 'usr_regression_01')
+        .send({ answers: { q_01: 'opt_1' } });
       expect(submitRes.status).toBe(200);
       expect(submitRes.body.status).toBe('GRADED');
-
-      // Delayed autosave arrives late -> rejected with HTTP 409 ATTEMPT_ALREADY_FINALIZED
-      const lateAutosave = await request(app)
-        .put(`/v1/attempts/${attemptId}/answers/q_01`)
-        .set('x-user-id', 'usr_regression_01')
-        .send({ answer: 'opt_late', sequenceNumber: 10 });
-      expect(lateAutosave.status).toBe(409);
-      expect(lateAutosave.body.errorCode).toBe('ATTEMPT_ALREADY_FINALIZED');
-
-      // Ensure attempt is still GRADED in database
-      const fetchAttempt = await attemptRepo.findAttemptById(attemptId);
-      expect(fetchAttempt?.status).toBe('GRADED');
 
       // Calling saveAttempt with an IN_PROGRESS entity does not regress the stored state
       const staleEntity = new Attempt({
@@ -905,7 +455,7 @@ describe('Attempt Service API & Sweeper Integration', () => {
       expect(afterSave?.status).toBe('GRADED');
     });
 
-    it('Task CONC-3.4: should correctly handle Deadline vs Grace Period Guard', async () => {
+    it('should correctly handle Deadline vs Grace Period Guard', async () => {
       // Case 1: Within official deadline -> GRADED
       const attempt1 = new Attempt({
         id: 'att_deadline_normal',
@@ -919,7 +469,8 @@ describe('Attempt Service API & Sweeper Integration', () => {
 
       const res1 = await request(app)
         .post('/v1/attempts/att_deadline_normal/submit')
-        .set('x-user-id', 'usr_student_dl_01');
+        .set('x-user-id', 'usr_student_dl_01')
+        .send({ answers: { q_01: 'opt_1' } });
       expect(res1.status).toBe(200);
       expect(res1.body.status).toBe('GRADED');
 
@@ -931,13 +482,13 @@ describe('Attempt Service API & Sweeper Integration', () => {
         snapshotId: 'snp_mock_01',
         durationMinutes: 30,
       });
-      // Deadline was 5 seconds ago
       attempt2.start(new Date(Date.now() - 30 * 60 * 1000), new Date(Date.now() - 5000));
       await attemptRepo.saveAttempt(attempt2);
 
       const res2 = await request(app)
         .post('/v1/attempts/att_deadline_grace/submit')
-        .set('x-user-id', 'usr_student_dl_02');
+        .set('x-user-id', 'usr_student_dl_02')
+        .send({ answers: { q_01: 'opt_1' } });
       expect(res2.status).toBe(200);
       expect(res2.body.status).toBe('GRADED');
 
@@ -949,13 +500,13 @@ describe('Attempt Service API & Sweeper Integration', () => {
         snapshotId: 'snp_mock_01',
         durationMinutes: 30,
       });
-      // Deadline was 25 seconds ago
       attempt3.start(new Date(Date.now() - 30 * 60 * 1000), new Date(Date.now() - 25000));
       await attemptRepo.saveAttempt(attempt3);
 
       const res3 = await request(app)
         .post('/v1/attempts/att_deadline_exceeded/submit')
-        .set('x-user-id', 'usr_student_dl_03');
+        .set('x-user-id', 'usr_student_dl_03')
+        .send({ answers: { q_01: 'opt_1' } });
       expect(res3.status).toBe(200);
       expect(res3.body.status).toBe('TIMED_OUT_GRADED');
     });

@@ -262,34 +262,6 @@ export class ApiClient {
     },
 
     /**
-     * Tự động lưu đáp án câu hỏi với Sequence Protection (<25ms SLA)
-     */
-    recordAnswer: async (
-      attemptId: string,
-      questionId: string,
-      payload: { answer: any; sequenceNumber?: number; clientTimestamp?: number }
-    ): Promise<ApiResponse<any>> => {
-      return this.put<ApiResponse<any>>(
-        `/v1/attempts/${encodeURIComponent(attemptId)}/answers/${encodeURIComponent(questionId)}`,
-        payload
-      );
-    },
-
-    /**
-     * Alias chuyên biệt cho autosave
-     */
-    autosave: async (
-      attemptId: string,
-      questionId: string,
-      payload: { answer: any; sequenceNumber: number; clientTimestamp?: number }
-    ): Promise<ApiResponse<{ success: boolean; sequenceNumber: number; savedAt: string }>> => {
-      return this.put<ApiResponse<{ success: boolean; sequenceNumber: number; savedAt: string }>>(
-        `/v1/attempts/${encodeURIComponent(attemptId)}/answers/${encodeURIComponent(questionId)}`,
-        payload
-      );
-    },
-
-    /**
      * Ghi nhận sự kiện telemetry chống gian lận (rời tab, thoát toàn màn hình, paste...)
      */
     recordEvent: async (

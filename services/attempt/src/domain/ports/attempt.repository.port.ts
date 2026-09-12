@@ -16,13 +16,6 @@ export interface AttemptFilterQuery {
   offset?: number;
 }
 
-export interface PatchAnswerAtomicResult {
-  success: boolean;
-  newVersion: number;
-  remainingTimeMs: number;
-  status: AttemptStatus;
-}
-
 export interface AttemptRepositoryPort {
   saveAttempt(attempt: Attempt): Promise<Attempt>;
   findAttemptById(id: string): Promise<Attempt | null>;
@@ -32,14 +25,6 @@ export interface AttemptRepositoryPort {
   findExpiredInProgressAttempts(now: Date, gracePeriodMs: number, limit?: number): Promise<Attempt[]>;
   saveEvent(event: AttemptEvent): Promise<AttemptEvent>;
   listEventsByAttemptId(attemptId: string): Promise<AttemptEvent[]>;
-  patchAnswerAtomic(
-    attemptId: string,
-    questionId: string,
-    answerRecord: CandidateAnswerRecord,
-    expectedVersion?: number,
-    userId?: string,
-    userRole?: string
-  ): Promise<PatchAnswerAtomicResult>;
   withAttemptLock<T>(
     attemptId: string,
     operation: (attempt: Attempt, saveLocked: (updated: Attempt) => Promise<void>) => Promise<T>

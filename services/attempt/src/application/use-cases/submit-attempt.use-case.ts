@@ -18,6 +18,7 @@ export interface SubmitAttemptInput {
   attemptId: string;
   userId: string;
   userRole?: string;
+  answers?: Record<string, unknown>;
   gracePeriodMs?: number;
 }
 
@@ -36,7 +37,7 @@ export class SubmitAttemptUseCase {
 
   async execute(input: SubmitAttemptInput): Promise<SubmitAttemptOutput> {
     const now = new Date();
-    const { attemptId, userId, userRole, gracePeriodMs = 15000 } = input;
+    const { attemptId, userId, userRole, answers, gracePeriodMs = 15000 } = input;
 
     // Task CONC-3.1: Thực thi trong Database Transaction với Row-Level Exclusive Lock (FOR UPDATE)
     return await this.attemptRepo.withAttemptLock(attemptId, async (attempt, saveLocked) => {
@@ -56,6 +57,11 @@ export class SubmitAttemptUseCase {
           status: attempt.status,
           isDuplicateSubmission: true,
         };
+      }
+
+      // Cập nhật bảng câu trả lời từ single submission payload nếu có
+      if (answers && typeof answers === 'object') {
+        attempt.updateAnswers(answers, now);
       }
 
       // Task CONC-3.4: Xử lý Tranh chấp Giờ chót (Deadline vs. Grace Period Guard)

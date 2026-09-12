@@ -37,7 +37,6 @@ const App: React.FC = () => {
     session,
     questions,
     answers,
-    saveStatus,
     isSubmitting,
     result,
     errorMessage,
@@ -260,7 +259,6 @@ const App: React.FC = () => {
         session={session}
         questions={questions}
         answers={answers}
-        saveStatus={saveStatus}
         isSubmitting={isSubmitting}
         onAnswerChange={setAnswer}
         onSubmit={() => submit({ showDetails: true })}

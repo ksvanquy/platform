@@ -4,13 +4,11 @@ import { QuizFooter } from '../components/runner/QuizFooter.js';
 import { QuestionPalette } from '../components/runner/QuestionPalette.js';
 import { QuestionRenderer } from '../components/questions/QuestionRegistry.js';
 import { SessionDTO, QuestionDTO } from '../types/quiz.types.js';
-import { SaveStatus } from '../hooks/useQuizSession.js';
 
 interface QuizActiveViewProps {
   session: SessionDTO;
   questions: readonly QuestionDTO[];
   answers: Record<string, unknown>;
-  saveStatus: SaveStatus;
   isSubmitting: boolean;
   onAnswerChange: (questionId: string, value: unknown) => void;
   onSubmit: () => void;
@@ -20,7 +18,6 @@ export const QuizActiveView: React.FC<QuizActiveViewProps> = ({
   session,
   questions,
   answers,
-  saveStatus,
   isSubmitting,
   onAnswerChange,
   onSubmit,
@@ -127,7 +124,6 @@ export const QuizActiveView: React.FC<QuizActiveViewProps> = ({
         deadline={session.deadline}
         totalQuestions={questions.length}
         answeredCount={answeredCount}
-        saveStatus={saveStatus}
         onExpire={handleExpire}
       />
 

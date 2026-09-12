@@ -230,6 +230,35 @@ export class Attempt {
   }
 
   /**
+   * Cập nhật toàn bộ bảng câu trả lời khi nộp bài (Single Submission Model)
+   */
+  updateAnswers(rawAnswers: Record<string, unknown>, now: Date = new Date()): void {
+    if (this.isFinalized()) {
+      return;
+    }
+    for (const [qId, ans] of Object.entries(rawAnswers)) {
+      if (ans !== undefined) {
+        if (ans && typeof ans === 'object' && 'answer' in ans && (ans as any).answeredAt) {
+          const rec = ans as CandidateAnswerRecord;
+          this._answers.set(qId, {
+            answer: rec.answer,
+            answeredAt: rec.answeredAt || now.toISOString(),
+            sequenceNumber: rec.sequenceNumber ?? 1,
+            clientTimestamp: rec.clientTimestamp,
+          });
+        } else {
+          this._answers.set(qId, {
+            answer: ans,
+            answeredAt: now.toISOString(),
+            sequenceNumber: 1,
+          });
+        }
+      }
+    }
+    this._updatedAt = now;
+  }
+
+  /**
    * Kiểm tra ca thi đã kết thúc / nộp / hoàn tất chưa (Finalized state)
    */
   isFinalized(): boolean {

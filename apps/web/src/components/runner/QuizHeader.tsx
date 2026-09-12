@@ -1,6 +1,5 @@
 import React from 'react';
 import { QuizTimer } from './QuizTimer.js';
-import { SaveStatus } from '../../hooks/useQuizSession.js';
 
 interface QuizHeaderProps {
   title: string;
@@ -10,7 +9,6 @@ interface QuizHeaderProps {
   deadline?: string;
   totalQuestions: number;
   answeredCount: number;
-  saveStatus: SaveStatus;
   onExpire?: () => void;
 }
 
@@ -22,7 +20,6 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({
   deadline,
   totalQuestions,
   answeredCount,
-  saveStatus,
   onExpire,
 }) => {
   const percentage = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
@@ -43,19 +40,6 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({
           <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
             <span>
               Đã làm: <strong className="text-sky-400">{answeredCount}</strong>/{totalQuestions} ({percentage}%)
-            </span>
-
-            {/* Trạng thái Autosave */}
-            <span className="flex items-center gap-1">
-              {saveStatus === 'SAVING' && (
-                <span className="text-amber-400 animate-pulse">● Đang lưu...</span>
-              )}
-              {saveStatus === 'SAVED' && (
-                <span className="text-emerald-400">✓ Đã tự động lưu</span>
-              )}
-              {saveStatus === 'ERROR' && (
-                <span className="text-rose-400 font-semibold">⚠ Lỗi lưu bài</span>
-              )}
             </span>
           </div>
         </div>

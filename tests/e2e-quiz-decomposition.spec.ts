@@ -286,28 +286,6 @@ describe('GIAI ĐOẠN 6: Full E2E Lifecycle Across Decomposed Microservices', (
       examManifest = res.body.manifest;
     });
 
-    it('should autosave candidate answers with monotonic sequence numbers (<25ms SLA)', async () => {
-      expect(attemptId).toBeDefined();
-      expect(examManifest.questions.length).toBeGreaterThan(0);
-
-      const firstQuestion = examManifest.questions[0];
-      const selectedOptionId = firstQuestion.options[0].id;
-
-      const res = await request(app)
-        .post(`/v1/attempts/${attemptId}/answers`)
-        .set(studentHeaders)
-        .send({
-          questionId: firstQuestion.id,
-          answer: { selectedOptionId },
-          sequenceNumber: 1,
-          clientTimestamp: Date.now(),
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.sequenceNumber).toBe(1);
-    });
-
     it('should record proctoring telemetry events (Anti-Cheat)', async () => {
       expect(attemptId).toBeDefined();
 
@@ -324,13 +302,21 @@ describe('GIAI ĐOẠN 6: Full E2E Lifecycle Across Decomposed Microservices', (
       expect(res.body.success).toBe(true);
     });
 
-    it('should submit attempt and execute deterministic scoring against frozen snapshot', async () => {
+    it('should submit attempt with candidate answers and execute deterministic scoring against frozen snapshot', async () => {
       expect(attemptId).toBeDefined();
+      expect(examManifest.questions.length).toBeGreaterThan(0);
+
+      const firstQuestion = examManifest.questions[0];
+      const selectedOptionId = firstQuestion.options[0].id;
 
       const res = await request(app)
         .post(`/v1/attempts/${attemptId}/submit`)
         .set(studentHeaders)
-        .send();
+        .send({
+          answers: {
+            [firstQuestion.id]: { selectedOptionId },
+          },
+        });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

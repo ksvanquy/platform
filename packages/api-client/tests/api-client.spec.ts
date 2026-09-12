@@ -143,29 +143,7 @@ describe('Bước 5 — packages/api-client', () => {
       expect(response.data).toEqual(mockQuizzes);
     });
 
-    it('should call attempts.recordAnswer() to save candidate answer', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => ({ success: true, message: 'Answer saved' }),
-      });
-
-      const response = await api.attempts.recordAnswer('att_123', 'q_01', {
-        answer: 'opt_a',
-        clientTimestamp: 123456,
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://quiz.api.local/v1/attempts/att_123/answers/q_01',
-        expect.objectContaining({
-          method: 'PUT',
-          body: JSON.stringify({ answer: 'opt_a', clientTimestamp: 123456 }),
-        })
-      );
-      expect(response.message).toBe('Answer saved');
-    });
-
-    it('should call attempts.submit() to submit quiz attempt', async () => {
+    it('should call attempts.submit() to submit quiz attempt with answers payload', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         headers: new Headers({ 'content-type': 'application/json' }),
@@ -175,13 +153,15 @@ describe('Bước 5 — packages/api-client', () => {
         }),
       });
 
-      const response = await api.attempts.submit('att_123');
+      const response = await api.attempts.submit('att_123', {
+        answers: { q_01: 'opt_a' },
+      });
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://quiz.api.local/v1/attempts/att_123/submit',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({}),
+          body: JSON.stringify({ answers: { q_01: 'opt_a' } }),
         })
       );
       expect(response.data.scoreResult.score).toBe(90);
@@ -305,30 +285,7 @@ describe('Bước 5 — packages/api-client', () => {
       expect(manifestRes.data!.variantCode).toBe('101');
     });
 
-    it('should call attempts.autosave() and recordEvent()', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => ({
-          success: true,
-          data: { success: true, sequenceNumber: 2, savedAt: new Date().toISOString() },
-        }),
-      });
-
-      const autoRes = await api.attempts.autosave('att_abc', 'q_1', {
-        answer: 'opt_A',
-        sequenceNumber: 2,
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://quiz.api.local/v1/attempts/att_abc/answers/q_1',
-        expect.objectContaining({
-          method: 'PUT',
-          body: expect.stringContaining('"sequenceNumber":2'),
-        })
-      );
-      expect(autoRes.data!.sequenceNumber).toBe(2);
-
+    it('should call attempts.recordEvent()', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         headers: new Headers({ 'content-type': 'application/json' }),

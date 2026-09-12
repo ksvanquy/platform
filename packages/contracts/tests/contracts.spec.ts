@@ -43,7 +43,6 @@ import {
   type AntiCheatEventDTO,
   type RecordAntiCheatEventInput,
   type StartAttemptInput,
-  type AutosaveAnswerInput,
   type SubmitAttemptInput,
   type AttemptDTO,
   type TimeSyncResponse,

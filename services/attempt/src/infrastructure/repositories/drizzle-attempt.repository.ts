@@ -6,16 +6,10 @@ import { AttemptEvent } from '../../domain/entities/attempt-event.entity.js';
 import type {
   AttemptRepositoryPort,
   AttemptFilterQuery,
-  PatchAnswerAtomicResult,
 } from '../../domain/ports/attempt.repository.port.js';
-import type { AntiCheatEventType, AttemptStatus, CandidateAnswerRecord } from '@platform/contracts';
+import type { AntiCheatEventType, AttemptStatus } from '@platform/contracts';
 import {
   AttemptNotFoundError,
-  UnauthorizedAttemptAccessError,
-  AttemptAlreadyFinalizedError,
-  AttemptConcurrencyConflictError,
-  AttemptTimeExpiredError,
-  OutdatedAnswerSequenceError,
   AttemptDomainError,
 } from '../../domain/errors/attempt-domain.errors.js';
 
@@ -273,99 +267,6 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
       .orderBy(sql`${attemptEvents.serverTimestamp} ASC`);
 
     return (rows as any[]).map((r: any) => this.mapToEventEntity(r));
-  }
-
-  async patchAnswerAtomic(
-    attemptId: string,
-    questionId: string,
-    answerRecord: CandidateAnswerRecord,
-    expectedVersion?: number,
-    userId?: string,
-    userRole?: string
-  ): Promise<PatchAnswerAtomicResult> {
-    const db = this.getDb();
-    const now = new Date();
-    const answerJson = JSON.stringify(answerRecord);
-
-    const conditions = [
-      eq(attempts.id, attemptId),
-      eq(attempts.status, 'IN_PROGRESS'),
-      or(
-        isNull(attempts.deadline),
-        sql`${attempts.deadline} + INTERVAL '15 seconds' >= ${now}`
-      ),
-      sql`(${attempts.answers}->${questionId} IS NULL OR COALESCE((${attempts.answers}->${questionId}->>'sequenceNumber')::int, 0) < ${answerRecord.sequenceNumber})`
-    ];
-
-    if (userId && userRole !== 'ADMIN') {
-      conditions.push(eq(attempts.userId, userId));
-    }
-
-    if (expectedVersion !== undefined) {
-      conditions.push(eq(attempts.version, expectedVersion));
-    }
-
-    const updatedRows = await db
-      .update(attempts)
-      .set({
-        answers: sql`jsonb_set(COALESCE(${attempts.answers}, '{}'::jsonb), ARRAY[${questionId}]::text[], ${answerJson}::jsonb, true)`,
-        version: sql`${attempts.version} + 1`,
-        updatedAt: now,
-      })
-      .where(and(...conditions))
-      .returning({
-        id: attempts.id,
-        status: attempts.status,
-        version: attempts.version,
-        deadline: attempts.deadline,
-        startedAt: attempts.startedAt,
-        durationMinutes: attempts.durationMinutes,
-      });
-
-    if (updatedRows && updatedRows.length > 0) {
-      const updated = updatedRows[0];
-      let remainingTimeMs = 0;
-      if (updated.deadline) {
-        remainingTimeMs = Math.max(0, new Date(updated.deadline).getTime() - now.getTime());
-      } else if (updated.startedAt && updated.durationMinutes) {
-        const end = new Date(updated.startedAt).getTime() + updated.durationMinutes * 60 * 1000;
-        remainingTimeMs = Math.max(0, end - now.getTime());
-      }
-      return {
-        success: true,
-        newVersion: updated.version,
-        remainingTimeMs,
-        status: updated.status as AttemptStatus,
-      };
-    }
-
-    // Row was not updated - find root cause for precise domain error reporting
-    const existing = await this.findAttemptById(attemptId);
-    if (!existing) {
-      throw new AttemptNotFoundError(attemptId);
-    }
-    if (userId && existing.userId !== userId && userRole !== 'ADMIN') {
-      throw new UnauthorizedAttemptAccessError('You can only record answers for your own attempt');
-    }
-    if (existing.status !== 'IN_PROGRESS') {
-      throw new AttemptAlreadyFinalizedError(attemptId, existing.status);
-    }
-    if (expectedVersion !== undefined && existing.version !== expectedVersion) {
-      throw new AttemptConcurrencyConflictError(attemptId, existing.version, expectedVersion);
-    }
-    if (existing.isAnswerTimeExpired(now)) {
-      throw new AttemptTimeExpiredError(attemptId);
-    }
-    const currentAnswer = existing.answers[questionId];
-    if (currentAnswer && (currentAnswer.sequenceNumber ?? 0) >= answerRecord.sequenceNumber) {
-      throw new OutdatedAnswerSequenceError(
-        questionId,
-        answerRecord.sequenceNumber,
-        currentAnswer.sequenceNumber ?? 0
-      );
-    }
-
-    throw new AttemptDomainError(`Cannot patch answer atomically for attempt ${attemptId}`, 400);
   }
 
   private mapToAttemptEntity(row: typeof attempts.$inferSelect): Attempt {

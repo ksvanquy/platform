@@ -2,12 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../services/gateway/src/server.js';
 import { Attempt } from '../services/attempt/src/domain/entities/attempt.entity.js';
-import { OutdatedAnswerSequenceError } from '../services/attempt/src/domain/errors/attempt-domain.errors.js';
 import { MatrixSolverService } from '../services/exam/src/domain/services/matrix-solver.service.js';
 import type { QuestionDTO, BlueprintCriterion, ScoringPolicyConfig } from '@platform/contracts';
 
 describe('GIAI ĐOẠN 6: Load, Concurrency & Performance Benchmarks', () => {
-  describe('1. Autosave High-Write Load & Concurrency Defense', () => {
+  describe('1. Single Submission Bulk Answers Update Benchmark', () => {
     let attempt: Attempt;
 
     beforeEach(() => {
@@ -24,19 +23,18 @@ describe('GIAI ĐOẠN 6: Load, Concurrency & Performance Benchmarks', () => {
       });
     });
 
-    it('should achieve p99 latency < 25ms under 500 high-frequency autosave operations', () => {
+    it('should achieve p99 latency < 5ms under 500 bulk answers update operations', () => {
       const NUM_OPERATIONS = 500;
       const latenciesMs: number[] = [];
 
       for (let i = 1; i <= NUM_OPERATIONS; i++) {
+        const answersBatch: Record<string, unknown> = {};
+        for (let q = 1; q <= 20; q++) {
+          answersBatch[`q_math_perf_${q}`] = { selectedOptionId: `opt_${(i + q) % 4}` };
+        }
+
         const start = performance.now();
-        attempt.recordAnswer(
-          `q_math_perf_${i % 10}`,
-          { selectedOptionId: `opt_${i % 4}` },
-          i, // Strictly increasing sequence number
-          Date.now(),
-          new Date()
-        );
+        attempt.updateAnswers(answersBatch);
         const elapsed = performance.now() - start;
         latenciesMs.push(elapsed);
       }
@@ -50,65 +48,11 @@ describe('GIAI ĐOẠN 6: Load, Concurrency & Performance Benchmarks', () => {
       const p95 = latenciesMs[p95Index];
       const p99 = latenciesMs[p99Index];
 
-      console.log(`⚡ [Autosave Benchmark] 500 ops: p50 = ${p50.toFixed(3)}ms, p95 = ${p95.toFixed(3)}ms, p99 = ${p99.toFixed(3)}ms`);
+      console.log(`⚡ [Bulk Answers Update Benchmark] 500 ops: p50 = ${p50.toFixed(3)}ms, p95 = ${p95.toFixed(3)}ms, p99 = ${p99.toFixed(3)}ms`);
 
-      expect(p99).toBeLessThan(25); // Target p99 < 25ms SLA
+      expect(p99).toBeLessThan(5); // Target p99 < 5ms
       expect(attempt.status).toBe('IN_PROGRESS');
-    });
-
-    it('should defend against outdated answer sequence (OutdatedAnswerSequenceError)', () => {
-      const qId = 'q_math10_quad_001';
-
-      // 1. Ghi nhận lượt trả lời thứ 10
-      attempt.recordAnswer(qId, { selectedOptionId: 'opt_1' }, 10);
-      expect(attempt.answers[qId].sequenceNumber).toBe(10);
-      expect((attempt.answers[qId].answer as any).selectedOptionId).toBe('opt_1');
-
-      // 2. Gói tin đến trễ với sequenceNumber = 8 (nhỏ hơn 10) -> Phải bị từ chối
-      expect(() => {
-        attempt.recordAnswer(qId, { selectedOptionId: 'opt_old' }, 8);
-      }).toThrow(OutdatedAnswerSequenceError);
-
-      // 3. Gói tin trùng lặp với sequenceNumber = 10 (bằng 10) -> Phải bị từ chối
-      expect(() => {
-        attempt.recordAnswer(qId, { selectedOptionId: 'opt_duplicate' }, 10);
-      }).toThrow(OutdatedAnswerSequenceError);
-
-      // Dữ liệu không bị ghi đè bởi gói tin cũ
-      expect((attempt.answers[qId].answer as any).selectedOptionId).toBe('opt_1');
-
-      // 4. Gói tin mới hơn với sequenceNumber = 11 -> Phải được chấp nhận thành công
-      attempt.recordAnswer(qId, { selectedOptionId: 'opt_2' }, 11);
-      expect(attempt.answers[qId].sequenceNumber).toBe(11);
-      expect((attempt.answers[qId].answer as any).selectedOptionId).toBe('opt_2');
-    });
-
-    it('should guarantee Zero Data Loss under concurrent out-of-order writes', async () => {
-      const qId = 'q_concurrent_01';
-
-      // Mô phỏng 50 gói tin gửi đến không theo thứ tự (out of order)
-      const sequencePayloads = Array.from({ length: 50 }, (_, i) => ({
-        seq: i + 1,
-        value: `answer_v${i + 1}`,
-      }));
-
-      // Xáo trộn ngẫu nhiên thứ tự các gói tin đến máy chủ
-      const shuffledArrival = [...sequencePayloads].sort(() => Math.random() - 0.5);
-
-      for (const item of shuffledArrival) {
-        try {
-          attempt.recordAnswer(qId, { value: item.value }, item.seq);
-        } catch (err) {
-          // Bỏ qua lỗi OutdatedAnswerSequenceError do gói tin đến sau gói tin mới hơn
-          if (!(err instanceof OutdatedAnswerSequenceError)) {
-            throw err;
-          }
-        }
-      }
-
-      // Đảm bảo trạng thái cuối cùng luôn là phiên bản mới nhất (seq 50)
-      expect(attempt.answers[qId].sequenceNumber).toBe(50);
-      expect((attempt.answers[qId].answer as any).value).toBe('answer_v50');
+      expect(Object.keys(attempt.answers).length).toBe(20);
     });
   });
 

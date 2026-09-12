@@ -3,7 +3,6 @@ import { AttemptController } from '../controllers/attempt.controller.js';
 import { extractAuth } from '../middlewares/auth.middleware.js';
 import { CreateOrRecoverAttemptUseCase } from '../../application/use-cases/create-or-recover-attempt.use-case.js';
 import { StartAttemptUseCase } from '../../application/use-cases/start-attempt.use-case.js';
-import { AutosaveAnswerUseCase } from '../../application/use-cases/autosave-answer.use-case.js';
 import { RecordAntiCheatEventUseCase } from '../../application/use-cases/record-anti-cheat-event.use-case.js';
 import { SubmitAttemptUseCase } from '../../application/use-cases/submit-attempt.use-case.js';
 import { GetAttemptUseCase } from '../../application/use-cases/get-attempt.use-case.js';
@@ -29,7 +28,6 @@ export function createV1AttemptsRouter(deps: AttemptRouterDependencies = {}): Ro
 
   const createOrRecoverAttemptUseCase = new CreateOrRecoverAttemptUseCase(attemptRepo, examClient);
   const startAttemptUseCase = new StartAttemptUseCase(attemptRepo, examClient);
-  const autosaveAnswerUseCase = new AutosaveAnswerUseCase(attemptRepo);
   const recordAntiCheatEventUseCase = new RecordAntiCheatEventUseCase(attemptRepo);
   const submitAttemptUseCase = new SubmitAttemptUseCase(attemptRepo, examClient);
   const getAttemptUseCase = new GetAttemptUseCase(attemptRepo, examClient);
@@ -39,7 +37,6 @@ export function createV1AttemptsRouter(deps: AttemptRouterDependencies = {}): Ro
   const controller = new AttemptController(
     createOrRecoverAttemptUseCase,
     startAttemptUseCase,
-    autosaveAnswerUseCase,
     recordAntiCheatEventUseCase,
     submitAttemptUseCase,
     getAttemptUseCase,
@@ -57,10 +54,6 @@ export function createV1AttemptsRouter(deps: AttemptRouterDependencies = {}): Ro
 
   router.get('/:id', extractAuth, controller.getAttempt);
   router.post('/:id/start', extractAuth, controller.start);
-
-  // Ultra-Low Latency Autosave (<25ms target)
-  router.post('/:id/answers', extractAuth, controller.autosaveAnswer);
-  router.put('/:id/answers/:questionId', extractAuth, controller.autosaveAnswer);
 
   // Anti-Cheat Telemetry Audit
   router.post('/:id/events', extractAuth, controller.recordEvent);

@@ -1,8 +1,6 @@
 import { apiClient } from './client.js';
 import {
   StartQuizResponse,
-  SaveAnswerPayload,
-  SaveAnswerResponse,
   QuestionDTO,
   SessionDTO,
 } from '../types/quiz.types.js';
@@ -200,34 +198,13 @@ export const quizApi = {
   },
 
   /**
-   * Tự động lưu tiến độ câu trả lời theo chuẩn RESTful:
-   * PUT /v1/attempts/:id/answers/:questionId kèm sequenceNumber (BƯỚC 4) để chống ghi đè khi mạng trễ
-   */
-  async saveAnswer(payload: SaveAnswerPayload): Promise<SaveAnswerResponse> {
-    const timeSync = TimeSyncManager.getInstance();
-    const res = await apiClient.attempts.recordAnswer(
-      payload.sessionId,
-      payload.questionId,
-      {
-        answer: payload.answer,
-        sequenceNumber: payload.sequenceNumber,
-        clientTimestamp: timeSync.getNow(),
-        userId: payload.userId,
-      } as any
-    );
-    return {
-      success: true,
-      message: res.message || 'Answer recorded successfully',
-    };
-  },
-
-  /**
    * Nộp bài thi và nhận kết quả đánh giá theo chuẩn RESTful:
    * POST /v1/attempts/:id/submit
    */
   async submitQuiz(payload: SubmitQuizPayload): Promise<SubmitQuizResponse['data']> {
     const res = await apiClient.attempts.submit(payload.sessionId, {
       userId: payload.userId,
+      answers: payload.answers,
     });
     const { scoreResult } = res.data;
 
