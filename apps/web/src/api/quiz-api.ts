@@ -117,12 +117,9 @@ export const quizApi = {
       }
     }
 
-    // Đồng bộ đồng hồ với mốc thời gian máy chủ trả về
+    // Đồng bộ mốc thời gian máy chủ trả về nếu có
     if (serverTime) {
-      TimeSyncManager.getInstance().syncFromTimestamp(new Date(serverTime).getTime());
-    } else {
-      // Thực hiện đồng bộ nền qua endpoint /v1/time
-      TimeSyncManager.getInstance().syncWithServer().catch(() => {});
+      TimeSyncManager.getInstance().syncFromTimestamp(serverTime);
     }
 
     // 3. Chuẩn hóa câu hỏi theo QuestionDTO của web client

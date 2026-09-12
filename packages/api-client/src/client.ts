@@ -282,7 +282,7 @@ export class ApiClient {
   };
 
   /**
-   * Đồng bộ đồng hồ máy chủ với thuật toán Cristian's Algorithm
+   * Lấy mốc thời gian chuẩn từ máy chủ
    */
   async syncServerTime(): Promise<{
     serverTime: string;
@@ -293,16 +293,13 @@ export class ApiClient {
     const t1 = Date.now();
     const res = await this.get<{ success: boolean; serverTime: string; timestampMs?: number }>('/v1/time');
     const t3 = Date.now();
-    const rttMs = Math.max(0, t3 - t1);
     const serverTimestampMs = res.timestampMs ?? new Date(res.serverTime).getTime();
-    const estimatedServerNow = serverTimestampMs + Math.round(rttMs / 2);
-    const clockOffsetMs = estimatedServerNow - t3;
 
     return {
       serverTime: res.serverTime,
       serverTimestampMs,
-      rttMs,
-      clockOffsetMs,
+      rttMs: Math.max(0, t3 - t1),
+      clockOffsetMs: serverTimestampMs - t3,
     };
   }
 

@@ -16,17 +16,18 @@ export interface ServerCountdownOptions {
   readonly durationMinutes?: number;
   readonly deadline?: string;
   readonly submissionDeadline?: string;
+  readonly remainingSeconds?: number;
   readonly onExpire?: () => void;
 }
 
 /**
- * useServerCountdown Hook
+ * useServerCountdown Hook (Simplified)
  *
- * Tính năng chống gian lận & chịu lỗi cao (Zero-Trust Clock):
- * 1. Hoàn toàn MIỄN NHIỄM với Date.now() cục bộ: sử dụng Monotonic Anchor từ TimeSyncManager (performance.now()).
- * 2. Ưu tiên Server-Authoritative Deadline: Đọc trực tiếp deadline do server cấp thay vì tự suy diễn.
- * 3. Chống đóng băng Background/Tab-Sleep: Lắng nghe visibilitychange và focus để tự động bù giờ ngay khi mở lại tab.
- * 4. Tự động kích hoạt onExpire khi hết giờ chính thức của bài thi.
+ * Cơ chế đếm ngược tinh gọn:
+ * 1. Khởi tạo từ deadline (ISO String) hoặc remainingSeconds do Server trả về.
+ * 2. Đếm ngược định kỳ mỗi giây (setInterval 1000ms).
+ * 3. Tự động đồng bộ lại khi quay lại tab (visibilitychange/focus) tránh bị lệch giờ khi máy tính sleep.
+ * 4. Kích hoạt onExpire() khi hết giờ.
  */
 export function useServerCountdown(
   startedAtOrOptions?: string | ServerCountdownOptions,
@@ -34,11 +35,11 @@ export function useServerCountdown(
   onExpire?: () => void,
   explicitDeadline?: string
 ): CountdownState {
-  // Chuẩn hóa tham số để hỗ trợ cả 2 dạng: (options) hoặc (startedAt, durationMinutes, onExpire, deadline)
   const isOptionsObject = typeof startedAtOrOptions === 'object' && startedAtOrOptions !== null;
   const startedAt = isOptionsObject ? startedAtOrOptions.startedAt : startedAtOrOptions;
   const duration = isOptionsObject ? startedAtOrOptions.durationMinutes : durationMinutes;
   const deadline = isOptionsObject ? startedAtOrOptions.deadline : explicitDeadline;
+  const initialRemaining = isOptionsObject ? startedAtOrOptions.remainingSeconds : undefined;
   const expireCallback = isOptionsObject ? startedAtOrOptions.onExpire : onExpire;
 
   const onExpireRef = useRef(expireCallback);
@@ -47,112 +48,84 @@ export function useServerCountdown(
 
   const timeSync = TimeSyncManager.getInstance();
 
-  // Xác định mục tiêu hạn chót tính theo mốc thời gian máy chủ (ms)
-  const getTargetDeadlineMs = useCallback((): number | null => {
+  // Tính toán số giây còn lại
+  const calculateRemainingSeconds = useCallback((): number => {
     if (deadline) {
-      const parsed = new Date(deadline).getTime();
-      if (!isNaN(parsed)) return parsed;
-    }
-    if (startedAt && duration) {
-      const parsedStart = new Date(startedAt).getTime();
-      if (!isNaN(parsedStart)) {
-        return parsedStart + duration * 60 * 1000;
+      const deadlineMs = new Date(deadline).getTime();
+      if (!isNaN(deadlineMs)) {
+        const now = timeSync.getNow();
+        return Math.max(0, Math.floor((deadlineMs - now) / 1000));
       }
     }
-    return null;
-  }, [deadline, startedAt, duration]);
-
-  // Hàm tính toán số giây còn lại độc lập với Date.now() của OS
-  const calculateRemainingSeconds = useCallback((): number => {
-    const targetMs = getTargetDeadlineMs();
-    if (targetMs === null) return 0;
-
-    const currentServerTime = timeSync.getNow();
-    const diffMs = targetMs - currentServerTime;
-    return Math.max(0, Math.floor(diffMs / 1000));
-  }, [getTargetDeadlineMs, timeSync]);
+    if (startedAt && duration) {
+      const startMs = new Date(startedAt).getTime();
+      if (!isNaN(startMs)) {
+        const deadlineMs = startMs + duration * 60 * 1000;
+        const now = timeSync.getNow();
+        return Math.max(0, Math.floor((deadlineMs - now) / 1000));
+      }
+    }
+    if (typeof initialRemaining === 'number') {
+      return Math.max(0, initialRemaining);
+    }
+    if (duration) {
+      return duration * 60;
+    }
+    return 0;
+  }, [deadline, startedAt, duration, initialRemaining, timeSync]);
 
   const [remainingSeconds, setRemainingSeconds] = useState<number>(() => calculateRemainingSeconds());
-  const [syncState, setSyncState] = useState(() => timeSync.getState());
 
   useEffect(() => {
-    const targetMs = getTargetDeadlineMs();
-    if (targetMs === null) {
-      setRemainingSeconds(0);
-      return;
-    }
-
-    // Reset cờ hết giờ nếu mục tiêu deadline thay đổi hoặc gia hạn
     expiredHandledRef.current = false;
+    const initial = calculateRemainingSeconds();
+    setRemainingSeconds(initial);
 
-    // Cập nhật ngay lập tức
-    const initialSeconds = calculateRemainingSeconds();
-    setRemainingSeconds(initialSeconds);
-    setSyncState(timeSync.getState());
-
-    if (initialSeconds <= 0 && !expiredHandledRef.current) {
+    if (initial <= 0 && (deadline || startedAt)) {
       expiredHandledRef.current = true;
       onExpireRef.current?.();
       return;
     }
 
-    // Tick định kỳ bằng Timer Monotonic (chạy ở tần số 500ms để bắt giây nhạy hơn)
+    // Đếm ngược mỗi 1 giây
     const interval = setInterval(() => {
-      const currentSeconds = calculateRemainingSeconds();
       setRemainingSeconds((prev) => {
-        if (prev !== currentSeconds) {
-          return currentSeconds;
-        }
-        return prev;
-      });
-
-      if (currentSeconds <= 0) {
-        clearInterval(interval);
-        if (!expiredHandledRef.current) {
+        const next = Math.max(0, prev - 1);
+        if (next <= 0 && !expiredHandledRef.current) {
           expiredHandledRef.current = true;
           onExpireRef.current?.();
         }
-      }
-    }, 500);
+        return next;
+      });
+    }, 1000);
 
-    // Xử lý sự cố trình duyệt đóng băng (Mobile Backgrounding, Tab Throttling, Sleep Mode)
-    const handleWakeupOrFocus = () => {
-      const updatedSeconds = calculateRemainingSeconds();
-      setRemainingSeconds(updatedSeconds);
-      setSyncState(timeSync.getState());
-
-      if (updatedSeconds <= 0 && !expiredHandledRef.current) {
+    // Khi thí sinh mở lại tab sau khi sleep/chuyển tab, đồng bộ lại từ deadline
+    const handleFocus = () => {
+      const refreshed = calculateRemainingSeconds();
+      setRemainingSeconds(refreshed);
+      if (refreshed <= 0 && !expiredHandledRef.current) {
         expiredHandledRef.current = true;
         onExpireRef.current?.();
-      }
-
-      // Kích hoạt đồng bộ nhẹ với server nếu tab vừa thức dậy
-      if (document.visibilityState === 'visible') {
-        timeSync.syncIfNeeded(30000).then(() => {
-          setSyncState(timeSync.getState());
-        });
       }
     };
 
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleWakeupOrFocus);
+      document.addEventListener('visibilitychange', handleFocus);
     }
     if (typeof window !== 'undefined') {
-      window.addEventListener('focus', handleWakeupOrFocus);
-      window.addEventListener('online', handleWakeupOrFocus);
+      window.addEventListener('focus', handleFocus);
     }
 
     return () => {
       clearInterval(interval);
       if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleWakeupOrFocus);
+        document.removeEventListener('visibilitychange', handleFocus);
       }
       if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', handleWakeupOrFocus);
-        window.removeEventListener('online', handleWakeupOrFocus);
+        window.removeEventListener('focus', handleFocus);
       }
     };
-  }, [getTargetDeadlineMs, calculateRemainingSeconds, timeSync]);
+  }, [deadline, startedAt, duration, calculateRemainingSeconds]);
 
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = remainingSeconds % 60;
@@ -161,10 +134,10 @@ export function useServerCountdown(
   return {
     formattedTime,
     remainingSeconds,
-    isExpired: remainingSeconds <= 0 && getTargetDeadlineMs() !== null,
+    isExpired: remainingSeconds <= 0 && (Boolean(deadline) || Boolean(startedAt)),
     isWarning: remainingSeconds > 0 && remainingSeconds <= 120, // < 2 phút
     isCritical: remainingSeconds > 0 && remainingSeconds <= 30, // < 30 giây
     serverTimeEst: timeSync.getNow(),
-    isSynchronized: syncState.isSynchronized,
+    isSynchronized: timeSync.getState().isSynchronized,
   };
 }
