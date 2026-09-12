@@ -1,7 +1,7 @@
 import { getAttemptDb, isAttemptDbConfigured } from './connection.js';
 export { isAttemptDbConfigured };
 import { runAttemptMigrations } from './migrate.js';
-import { attempts, attemptEvents } from './schema.js';
+import { attempts } from './schema.js';
 import { DirectExamClientAdapter } from '../adapters/direct-exam-client.adapter.js';
 
 export async function seedAttemptDatabase(): Promise<void> {
@@ -130,16 +130,6 @@ export async function seedAttemptDatabase(): Promise<void> {
             gradedAt: submittedAt.toISOString(),
             questionBreakdowns: [],
           },
-        });
-
-        await db.insert(attemptEvents).values({
-          id: 'evt_demo_blur_01',
-          attemptId: demoAttemptId,
-          userId: 'usr_student_01',
-          eventType: 'BLUR',
-          clientTimestamp: new Date(startedAt.getTime() + 10 * 60 * 1000),
-          serverTimestamp: new Date(startedAt.getTime() + 10 * 60 * 1000),
-          metadata: { durationMs: 1200, windowFocused: false },
         });
 
         console.log('✅ [attempt_db] Demo graded attempt seeded for usr_student_01.');

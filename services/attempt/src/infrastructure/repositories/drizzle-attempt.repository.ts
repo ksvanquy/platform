@@ -1,13 +1,12 @@
 import { eq, and, or, sql, inArray, lte, isNotNull, isNull } from 'drizzle-orm';
 import { getAttemptDb } from '../db/connection.js';
-import { attempts, attemptEvents } from '../db/schema.js';
+import { attempts } from '../db/schema.js';
 import { Attempt } from '../../domain/entities/attempt.entity.js';
-import { AttemptEvent } from '../../domain/entities/attempt-event.entity.js';
 import type {
   AttemptRepositoryPort,
   AttemptFilterQuery,
 } from '../../domain/ports/attempt.repository.port.js';
-import type { AntiCheatEventType, AttemptStatus } from '@platform/contracts';
+import type { AttemptStatus } from '@platform/contracts';
 import {
   AttemptNotFoundError,
   AttemptDomainError,
@@ -241,34 +240,6 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
     return (rows as any[]).map((r: any) => this.mapToAttemptEntity(r));
   }
 
-  async saveEvent(event: AttemptEvent): Promise<AttemptEvent> {
-    const db = this.getDb();
-
-    await db.insert(attemptEvents).values({
-      id: event.id,
-      attemptId: event.attemptId,
-      userId: event.userId,
-      eventType: event.eventType,
-      clientTimestamp: event.clientTimestamp,
-      serverTimestamp: event.serverTimestamp,
-      metadata: event.metadata,
-    });
-
-    return event;
-  }
-
-  async listEventsByAttemptId(attemptId: string): Promise<AttemptEvent[]> {
-    const db = this.getDb();
-
-    const rows = await db
-      .select()
-      .from(attemptEvents)
-      .where(eq(attemptEvents.attemptId, attemptId))
-      .orderBy(sql`${attemptEvents.serverTimestamp} ASC`);
-
-    return (rows as any[]).map((r: any) => this.mapToEventEntity(r));
-  }
-
   private mapToAttemptEntity(row: typeof attempts.$inferSelect): Attempt {
     return new Attempt({
       id: row.id,
@@ -286,18 +257,6 @@ export class DrizzleAttemptRepository implements AttemptRepositoryPort {
       scoreResult: row.scoreResult,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-    });
-  }
-
-  private mapToEventEntity(row: typeof attemptEvents.$inferSelect): AttemptEvent {
-    return new AttemptEvent({
-      id: row.id,
-      attemptId: row.attemptId,
-      userId: row.userId,
-      eventType: row.eventType as AntiCheatEventType,
-      clientTimestamp: row.clientTimestamp,
-      serverTimestamp: row.serverTimestamp,
-      metadata: row.metadata,
     });
   }
 }

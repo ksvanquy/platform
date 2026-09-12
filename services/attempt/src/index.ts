@@ -1,6 +1,5 @@
 // Domain Layer Exports
 export * from './domain/entities/attempt.entity.js';
-export * from './domain/entities/attempt-event.entity.js';
 export * from './domain/errors/attempt-domain.errors.js';
 export * from './domain/ports/attempt.repository.port.js';
 export * from './domain/scoring/attempt-scoring.engine.js';
@@ -9,11 +8,9 @@ export * from './domain/services/attempt-expiry-sweeper.service.js';
 // Application Layer Exports
 export * from './application/use-cases/create-or-recover-attempt.use-case.js';
 export * from './application/use-cases/start-attempt.use-case.js';
-export * from './application/use-cases/record-anti-cheat-event.use-case.js';
 export * from './application/use-cases/submit-attempt.use-case.js';
 export * from './application/use-cases/get-attempt.use-case.js';
 export * from './application/use-cases/list-attempts.use-case.js';
-export * from './application/use-cases/list-attempt-events.use-case.js';
 
 // Infrastructure Layer Exports
 export * from './infrastructure/db/connection.js';

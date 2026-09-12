@@ -30,8 +30,6 @@ import type {
   SanitizedExamManifest,
   AttemptDTO,
   AttemptScoreResult,
-  AntiCheatEventDTO,
-  RecordAntiCheatEventInput,
   SubmitAttemptInput,
 } from '@platform/contracts';
 
@@ -259,26 +257,6 @@ export class ApiClient {
      */
     list: async (params?: { examId?: string; studentId?: string; status?: string; userId?: string }): Promise<ApiResponse<AttemptDTO[]>> => {
       return this.get<ApiResponse<AttemptDTO[]>>('/v1/attempts', params);
-    },
-
-    /**
-     * Ghi nhận sự kiện telemetry chống gian lận (rời tab, thoát toàn màn hình, paste...)
-     */
-    recordEvent: async (
-      attemptId: string,
-      payload: RecordAntiCheatEventInput
-    ): Promise<ApiResponse<AntiCheatEventDTO>> => {
-      return this.post<ApiResponse<AntiCheatEventDTO>>(
-        `/v1/attempts/${encodeURIComponent(attemptId)}/events`,
-        payload
-      );
-    },
-
-    /**
-     * Lấy danh sách nhật ký kiểm toán telemetry của ca thi
-     */
-    listEvents: async (attemptId: string): Promise<ApiResponse<AntiCheatEventDTO[]>> => {
-      return this.get<ApiResponse<AntiCheatEventDTO[]>>(`/v1/attempts/${encodeURIComponent(attemptId)}/events`);
     },
 
     /**

@@ -1,11 +1,9 @@
 import { Request, Response } from 'express';
 import { CreateOrRecoverAttemptUseCase } from '../../application/use-cases/create-or-recover-attempt.use-case.js';
 import { StartAttemptUseCase } from '../../application/use-cases/start-attempt.use-case.js';
-import { RecordAntiCheatEventUseCase } from '../../application/use-cases/record-anti-cheat-event.use-case.js';
 import { SubmitAttemptUseCase } from '../../application/use-cases/submit-attempt.use-case.js';
 import { GetAttemptUseCase } from '../../application/use-cases/get-attempt.use-case.js';
 import { ListAttemptsUseCase } from '../../application/use-cases/list-attempts.use-case.js';
-import { ListAttemptEventsUseCase } from '../../application/use-cases/list-attempt-events.use-case.js';
 import { AttemptDomainError } from '../../domain/errors/attempt-domain.errors.js';
 import { AttemptMetrics } from '../../infrastructure/metrics/attempt.metrics.js';
 
@@ -13,11 +11,9 @@ export class AttemptController {
   constructor(
     private readonly createOrRecoverAttemptUseCase: CreateOrRecoverAttemptUseCase,
     private readonly startAttemptUseCase: StartAttemptUseCase,
-    private readonly recordAntiCheatEventUseCase: RecordAntiCheatEventUseCase,
     private readonly submitAttemptUseCase: SubmitAttemptUseCase,
     private readonly getAttemptUseCase: GetAttemptUseCase,
-    private readonly listAttemptsUseCase: ListAttemptsUseCase,
-    private readonly listAttemptEventsUseCase: ListAttemptEventsUseCase
+    private readonly listAttemptsUseCase: ListAttemptsUseCase
   ) {}
 
   /**
@@ -122,68 +118,6 @@ export class AttemptController {
         remainingTimeMs: result.remainingTimeMs,
         serverTime: result.serverTime,
         serverTimestamp: result.serverTimestamp,
-      });
-    } catch (err: any) {
-      this.handleError(err, res);
-    }
-  };
-
-  /**
-   * POST /v1/attempts/:id/events
-   * Ghi nhận sự kiện telemetry chống gian lận (Tab Switch, Fullscreen Exit, v.v.)
-   */
-  recordEvent = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const attemptId = req.params.id as string;
-      const principal = req.principal;
-      const userId = principal?.id || req.body.userId;
-
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Authentication required' });
-        return;
-      }
-
-      const eventType = req.body.eventType || req.body.type;
-      if (!eventType) {
-        res.status(400).json({ success: false, message: 'eventType is required' });
-        return;
-      }
-
-      const event = await this.recordAntiCheatEventUseCase.execute({
-        attemptId,
-        userId,
-        eventType,
-        clientTimestamp: req.body.clientTimestamp,
-        metadata: req.body.metadata,
-      });
-
-      res.status(201).json({
-        success: true,
-        data: event,
-      });
-    } catch (err: any) {
-      this.handleError(err, res);
-    }
-  };
-
-  /**
-   * GET /v1/attempts/:id/events
-   * Xem lịch sử audit giám sát thi
-   */
-  listEvents = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const attemptId = req.params.id as string;
-      const principal = req.principal;
-
-      const events = await this.listAttemptEventsUseCase.execute({
-        attemptId,
-        currentUserId: principal?.id,
-        currentUserRole: principal?.roles?.[0],
-      });
-
-      res.status(200).json({
-        success: true,
-        data: events,
       });
     } catch (err: any) {
       this.handleError(err, res);

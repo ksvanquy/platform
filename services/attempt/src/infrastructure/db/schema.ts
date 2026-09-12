@@ -26,16 +26,3 @@ export const attempts = pgTable('attempts', {
   index('idx_attempts_exam').on(table.examId),
   index('idx_attempts_id_version_status').on(table.id, table.version, table.status),
 ]);
-
-export const attemptEvents = pgTable('attempt_events', {
-  id: varchar('id', { length: 64 }).primaryKey(), // evt_xxxx
-  attemptId: varchar('attempt_id', { length: 64 }).notNull().references(() => attempts.id, { onDelete: 'cascade' }),
-  userId: varchar('user_id', { length: 64 }).notNull(),
-  eventType: varchar('event_type', { length: 64 }).notNull(), // TAB_SWITCH, BLUR, FULLSCREEN_EXIT, PASTE_DETECTED, DEVTOOLS_OPEN, SPEED_VIOLATION
-  clientTimestamp: timestamp('client_timestamp', { withTimezone: true }).notNull(),
-  serverTimestamp: timestamp('server_timestamp', { withTimezone: true }).notNull().defaultNow(),
-  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
-}, (table) => [
-  index('idx_events_attempt').on(table.attemptId),
-  index('idx_events_user_time').on(table.userId, table.serverTimestamp),
-]);

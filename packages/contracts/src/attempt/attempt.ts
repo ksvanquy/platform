@@ -35,30 +35,6 @@ export interface AttemptScoreResult {
   breakdown: Record<string, QuestionScoreBreakdown>;
 }
 
-export type AntiCheatEventType =
-  | 'TAB_SWITCH'
-  | 'BLUR'
-  | 'FULLSCREEN_EXIT'
-  | 'PASTE_DETECTED'
-  | 'DEVTOOLS_OPEN'
-  | 'SPEED_VIOLATION';
-
-export interface AntiCheatEventDTO {
-  id: string;
-  attemptId: string;
-  userId: string;
-  eventType: AntiCheatEventType;
-  clientTimestamp: string;
-  serverTimestamp: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface RecordAntiCheatEventInput {
-  eventType: AntiCheatEventType;
-  clientTimestamp: string;
-  metadata?: Record<string, unknown>;
-}
-
 export interface StartAttemptInput {
   examId: string;
   variantCode?: string;

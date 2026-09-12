@@ -291,35 +291,6 @@ describe('Attempt Service & Single-Submission Workflow Tests', () => {
     expect(recoverRes.body.data.id).toBe(attemptId);
   });
 
-  it('POST /v1/attempts/:id/events - logs anti-cheat telemetry', async () => {
-    const init = await request(app)
-      .post('/v1/attempts')
-      .set('x-user-id', 'usr_candidate_01')
-      .send({ examId: 'exm_mock_01' });
-
-    const attemptId = init.body.data.id;
-
-    const eventRes = await request(app)
-      .post(`/v1/attempts/${attemptId}/events`)
-      .set('x-user-id', 'usr_candidate_01')
-      .send({
-        eventType: 'TAB_SWITCH',
-        metadata: { blurDurationMs: 3200 },
-      });
-
-    expect(eventRes.status).toBe(201);
-    expect(eventRes.body.data.id).toMatch(/^evt_/);
-    expect(eventRes.body.data.eventType).toBe('TAB_SWITCH');
-
-    // List events
-    const listEventsRes = await request(app)
-      .get(`/v1/attempts/${attemptId}/events`)
-      .set('x-user-id', 'usr_candidate_01');
-
-    expect(listEventsRes.status).toBe(200);
-    expect(listEventsRes.body.data.length).toBe(1);
-  });
-
   it('POST /v1/attempts/:id/submit - receives answers directly, evaluates score and grades attempt', async () => {
     const init = await request(app)
       .post('/v1/attempts')

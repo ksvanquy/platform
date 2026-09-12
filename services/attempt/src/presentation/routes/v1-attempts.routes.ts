@@ -3,11 +3,9 @@ import { AttemptController } from '../controllers/attempt.controller.js';
 import { extractAuth } from '../middlewares/auth.middleware.js';
 import { CreateOrRecoverAttemptUseCase } from '../../application/use-cases/create-or-recover-attempt.use-case.js';
 import { StartAttemptUseCase } from '../../application/use-cases/start-attempt.use-case.js';
-import { RecordAntiCheatEventUseCase } from '../../application/use-cases/record-anti-cheat-event.use-case.js';
 import { SubmitAttemptUseCase } from '../../application/use-cases/submit-attempt.use-case.js';
 import { GetAttemptUseCase } from '../../application/use-cases/get-attempt.use-case.js';
 import { ListAttemptsUseCase } from '../../application/use-cases/list-attempts.use-case.js';
-import { ListAttemptEventsUseCase } from '../../application/use-cases/list-attempt-events.use-case.js';
 import { DrizzleAttemptRepository } from '../../infrastructure/repositories/drizzle-attempt.repository.js';
 import { DirectExamClientAdapter } from '../../infrastructure/adapters/direct-exam-client.adapter.js';
 import type {
@@ -28,20 +26,16 @@ export function createV1AttemptsRouter(deps: AttemptRouterDependencies = {}): Ro
 
   const createOrRecoverAttemptUseCase = new CreateOrRecoverAttemptUseCase(attemptRepo, examClient);
   const startAttemptUseCase = new StartAttemptUseCase(attemptRepo, examClient);
-  const recordAntiCheatEventUseCase = new RecordAntiCheatEventUseCase(attemptRepo);
   const submitAttemptUseCase = new SubmitAttemptUseCase(attemptRepo, examClient);
   const getAttemptUseCase = new GetAttemptUseCase(attemptRepo, examClient);
   const listAttemptsUseCase = new ListAttemptsUseCase(attemptRepo);
-  const listAttemptEventsUseCase = new ListAttemptEventsUseCase(attemptRepo);
 
   const controller = new AttemptController(
     createOrRecoverAttemptUseCase,
     startAttemptUseCase,
-    recordAntiCheatEventUseCase,
     submitAttemptUseCase,
     getAttemptUseCase,
-    listAttemptsUseCase,
-    listAttemptEventsUseCase
+    listAttemptsUseCase
   );
 
   // Time Synchronization route (Cristian's algorithm target)
@@ -54,10 +48,6 @@ export function createV1AttemptsRouter(deps: AttemptRouterDependencies = {}): Ro
 
   router.get('/:id', extractAuth, controller.getAttempt);
   router.post('/:id/start', extractAuth, controller.start);
-
-  // Anti-Cheat Telemetry Audit
-  router.post('/:id/events', extractAuth, controller.recordEvent);
-  router.get('/:id/events', extractAuth, controller.listEvents);
 
   // Final Submission & Immediate Evaluation
   router.post('/:id/submit', extractAuth, controller.submit);

@@ -6,7 +6,6 @@ import type {
   CandidateAnswerRecord,
 } from '@platform/contracts';
 import { Attempt } from '../entities/attempt.entity.js';
-import { AttemptEvent } from '../entities/attempt-event.entity.js';
 
 export interface AttemptFilterQuery {
   userId?: string;
@@ -23,8 +22,6 @@ export interface AttemptRepositoryPort {
   listAttemptsByUser(userId: string, examId?: string): Promise<Attempt[]>;
   listAttempts(filter?: AttemptFilterQuery): Promise<{ attempts: Attempt[]; total: number }>;
   findExpiredInProgressAttempts(now: Date, gracePeriodMs: number, limit?: number): Promise<Attempt[]>;
-  saveEvent(event: AttemptEvent): Promise<AttemptEvent>;
-  listEventsByAttemptId(attemptId: string): Promise<AttemptEvent[]>;
   withAttemptLock<T>(
     attemptId: string,
     operation: (attempt: Attempt, saveLocked: (updated: Attempt) => Promise<void>) => Promise<T>

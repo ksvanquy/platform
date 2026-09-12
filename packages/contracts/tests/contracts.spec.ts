@@ -39,9 +39,6 @@ import {
   type CandidateAnswerRecord,
   type QuestionScoreBreakdown,
   type AttemptScoreResult,
-  type AntiCheatEventType,
-  type AntiCheatEventDTO,
-  type RecordAntiCheatEventInput,
   type StartAttemptInput,
   type SubmitAttemptInput,
   type AttemptDTO,
@@ -226,16 +223,6 @@ describe('Giai đoạn 1: Chuẩn hóa Contracts & DTOs (@platform/contracts)', 
       },
     };
 
-    const antiCheatEvent: AntiCheatEventDTO = {
-      id: 'evt_701',
-      attemptId: 'att_801',
-      userId: 'usr_student_01',
-      eventType: 'FULLSCREEN_EXIT' as AntiCheatEventType,
-      clientTimestamp: new Date().toISOString(),
-      serverTimestamp: new Date().toISOString(),
-      metadata: { reason: 'User minimized browser window' },
-    };
-
     const attempt: AttemptDTO = {
       id: 'att_801',
       userId: 'usr_student_01',
@@ -254,6 +241,5 @@ describe('Giai đoạn 1: Chuẩn hóa Contracts & DTOs (@platform/contracts)', 
 
     expect(attempt.status).toBe('IN_PROGRESS');
     expect(attempt.answers['q_301'].sequenceNumber).toBe(42);
-    expect(antiCheatEvent.eventType).toBe('FULLSCREEN_EXIT');
   });
 });

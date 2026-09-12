@@ -179,25 +179,6 @@ export const quizApi = {
   },
 
   /**
-   * Ghi nhận sự kiện giám thị / chống gian lận (Anti-Cheat Telemetry Audit)
-   */
-  async recordEvent(
-    attemptId: string,
-    event: { eventType: string; metadata?: Record<string, unknown>; clientTimestamp?: string }
-  ) {
-    try {
-      const res = await apiClient.attempts.recordEvent(attemptId, {
-        eventType: event.eventType as any,
-        metadata: event.metadata,
-        clientTimestamp: event.clientTimestamp || new Date().toISOString(),
-      });
-      return res.data;
-    } catch {
-      return null;
-    }
-  },
-
-  /**
    * Nộp bài thi và nhận kết quả đánh giá theo chuẩn RESTful:
    * POST /v1/attempts/:id/submit
    */

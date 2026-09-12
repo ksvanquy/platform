@@ -286,22 +286,6 @@ describe('GIAI ĐOẠN 6: Full E2E Lifecycle Across Decomposed Microservices', (
       examManifest = res.body.manifest;
     });
 
-    it('should record proctoring telemetry events (Anti-Cheat)', async () => {
-      expect(attemptId).toBeDefined();
-
-      const res = await request(app)
-        .post(`/v1/attempts/${attemptId}/events`)
-        .set(studentHeaders)
-        .send({
-          eventType: 'TAB_SWITCH',
-          clientTimestamp: new Date().toISOString(),
-          metadata: { blurDurationMs: 3400, url: 'external-search' },
-        });
-
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-    });
-
     it('should submit attempt with candidate answers and execute deterministic scoring against frozen snapshot', async () => {
       expect(attemptId).toBeDefined();
       expect(examManifest.questions.length).toBeGreaterThan(0);
@@ -332,21 +316,6 @@ describe('GIAI ĐOẠN 6: Full E2E Lifecycle Across Decomposed Microservices', (
         expect(attempt.scoreResult.maxScore).toBeGreaterThan(0);
         expect(typeof attempt.scoreResult.percentage).toBe('number');
       }
-    });
-
-    it('should allow proctors and admins to inspect anti-cheat audit logs', async () => {
-      expect(attemptId).toBeDefined();
-
-      const res = await request(app)
-        .get(`/v1/attempts/${attemptId}/events`)
-        .set(adminHeaders);
-
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(Array.isArray(res.body.data)).toBe(true);
-
-      const tabSwitchEvent = res.body.data.find((e: any) => e.eventType === 'TAB_SWITCH');
-      expect(tabSwitchEvent).toBeDefined();
     });
   });
 });

@@ -285,27 +285,6 @@ describe('Bước 5 — packages/api-client', () => {
       expect(manifestRes.data!.variantCode).toBe('101');
     });
 
-    it('should call attempts.recordEvent()', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => ({
-          success: true,
-          data: { id: 'evt_1', eventType: 'TAB_SWITCH' },
-        }),
-      });
-
-      const evtRes = await api.attempts.recordEvent('att_abc', {
-        eventType: 'TAB_SWITCH',
-        clientTimestamp: new Date().toISOString(),
-      });
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://quiz.api.local/v1/attempts/att_abc/events',
-        expect.objectContaining({ method: 'POST' })
-      );
-      expect(evtRes.data!.eventType).toBe('TAB_SWITCH');
-    });
-
     it('should compute clock offset in syncServerTime via Cristian algorithm', async () => {
       const now = Date.now();
       mockFetch.mockResolvedValueOnce({
