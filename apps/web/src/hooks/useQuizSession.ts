@@ -2,9 +2,13 @@ import { useState, useCallback, useEffect } from 'react';
 import { quizApi } from '../api/index.js';
 import { SessionDTO, QuestionDTO } from '../types/quiz.types.js';
 import { EvaluationResult, ResultRevealPolicy } from '../types/scoring.types.js';
+import {
+  AnswerStorageManager,
+  ACTIVE_SESSION_STORAGE_KEY,
+  ANSWERS_STORAGE_KEY_PREFIX,
+} from '../utils/AnswerStorageManager.js';
 
-export const ACTIVE_SESSION_STORAGE_KEY = 'quiz_active_session_cache';
-export const ANSWERS_STORAGE_KEY_PREFIX = 'quiz_answers_';
+export { ACTIVE_SESSION_STORAGE_KEY, ANSWERS_STORAGE_KEY_PREFIX };
 
 export function useQuizSession(initialUserId: string = 'candidate_demo') {
   const [userId, setUserId] = useState<string>(initialUserId);
@@ -21,6 +25,27 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [result, setResult] = useState<EvaluationResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  /**
+   * Đồng bộ đa tab trong thời gian thực (Multi-tab Real-time Sync):
+   * Tự động phản chiếu mọi thay đổi câu trả lời hoặc trạng thái nộp bài từ các tab khác.
+   */
+  useEffect(() => {
+    if (!session?.id) return;
+
+    const unsubscribe = AnswerStorageManager.subscribe(session.id, (event) => {
+      if (event.type === 'ANSWERS_UPDATED') {
+        setAnswers(event.answers);
+      } else if (event.type === 'SESSION_SUBMITTED') {
+        setSession((prev) => (prev ? { ...prev, status: 'SUBMITTED' } : null));
+        setAnswers({});
+      } else if (event.type === 'SESSION_CLEARED') {
+        setAnswers({});
+      }
+    });
+
+    return unsubscribe;
+  }, [session?.id]);
 
   /**
    * Bắt đầu một bài thi mới hoặc phục hồi bài thi hiện tại
@@ -54,36 +79,22 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
       setSession(normalizedSession);
       setQuestions(data.questions || []);
 
-      // Khôi phục answers từ backend session nếu có
-      const cleanAnswers: Record<string, unknown> = {};
+      // 1. Lấy và khử khuẩn answers từ backend session nếu có
+      const serverAnswers = AnswerStorageManager.sanitizeAnswers(normalizedSession.answers);
 
-      if (normalizedSession.answers) {
-        for (const [qId, rec] of Object.entries(normalizedSession.answers)) {
-          if (rec && typeof rec === 'object' && 'answer' in (rec as any)) {
-            cleanAnswers[qId] = (rec as any).answer;
-          } else {
-            cleanAnswers[qId] = rec;
-          }
-        }
-      }
+      // 2. Lấy answers đã lưu trong localStorage (nếu có bản backup offline / đa tab trước đó)
+      const localAnswers = AnswerStorageManager.getAnswers(normalizedSession.id);
 
-      // Khôi phục answers từ localStorage nếu có bản backup cục bộ mới hơn
-      try {
-        const localSaved = localStorage.getItem(`${ANSWERS_STORAGE_KEY_PREFIX}${normalizedSession.id}`);
-        if (localSaved) {
-          const parsed = JSON.parse(localSaved);
-          if (parsed && typeof parsed === 'object') {
-            Object.assign(cleanAnswers, parsed);
-          }
-        }
-      } catch (e) {
-        console.warn('[QuizSession] Không thể đọc localStorage answers:', e);
-      }
+      // 3. Hợp nhất cả hai nguồn ưu tiên dữ liệu mới hơn và lưu lại vào StorageManager
+      const initialAnswers = AnswerStorageManager.saveAllAnswers(normalizedSession.id, {
+        ...serverAnswers,
+        ...localAnswers,
+      });
 
-      setAnswers(cleanAnswers);
+      setAnswers(initialAnswers);
       setResult(null);
 
-      // Lưu trữ vết ca thi đang diễn ra vào localStorage
+      // Lưu vết ca thi đang diễn ra vào localStorage
       try {
         localStorage.setItem(
           ACTIVE_SESSION_STORAGE_KEY,
@@ -107,20 +118,17 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
   }, [userId]);
 
   /**
-   * Cập nhật câu trả lời trong bộ nhớ client + lưu backup tức thì vào localStorage
+   * Cập nhật câu trả lời:
+   * Áp dụng Atomic Read-Merge-Write qua AnswerStorageManager, loại bỏ triệt để stale overwrite
+   * giữa nhiều tab đang cùng mở làm bài.
    */
   const setAnswer = useCallback((questionId: string, value: unknown) => {
-    setAnswers((prev) => {
-      const next = { ...prev, [questionId]: value };
-      if (session?.id) {
-        try {
-          localStorage.setItem(`${ANSWERS_STORAGE_KEY_PREFIX}${session.id}`, JSON.stringify(next));
-        } catch (e) {
-          console.warn('[QuizSession] Không thể ghi backup answers vào localStorage:', e);
-        }
-      }
-      return next;
-    });
+    if (session?.id) {
+      const updatedAnswers = AnswerStorageManager.saveAnswer(session.id, questionId, value);
+      setAnswers(updatedAnswers);
+    } else {
+      setAnswers((prev) => ({ ...prev, [questionId]: value }));
+    }
   }, [session?.id]);
 
   /**
@@ -134,21 +142,24 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
 
     const targetUserId = session.userId || userId;
 
+    // Đảm bảo lấy snapshot câu trả lời mới nhất từ cả storage và memory
+    const latestAnswers = {
+      ...AnswerStorageManager.getAnswers(session.id),
+      ...answers,
+    };
+
     try {
       const evalResult = await quizApi.submitQuiz({
         sessionId: session.id,
         userId: targetUserId,
-        answers,
+        answers: latestAnswers,
         policy,
       });
       setResult(evalResult);
       setSession((prev) => (prev ? { ...prev, status: 'SUBMITTED' } : null));
 
-      // Dọn sạch session cache và local answers sau khi nộp bài thành công
-      try {
-        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-        localStorage.removeItem(`${ANSWERS_STORAGE_KEY_PREFIX}${session.id}`);
-      } catch {}
+      // Dọn sạch session cache và đồng bộ tới tất cả các tab khác
+      AnswerStorageManager.notifySubmitted(session.id);
 
       return evalResult;
     } catch (err: any) {
@@ -163,10 +174,25 @@ export function useQuizSession(initialUserId: string = 'candidate_demo') {
     try {
       localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       if (session?.id) {
-        localStorage.removeItem(`${ANSWERS_STORAGE_KEY_PREFIX}${session.id}`);
+        AnswerStorageManager.clearAnswers(session.id);
       }
     } catch {}
   }, [session?.id]);
+
+  return {
+    userId,
+    session,
+    questions,
+    answers,
+    isSubmitting,
+    result,
+    errorMessage,
+    start,
+    setAnswer,
+    submit,
+    clearActiveSessionCache,
+  };
+}
 
   return {
     userId,
