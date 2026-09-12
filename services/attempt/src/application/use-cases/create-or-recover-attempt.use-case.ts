@@ -13,6 +13,7 @@ import {
   ExamNotActiveError,
   ExamSnapshotNotFoundError,
 } from '../../domain/errors/attempt-domain.errors.js';
+import { AttemptScoringEngine } from '../../domain/scoring/attempt-scoring.engine.js';
 
 export interface CreateOrRecoverAttemptInput {
   userId: string;
@@ -65,6 +66,25 @@ export class CreateOrRecoverAttemptUseCase {
         throw new ExamSnapshotNotFoundError(exam.id, activeAttempt.variantCode);
       }
 
+      // LAZY TIMEOUT: Nếu ca thi trước đó đã hết hạn, tự động finalize nó ngay lúc thí sinh truy cập
+      if (activeAttempt.status === 'IN_PROGRESS' && activeAttempt.isAnswerTimeExpired(now)) {
+        const gracePeriodMs = 15000;
+        activeAttempt.submit(now, gracePeriodMs);
+
+        if (snapshot.frozenPayload?.questions) {
+          const scoreResult = AttemptScoringEngine.evaluate({
+            questions: snapshot.frozenPayload.questions,
+            answers: activeAttempt.answers,
+            scoringPolicy: snapshot.frozenPayload.scoringPolicy,
+            passingScore: 0,
+          });
+          activeAttempt.grade(scoreResult);
+        }
+
+        activeAttempt.incrementVersion();
+        await this.attemptRepo.saveAttempt(activeAttempt);
+      }
+
       return {
         attempt: activeAttempt.toDTO(snapshot.sanitizedManifest),
         isRecovered: true,
@@ -73,6 +93,7 @@ export class CreateOrRecoverAttemptUseCase {
         serverTimestamp: now.getTime(),
       };
     }
+
 
     // 3. Lấy Snapshot đề thi bất biến theo variantCode
     const snapshot = await this.examClient.getExamSnapshot(exam.id, variantCode);

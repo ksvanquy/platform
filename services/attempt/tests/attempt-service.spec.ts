@@ -481,5 +481,73 @@ describe('Attempt Service & Single-Submission Workflow Tests', () => {
       expect(res3.status).toBe(200);
       expect(res3.body.status).toBe('TIMED_OUT_GRADED');
     });
+
+    it('should lazily evaluate and finalize expired attempt on GET /v1/attempts/:id', async () => {
+      const expiredAttempt = new Attempt({
+        id: 'att_lazy_get_01',
+        userId: 'usr_student_lazy_01',
+        examId: 'exm_mock_01',
+        snapshotId: 'snp_mock_01',
+        durationMinutes: 30,
+        answers: {
+          q_01: {
+            answer: 'opt_1',
+            answeredAt: new Date(Date.now() - 30000).toISOString(),
+            sequenceNumber: 1,
+          },
+        },
+      });
+      // Start in the past, expired by 20 seconds
+      expiredAttempt.start(new Date(Date.now() - 40 * 60 * 1000), new Date(Date.now() - 20000));
+      await attemptRepo.saveAttempt(expiredAttempt);
+
+      // Query attempt via GET /v1/attempts/:id
+      const res = await request(app)
+        .get('/v1/attempts/att_lazy_get_01')
+        .set('x-user-id', 'usr_student_lazy_01');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('TIMED_OUT_GRADED');
+      expect(res.body.remainingTimeMs).toBe(0);
+
+      // Verify that the database record was persisted with evaluated score
+      const saved = await attemptRepo.findAttemptById('att_lazy_get_01');
+      expect(saved?.status).toBe('TIMED_OUT_GRADED');
+      expect(saved?.scoreResult?.score).toBe(2);
+    });
+
+    it('should lazily evaluate expired active attempt on POST /v1/attempts recovery', async () => {
+      const expiredAttempt = new Attempt({
+        id: 'att_lazy_recover_01',
+        userId: 'usr_student_lazy_02',
+        examId: 'exm_mock_01',
+        snapshotId: 'snp_mock_01',
+        durationMinutes: 30,
+        answers: {
+          q_01: {
+            answer: 'opt_1',
+            answeredAt: new Date(Date.now() - 30000).toISOString(),
+            sequenceNumber: 1,
+          },
+        },
+      });
+      expiredAttempt.start(new Date(Date.now() - 40 * 60 * 1000), new Date(Date.now() - 20000));
+      await attemptRepo.saveAttempt(expiredAttempt);
+
+      // Candidate tries to recover or re-open the exam session
+      const res = await request(app)
+        .post('/v1/attempts')
+        .set('x-user-id', 'usr_student_lazy_02')
+        .send({ examId: 'exm_mock_01' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.isRecovered).toBe(true);
+      expect(res.body.data.status).toBe('TIMED_OUT_GRADED');
+
+      const saved = await attemptRepo.findAttemptById('att_lazy_recover_01');
+      expect(saved?.status).toBe('TIMED_OUT_GRADED');
+      expect(saved?.scoreResult?.score).toBe(2);
+    });
   });
 });

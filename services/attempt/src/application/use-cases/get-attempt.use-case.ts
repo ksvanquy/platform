@@ -7,6 +7,7 @@ import {
   AttemptNotFoundError,
   UnauthorizedAttemptAccessError,
 } from '../../domain/errors/attempt-domain.errors.js';
+import { AttemptScoringEngine } from '../../domain/scoring/attempt-scoring.engine.js';
 
 export interface GetAttemptInput {
   attemptId: string;
@@ -43,6 +44,25 @@ export class GetAttemptUseCase {
     const snapshot = await this.examClient.getExamSnapshot(attempt.examId, attempt.variantCode);
     const manifest = snapshot?.sanitizedManifest;
 
+    // LAZY TIMEOUT: Khi thí sinh hoặc admin truy vấn bài thi đã hết hạn, tự động chốt TIMED_OUT_GRADED và chấm điểm
+    if (attempt.status === 'IN_PROGRESS' && attempt.isAnswerTimeExpired(now)) {
+      const gracePeriodMs = 15000;
+      attempt.submit(now, gracePeriodMs);
+
+      if (snapshot?.frozenPayload?.questions) {
+        const scoreResult = AttemptScoringEngine.evaluate({
+          questions: snapshot.frozenPayload.questions,
+          answers: attempt.answers,
+          scoringPolicy: snapshot.frozenPayload.scoringPolicy,
+          passingScore: 0,
+        });
+        attempt.grade(scoreResult);
+      }
+
+      attempt.incrementVersion();
+      await this.attemptRepo.saveAttempt(attempt);
+    }
+
     return {
       attempt: attempt.toDTO(manifest),
       remainingTimeMs: attempt.remainingTimeMs(now),
@@ -51,3 +71,4 @@ export class GetAttemptUseCase {
     };
   }
 }
+

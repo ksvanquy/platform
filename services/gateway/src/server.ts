@@ -601,7 +601,7 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
 
   ensureServicesInitialized()
     .then(() => {
-      // Initialize attempt sweeper daemon once services are ready
+      // Attempt Sweeper Daemon: Chuyển sang cơ chế Lazy Timeout khi user truy vấn hoặc nộp bài
       try {
         const repo = getAttemptRepository();
         const examRepo = getExamRepository();
@@ -610,10 +610,12 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
             repo,
             new DirectExamClientAdapter(examRepo as any)
           );
-          attemptSweeperDaemonInstance.start(30000);
+          // Background polling DB mỗi 30s đã được tắt để tránh over-engineering và lãng phí I/O database.
+          // Thay vào đó, hệ thống áp dụng Lazy Timeout Evaluation ngay khi user truy vấn (GET /v1/attempts/:id) hoặc nộp bài.
+          console.log('⚡ [attempt] Lazy Timeout Evaluation active on query & submit. Background DB polling sweeper disabled.');
         }
       } catch (err: any) {
-        console.warn('⚠️ [attempt_db] Could not initialize sweeper daemon:', err?.message || err);
+        console.warn('⚠️ [attempt_db] Could not initialize sweeper adapter:', err?.message || err);
       }
     })
     .catch((err) => console.error('Error during PostgreSQL services verification:', err));
